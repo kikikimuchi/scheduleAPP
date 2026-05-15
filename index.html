@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="2026">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<title>2026 スケジュール</title>
+<style>
+:root{
+  --pink:#F4A6B5;--pink-soft:#FDEAEE;--pink-dk:#E88FA1;
+  --blue:#A8C8E8;--blue-soft:#E8F1FA;
+  --mint:#B5D4B5;--mint-soft:#EAF3EA;
+  --beige:#E5C495;--beige-soft:#F8EFE0;
+  --lav:#C8B5DB;--lav-soft:#F0EAFA;
+  --bg:#FAFAFA;--card:#FFFFFF;--ink:#0A0A0A;--ink-soft:#4A4A4A;--ink-mute:#8A8A8A;--ink-faint:#B8B8B8;
+  --bdr:rgba(0,0,0,0.08);--bdr-s:rgba(0,0,0,0.18);
+  --r:14px;--sh:0 2px 12px rgba(0,0,0,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html{height:100%;}
+body{font-family:"Futura","Avenir Next","Hiragino Sans","Yu Gothic Medium",system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100%;padding-bottom:calc(80px + env(safe-area-inset-bottom,34px));overflow-y:auto;-webkit-overflow-scrolling:touch;font-weight:500;}
+input,textarea,select{font-size:16px!important;}
+
+/* HEADER */
+#header{position:sticky;top:0;left:0;right:0;background:rgba(250,250,250,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--bdr);padding:14px 20px;z-index:100;display:flex;align-items:center;justify-content:space-between;}
+.hd-year{font-size:10px;letter-spacing:.22em;color:var(--ink-mute);margin-bottom:2px;}
+.hd-date{font-size:20px;font-weight:700;letter-spacing:.08em;}
+.hd-day{font-size:12px;color:var(--ink-soft);margin-left:6px;}
+.hd-left{text-align:right;}
+.hd-left-lbl{font-size:10px;color:var(--ink-mute);}
+.hd-left-num{font-size:22px;font-weight:700;line-height:1;}
+.hd-left-unit{font-size:11px;color:var(--ink-soft);margin-left:2px;}
+
+/* TAB BAR */
+#tabbar{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--bdr);display:flex;z-index:9999;padding-bottom:max(env(safe-area-inset-bottom,0px),12px);padding-top:10px;}
+.tb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:4px 2px;font-size:10px;color:var(--ink-faint);background:none;border:none;cursor:pointer;letter-spacing:.1em;font-weight:500;}
+.tb.on{color:var(--ink);}
+.tb.on::after{content:"";display:block;width:16px;height:1px;background:var(--pink);margin-top:2px;}
+.tb svg{width:18px;height:18px;stroke-width:1.5;}
+
+/* PAGES */
+.pg{display:none;padding:16px 14px 20px;max-width:600px;margin:0 auto;}
+.pg.on{display:block;}
+.pg-h{font-size:18px;font-weight:700;margin-bottom:16px;}
+
+/* COMMON */
+.card{background:var(--card);border:1px solid var(--bdr);border-radius:var(--r);padding:18px;margin-bottom:14px;}
+.fi{width:100%;padding:0 12px;height:44px;border:none;background:rgba(0,0,0,.04);border-radius:10px;color:var(--ink);outline:none;-webkit-appearance:none;appearance:none;line-height:44px;}
+.fi:focus{box-shadow:0 0 0 2px rgba(244,166,181,.4);}
+textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
+.fl{font-size:11px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;display:block;letter-spacing:.04em;}
+.fg{margin-bottom:14px;}
+.btn-pri{width:100%;padding:14px;border:none;border-radius:14px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;background:linear-gradient(135deg,var(--pink) 0%,var(--lav) 100%);box-shadow:0 4px 12px rgba(244,166,181,.3);letter-spacing:.04em;}
+.btn-pri:active{transform:scale(.98);}
+.btn-pri:disabled{opacity:.5;background:linear-gradient(135deg,var(--mint) 0%,var(--blue) 100%);}
+.btn-sec{padding:10px 16px;border:1px solid var(--bdr-s);border-radius:10px;background:transparent;color:var(--ink-soft);font-size:13px;cursor:pointer;}
+.btn-sec:active{transform:scale(.97);}
+
+/* LOADING */
+#loading-overlay{position:fixed;inset:0;background:rgba(250,250,250,.85);display:none;align-items:center;justify-content:center;z-index:99999;}
+#loading-overlay.on{display:flex;}
+.spinner{color:var(--ink-soft);font-size:13px;letter-spacing:.22em;animation:pulse 1.4s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:.4;}50%{opacity:1;}}
+
+/* DASHBOARD - mode + weight grid */
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+.mode-card{padding:14px;border-radius:14px;border:1px solid var(--bdr);background:#fff;text-align:left;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;min-height:120px;}
+.mode-card-icon{font-size:24px;}
+.mode-card-lbl{font-size:10px;color:var(--ink-mute);letter-spacing:.1em;margin-bottom:4px;}
+.mode-card-name{font-size:15px;font-weight:700;}
+.mode-card-desc{font-size:10px;color:var(--ink-mute);}
+
+/* MODE COLORS */
+.mc-normal{background:linear-gradient(135deg,#FCE4EC,#F8BBD0);}
+.mc-cafe{background:linear-gradient(135deg,#FFF3E0,#FFE0B2);}
+.mc-gym{background:linear-gradient(135deg,#E0F2F1,#B2DFDB);}
+.mc-shoot{background:linear-gradient(135deg,#FFE0B2,#FFCC80);}
+.mc-trip_work{background:linear-gradient(135deg,#E3F2FD,#BBDEFB);}
+.mc-trip_private{background:linear-gradient(135deg,#FCE4EC,#F48FB1);}
+.mc-recovery{background:linear-gradient(135deg,#F3E5F5,#E1BEE7);}
+.mc-rest{background:linear-gradient(135deg,#E0F7FA,#B2EBF2);}
+.mc-custom{background:linear-gradient(135deg,#EFEBE9,#D7CCC8);}
+
+/* TASKS */
+.task-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bdr);}
+.task-row:last-child{border-bottom:none;}
+.task-time{font-size:10px;color:var(--ink-mute);width:54px;letter-spacing:.04em;}
+.task-icon{font-size:16px;}
+.task-label{flex:1;font-size:13px;}
+.task-label.done{color:var(--ink-faint);text-decoration:line-through;}
+.task-check{width:18px;height:18px;border:1.5px solid var(--bdr-s);border-radius:5px;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;background:#fff;}
+.task-check.on{background:var(--pink);border-color:var(--pink);color:#fff;font-size:11px;font-weight:700;}
+
+/* MISSION CARD */
+.mission-card{background:#fff;border:1px solid var(--bdr);border-radius:14px;padding:14px;margin-bottom:12px;display:flex;align-items:center;gap:12px;}
+.mission-num{font-size:18px;font-weight:700;color:var(--pink);}
+.mission-bar{flex:1;height:6px;background:rgba(0,0,0,.05);border-radius:3px;overflow:hidden;}
+.mission-bar-fill{height:100%;background:linear-gradient(90deg,var(--pink),var(--lav));transition:width .3s;}
+
+/* SECTION HEADER */
+.sec-h{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;margin-bottom:12px;}
+.sec-h-icon{font-size:18px;}
+
+/* WAKE INPUT */
+.wake-input-row{display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.04);border-radius:10px;padding:0 12px;height:44px;margin-bottom:10px;}
+.wake-input-row .fi{background:transparent;padding:0;width:auto;flex:1;}
+.wake-shift-info{font-size:10px;color:var(--ink-mute);}
+
+/* NIGHT ROUTINE */
+.night-card{padding:16px;border-radius:14px;background:linear-gradient(135deg,#F0EAFA 0%,#FCEAF1 100%);border:1px solid rgba(0,0,0,.06);margin-bottom:12px;}
+.night-task{display:flex;align-items:center;gap:10px;padding:10px;background:rgba(255,255,255,.45);border-radius:10px;margin-bottom:6px;cursor:pointer;}
+.night-task.on{background:rgba(255,255,255,.75);}
+.night-task .task-label{font-size:12px;}
+
+/* MILESTONE */
+.ms-card{background:linear-gradient(135deg,var(--pink-soft) 0%,var(--lav-soft) 100%);border:1px solid rgba(0,0,0,.04);border-radius:14px;padding:12px 14px;margin-bottom:8px;cursor:pointer;}
+.ms-card.current{background:linear-gradient(135deg,var(--pink) 0%,var(--lav) 100%);color:#fff;}
+.ms-card.current .ms-sub{color:rgba(255,255,255,.85);}
+.ms-row{display:flex;justify-content:space-between;align-items:baseline;}
+.ms-month{font-size:14px;font-weight:700;}
+.ms-theme{font-size:11px;margin-left:6px;color:var(--ink-soft);}
+.ms-card.current .ms-theme{color:rgba(255,255,255,.9);}
+.ms-weight{font-size:14px;font-weight:700;}
+.ms-diff{font-size:10px;margin-left:4px;color:var(--ink-mute);}
+.ms-card.current .ms-diff{color:rgba(255,255,255,.8);}
+.ms-items{font-size:11px;color:var(--ink-soft);margin-top:3px;}
+.ms-card.current .ms-items{color:rgba(255,255,255,.9);}
+
+/* PROJECTS */
+.proj-card{background:#fff;border:1px solid var(--bdr);border-radius:14px;margin-bottom:10px;overflow:hidden;}
+.proj-head{padding:14px;cursor:pointer;display:flex;align-items:flex-start;justify-content:space-between;}
+.proj-name{font-size:15px;font-weight:700;}
+.proj-client{font-size:11px;color:var(--ink-soft);margin-top:2px;}
+.proj-progress{font-size:18px;font-weight:700;line-height:1;}
+.proj-progress-pct{font-size:10px;color:var(--ink-mute);}
+.proj-bar{height:3px;background:rgba(0,0,0,.05);margin:0 14px 8px;border-radius:1.5px;overflow:hidden;}
+.proj-bar-fill{height:100%;background:linear-gradient(90deg,var(--pink),var(--lav));transition:width .3s;}
+.proj-meta{padding:0 14px 12px;font-size:10px;color:var(--ink-soft);letter-spacing:.05em;}
+.proj-body{border-top:1px solid var(--bdr);padding:12px;}
+.ptask-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bdr);font-size:13px;}
+.ptask-row:last-child{border-bottom:none;}
+.ptask-check{width:18px;height:18px;border:1.5px solid var(--bdr-s);border-radius:5px;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;background:#fff;}
+.ptask-check.on{background:var(--pink);border-color:var(--pink);color:#fff;font-size:11px;font-weight:700;}
+.ptask-label{flex:1;}
+.ptask-label.done{color:var(--ink-faint);text-decoration:line-through;}
+
+/* PROGRESS HERO CARD */
+.hero-card{padding:18px;border-radius:14px;color:#fff;margin-bottom:14px;}
+.hero-pink{background:linear-gradient(135deg,var(--pink) 0%,var(--lav) 100%);}
+.hero-amber{background:linear-gradient(135deg,#FFB74D 0%,#FF8A65 100%);}
+.hero-blue{background:linear-gradient(135deg,#90CAF9 0%,#7986CB 100%);}
+.hero-purple{background:linear-gradient(135deg,var(--lav) 0%,#F48FB1 100%);}
+.hero-head{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
+.hero-icon{font-size:42px;}
+.hero-ttl{font-size:18px;font-weight:700;}
+.hero-sub{font-size:11px;color:rgba(255,255,255,.85);}
+.hero-pct{font-size:28px;font-weight:700;margin-left:auto;}
+.hero-bar{height:8px;background:rgba(255,255,255,.25);border-radius:4px;overflow:hidden;margin-bottom:8px;}
+.hero-bar-fill{height:100%;background:#fff;transition:width .3s;}
+.hero-stat{font-size:13px;color:rgba(255,255,255,.9);}
+
+/* MODE SELECTOR MODAL */
+.mode-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.mode-btn{aspect-ratio:1;border:1px solid var(--bdr);border-radius:14px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;padding:8px;}
+.mode-btn.on{border-color:var(--pink);}
+.mode-btn-icon{font-size:24px;}
+.mode-btn-lbl{font-size:11px;font-weight:600;text-align:center;line-height:1.2;}
+
+/* MODAL */
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:10000;align-items:center;justify-content:center;padding:16px;}
+.ov.on{display:flex;}
+.modal{background:#fff;border-radius:16px;width:100%;max-width:420px;max-height:85vh;overflow-y:auto;}
+.mhd{padding:18px;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:rgba(255,255,255,.95);backdrop-filter:blur(20px);z-index:2;}
+.mttl{font-size:15px;font-weight:700;}
+.mcl{background:none;border:1px solid var(--bdr-s);width:28px;height:28px;font-size:14px;cursor:pointer;color:var(--ink-soft);display:flex;align-items:center;justify-content:center;border-radius:6px;}
+.mbody{padding:18px;}
+
+/* TAB SWITCHES (sub-tabs inside pages) */
+.subtab-wrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:4px;background:rgba(255,255,255,.7);border:1px solid var(--bdr);border-radius:14px;padding:5px;margin-bottom:14px;}
+.subtab{padding:10px 4px;border:none;background:transparent;color:var(--ink-mute);font-size:11px;font-weight:600;letter-spacing:.1em;cursor:pointer;border-radius:10px;}
+.subtab.on{background:var(--pink-soft);color:var(--ink);}
+
+/* INSPIRATION GRID */
+.insp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px;}
+.insp-item{aspect-ratio:1;border-radius:10px;overflow:hidden;position:relative;cursor:pointer;}
+.insp-item img{width:100%;height:100%;object-fit:cover;}
+.insp-del{position:absolute;top:4px;right:4px;width:22px;height:22px;background:rgba(255,255,255,.85);backdrop-filter:blur(8px);border:none;border-radius:50%;cursor:pointer;font-size:12px;color:var(--ink-soft);display:flex;align-items:center;justify-content:center;}
+
+/* CALENDAR */
+.cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.cal-nav{width:32px;height:32px;border:1px solid var(--bdr);background:#fff;border-radius:8px;cursor:pointer;font-size:14px;}
+.cal-month{text-align:center;}
+.cal-year{font-size:10px;color:var(--ink-mute);letter-spacing:.2em;}
+.cal-mtxt{font-size:18px;font-weight:700;}
+.cal-week{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px;}
+.cal-wd{text-align:center;font-size:10px;color:var(--ink-mute);letter-spacing:.05em;padding:4px 0;}
+.cal-wd.sun{color:#E88FA1;}
+.cal-wd.sat{color:#A8C8E8;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+.cal-cell{aspect-ratio:1;border:1px solid var(--bdr);border-radius:8px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-size:11px;font-weight:600;padding:2px;}
+.cal-cell.empty{border:none;background:transparent;cursor:default;}
+.cal-cell.today{border-color:var(--pink);border-width:1.5px;}
+.cal-cell.past{opacity:.5;}
+.cal-cell-icon{font-size:13px;line-height:1;}
+
+/* SETTINGS GYM DAYS */
+.gym-days{display:flex;gap:4px;}
+.gym-day{flex:1;height:44px;border-radius:10px;border:1px solid var(--bdr);background:rgba(0,0,0,.03);cursor:pointer;font-weight:600;}
+.gym-day.on{background:linear-gradient(135deg,var(--mint) 0%,var(--blue) 100%);border-color:transparent;color:var(--ink);}
+
+/* DAY DETAIL MODAL header */
+.dd-h{padding:18px;border-bottom:1px solid var(--bdr);}
+.dd-date{font-size:20px;font-weight:700;}
+.dd-day{font-size:11px;color:var(--ink-soft);margin-left:6px;}
+.dd-mode-row{display:flex;align-items:center;gap:10px;margin-top:10px;}
+.dd-mode-ico{font-size:28px;}
+
+/* IMAGE UPLOAD */
+.upload-box{width:100%;aspect-ratio:1;border:1px solid var(--bdr-s);border-radius:12px;background:rgba(0,0,0,.03);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-soft);}
+.upload-box input{display:none;}
+.upload-preview{position:relative;}
+.upload-preview img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;}
+.upload-preview .del{position:absolute;top:6px;right:6px;width:30px;height:30px;background:rgba(255,255,255,.9);border:none;border-radius:50%;cursor:pointer;font-size:14px;}
+
+.flex-row{display:flex;gap:10px;}
+.flex-row > *{flex:1;}
+.text-mute{color:var(--ink-mute);}
+.text-center{text-align:center;}
+.empty-state{padding:40px 20px;text-align:center;color:var(--ink-mute);}
+.empty-state .em-ico{font-size:24px;opacity:.4;margin-bottom:8px;}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <div>
+    <div class="hd-year">— 2026 —</div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span></div>
+  </div>
+  <div class="hd-left">
+    <div class="hd-left-lbl">残り</div>
+    <div><span class="hd-left-num" id="hd-days">231</span><span class="hd-left-unit">日</span></div>
+  </div>
+</div>
+
+<!-- PAGE: TODAY -->
+<div class="pg on" id="pg-today">
+  <div class="dash-grid">
+    <button class="mode-card" id="mode-card" onclick="openModeSelector()">
+      <div>
+        <span class="mode-card-icon" id="mode-ico">🏠</span>
+        <span class="mode-card-lbl">モード ▼</span>
+      </div>
+      <div>
+        <div class="mode-card-name" id="mode-name">お家作業日</div>
+        <div class="mode-card-desc" id="mode-desc">在宅編集・通常運転</div>
+      </div>
+    </button>
+    <button class="mode-card" onclick="openWeightInput()">
+      <div>
+        <span class="mode-card-lbl">↘ 体重 / 体脂肪</span>
+      </div>
+      <div>
+        <div class="mode-card-name"><span id="w-kg">83.0</span><span style="font-size:11px;color:var(--ink-soft)">kg</span></div>
+        <div class="mode-card-desc" id="w-bf">体脂肪未記録</div>
+        <div class="mode-card-desc" id="w-rem">目標まで 15.0kg ▶ 記録</div>
+      </div>
+    </button>
+  </div>
+
+  <div class="mission-card">
+    <span style="font-size:18px;">🏆</span>
+    <div style="flex:1;">
+      <div style="font-size:11px;color:var(--ink-mute);letter-spacing:.05em;">ミッション</div>
+      <div class="mission-num"><span id="mission-done">0</span>/<span id="mission-total">7</span></div>
+    </div>
+    <div class="mission-bar"><div class="mission-bar-fill" id="mission-bar" style="width:0%"></div></div>
+  </div>
+
+  <div class="card">
+    <div class="sec-h"><span class="sec-h-icon">🕐</span>タイムスケジュール</div>
+    <div style="font-size:10px;color:var(--ink-mute);margin-bottom:10px;">起床時刻を入れると全体がシフトします</div>
+    <div class="wake-input-row">
+      <span style="font-size:14px;">☀️</span>
+      <span style="font-size:11px;color:var(--ink-soft);font-weight:600;">起床時刻</span>
+      <input type="time" class="fi" id="wake-input" oninput="onWakeTimeChange()">
+    </div>
+    <div id="task-list"></div>
+    <div style="margin-top:14px;display:flex;gap:8px;">
+      <input type="time" class="fi" id="custom-task-time" style="flex:0 0 110px;">
+      <input type="text" class="fi" id="custom-task-label" placeholder="タスク追加" style="flex:1;">
+      <button class="btn-sec" onclick="addCustomTask()">＋</button>
+    </div>
+  </div>
+
+  <div class="night-card">
+    <div class="sec-h"><span class="sec-h-icon">🌙</span>寝る前ルーティン <span style="margin-left:auto;font-size:10px;color:var(--ink-soft);" id="night-count">0/6</span></div>
+    <div id="night-list"></div>
+  </div>
+
+  <div class="card">
+    <div class="sec-h"><span class="sec-h-icon">🎯</span>年末ゴールへの進捗</div>
+    <div id="end-of-year-progress"></div>
+  </div>
+
+  <div class="card">
+    <div class="sec-h" style="justify-content:space-between;display:flex;">
+      <div><span class="sec-h-icon">📅</span>月別マイルストーン</div>
+      <span style="font-size:10px;color:var(--ink-mute);">タップで編集</span>
+    </div>
+    <div id="milestone-list"></div>
+  </div>
+</div>
+
+<!-- PAGE: PROJECTS -->
+<div class="pg" id="pg-projects">
+  <div class="dash-grid">
+    <div class="card" style="margin-bottom:0;">
+      <div style="font-size:10px;color:var(--ink-mute);letter-spacing:.1em;">進行中</div>
+      <div style="font-size:24px;font-weight:700;line-height:1.2;" id="proj-active-count">0</div>
+      <div style="font-size:10px;color:var(--ink-soft);">案件数</div>
+    </div>
+    <div class="card" style="margin-bottom:0;">
+      <div style="font-size:10px;color:var(--ink-mute);letter-spacing:.1em;">未完了</div>
+      <div style="font-size:24px;font-weight:700;line-height:1.2;" id="proj-task-count">0</div>
+      <div style="font-size:10px;color:var(--ink-soft);">タスク数</div>
+    </div>
+  </div>
+
+  <div class="card" id="all-tasks-card" style="display:none;">
+    <div class="sec-h" style="display:flex;justify-content:space-between;">
+      <div>現在のタスク一覧</div>
+      <span style="font-size:11px;color:var(--ink-soft);" id="all-tasks-count">0件</span>
+    </div>
+    <div id="all-tasks-list"></div>
+  </div>
+
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
+    <div class="subtab-wrap" style="flex:1;margin-bottom:0;display:grid;grid-template-columns:1fr 1fr 1fr;">
+      <button class="subtab on" onclick="setProjFilter('active')" data-pf="active">進行中</button>
+      <button class="subtab" onclick="setProjFilter('done')" data-pf="done">完了</button>
+      <button class="subtab" onclick="setProjFilter('all')" data-pf="all">すべて</button>
+    </div>
+    <button class="btn-pri" style="width:auto;padding:14px 20px;" onclick="openProjectAdd()">＋ 追加</button>
+  </div>
+
+  <div id="project-list"></div>
+</div>
+
+<!-- PAGE: PROGRESS -->
+<div class="pg" id="pg-progress">
+  <div class="subtab-wrap" style="grid-template-columns:repeat(5,1fr);">
+    <button class="subtab on" onclick="setProgressTab('production')" data-pgt="production">🎬<br>自主制作</button>
+    <button class="subtab" onclick="setProgressTab('long')" data-pgt="long">🎥<br>YT長尺</button>
+    <button class="subtab" onclick="setProgressTab('short')" data-pgt="short">📱<br>ショート</button>
+    <button class="subtab" onclick="setProgressTab('van')" data-pgt="van">🚗<br>軽バン</button>
+    <button class="subtab" onclick="setProgressTab('hair')" data-pgt="hair">✨<br>脱毛</button>
+  </div>
+  <div id="progress-content"></div>
+</div>
+
+<!-- PAGE: CALENDAR -->
+<div class="pg" id="pg-calendar">
+  <div class="text-center" style="margin-bottom:14px;">
+    <div style="font-size:10px;letter-spacing:.4em;color:var(--ink-mute);">— 予定 —</div>
+    <div style="font-size:22px;font-weight:700;margin-top:2px;">予定</div>
+  </div>
+  
+  <div class="subtab-wrap" style="grid-template-columns:1fr 1fr;">
+    <button class="subtab on" onclick="setCalTab('plan')" data-ct="plan">配分</button>
+    <button class="subtab" onclick="setCalTab('google')" data-ct="google">カレンダー</button>
+  </div>
+  
+  <div id="cal-plan-tab">
+    <div class="card">
+      <div class="cal-head">
+        <button class="cal-nav" onclick="calMonth(-1)">‹</button>
+        <div class="cal-month">
+          <div class="cal-year" id="cal-year">— 2026 —</div>
+          <div class="cal-mtxt" id="cal-mtxt">5月</div>
+        </div>
+        <button class="cal-nav" onclick="calMonth(1)">›</button>
+      </div>
+      <div class="cal-week" id="cal-week"></div>
+      <div class="cal-grid" id="cal-grid"></div>
+      <div style="font-size:10px;color:var(--ink-mute);margin-top:12px;text-align:center;">日付タップ → モード設定 / スケジュール確認</div>
+    </div>
+    
+    <div class="card">
+      <div class="sec-h">残り<span id="alloc-days-left">231</span>日の配分</div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">
+        <div style="border:1px solid var(--bdr);border-radius:10px;padding:14px;">
+          <div style="font-size:10px;color:var(--ink-mute);letter-spacing:.1em;">仕事</div>
+          <div style="font-size:24px;font-weight:700;" id="alloc-work">0</div>
+        </div>
+        <div style="border:1px solid var(--bdr);border-radius:10px;padding:14px;">
+          <div style="font-size:10px;color:var(--ink-mute);letter-spacing:.1em;">自主制作</div>
+          <div style="font-size:24px;font-weight:700;" id="alloc-prod">0</div>
+        </div>
+        <div style="border:1px solid var(--bdr);border-radius:10px;padding:14px;">
+          <div style="font-size:10px;color:var(--ink-mute);letter-spacing:.1em;">休息</div>
+          <div style="font-size:24px;font-weight:700;" id="alloc-rest">0</div>
+        </div>
+        <div style="border:1px solid var(--bdr);border-radius:10px;padding:14px;">
+          <div style="font-size:10px;color:var(--ink-mute);letter-spacing:.1em;">未設定</div>
+          <div style="font-size:24px;font-weight:700;color:var(--ink-mute);" id="alloc-unset">231</div>
+        </div>
+      </div>
+    </div>
+    
+    <button class="btn-sec" onclick="fillWeekendsRest()" style="width:100%;padding:14px;background:rgba(255,255,255,.7);border:1px solid var(--bdr-s);">今月の土日を全部「休息日」に</button>
+  </div>
+  
+  <div id="cal-google-tab" style="display:none;">
+    <div class="card">
+      <div style="font-size:11px;color:var(--ink-soft);margin-bottom:10px;">Googleカレンダーの公開URLを貼り付けてください</div>
+      <input type="text" class="fi" id="gcal-url" placeholder="https://calendar.google.com/calendar/embed?src=...">
+      <button class="btn-pri" style="margin-top:10px;" onclick="saveGcalUrl()">保存</button>
+    </div>
+    <div id="gcal-frame-wrap"></div>
+  </div>
+</div>
+
+<!-- PAGE: IDEAL -->
+<div class="pg" id="pg-ideal">
+  <div class="subtab-wrap" style="grid-template-columns:repeat(3,1fr);">
+    <button class="subtab on" onclick="setIdealTab('weight')" data-it="weight">⚖️ 体重</button>
+    <button class="subtab" onclick="setIdealTab('food')" data-it="food">🍱 食事</button>
+    <button class="subtab" onclick="setIdealTab('wardrobe')" data-it="wardrobe">👕 服飾</button>
+  </div>
+  <div id="ideal-content"></div>
+  
+  <div class="card" style="margin-top:14px;padding:0;overflow:hidden;">
+    <div style="padding:12px 18px;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-size:10px;letter-spacing:.22em;color:var(--ink-mute);">— インスピレーション —</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span style="font-size:10px;color:var(--ink-mute);" id="insp-count">0枚</span>
+        <button class="btn-sec" style="padding:4px 10px;font-size:16px;" onclick="openInspirationAdd()">＋</button>
+      </div>
+    </div>
+    <div id="inspiration-content"></div>
+  </div>
+</div>
+
+<!-- PAGE: SETTINGS -->
+<div class="pg" id="pg-settings">
+  <div style="background:linear-gradient(135deg,var(--pink) 0%,var(--lav) 100%);border-radius:14px;padding:18px;color:#fff;margin-bottom:14px;">
+    <div style="font-size:18px;font-weight:700;">⚙ 設定</div>
+    <div style="font-size:11px;opacity:.9;margin-top:4px;">目標値や曜日を調整</div>
+  </div>
+  
+  <div class="card">
+    <div style="font-size:14px;font-weight:700;margin-bottom:10px;">体重</div>
+    <div class="flex-row">
+      <div><label class="fl">スタート (kg)</label><input class="fi no-spinner" type="number" id="s-start-weight" step="0.1"></div>
+      <div><label class="fl">目標 (kg)</label><input class="fi no-spinner" type="number" id="s-target-weight" step="0.1"></div>
+    </div>
+    
+    <div style="font-size:14px;font-weight:700;margin:14px 0 10px;">体脂肪率</div>
+    <div class="flex-row">
+      <div><label class="fl">スタート (%)</label><input class="fi no-spinner" type="number" id="s-start-bf" step="0.1"></div>
+      <div><label class="fl">目標 (%)</label><input class="fi no-spinner" type="number" id="s-target-bf" step="0.1"></div>
+    </div>
+    
+    <div style="font-size:14px;font-weight:700;margin:14px 0 10px;">YouTube目標本数</div>
+    <div class="flex-row">
+      <div><label class="fl">長尺 (本)</label><input class="fi no-spinner" type="number" id="s-yt-long"></div>
+      <div><label class="fl">ショート (本)</label><input class="fi no-spinner" type="number" id="s-yt-short"></div>
+    </div>
+    
+    <div class="fg" style="margin-top:14px;">
+      <label class="fl">軽バン予算 (円)</label>
+      <input class="fi no-spinner" type="number" id="s-van-budget">
+    </div>
+    
+    <div style="font-size:14px;font-weight:700;margin:14px 0 10px;">ジム曜日 (タップで選択)</div>
+    <div class="gym-days" id="gym-days"></div>
+    
+    <div class="flex-row" style="margin-top:14px;">
+      <div><label class="fl">起床時刻</label><input class="fi" type="time" id="s-wake-time"></div>
+      <div><label class="fl">目標睡眠 (h)</label><input class="fi no-spinner" type="number" step="0.5" id="s-sleep-hours" inputmode="decimal"></div>
+    </div>
+    
+    <button class="btn-pri" id="settings-save-btn" style="margin-top:18px;" onclick="saveSettings()">保存</button>
+  </div>
+</div>
+
+<!-- TABBAR -->
+<nav id="tabbar">
+  <button class="tb on" data-tb="today" onclick="setTab('today')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l-2.34 4.74L4 8.86l4.17 4.06L7.18 18.91 12 16.27l4.82 2.64-.99-5.99L20 8.86l-5.66-1.12L12 3z"/></svg>
+    今日
+  </button>
+  <button class="tb" data-tb="projects" onclick="setTab('projects')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>
+    案件
+  </button>
+  <button class="tb" data-tb="progress" onclick="setTab('progress')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="12 2 15 8.5 22 9.5 17 14.5 18.2 21.5 12 18 5.8 21.5 7 14.5 2 9.5 9 8.5"/></svg>
+    進捗
+  </button>
+  <button class="tb" data-tb="calendar" onclick="setTab('calendar')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+    予定
+  </button>
+  <button class="tb" data-tb="ideal" onclick="setTab('ideal')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/></svg>
+    理想
+  </button>
+  <button class="tb" data-tb="settings" onclick="setTab('settings')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    設定
+  </button>
+</nav>
+
+<!-- LOADING -->
+<div id="loading-overlay"><span class="spinner">読み込み中...</span></div>
+
+<!-- MODAL CONTAINERS -->
+<div class="ov" id="ov-mode"><div class="modal"><div class="mhd"><div class="mttl">モード変更</div><button class="mcl" onclick="closeModal('ov-mode')">×</button></div><div class="mbody"><div class="mode-grid" id="mode-grid-container"></div></div></div></div>
+<div class="ov" id="ov-weight"><div class="modal"><div class="mhd"><div class="mttl">体重を記録</div><button class="mcl" onclick="closeModal('ov-weight')">×</button></div><div class="mbody"><div class="fg"><label class="fl">体重 (kg)</label><input class="fi no-spinner" type="number" step="0.1" id="w-input-kg" inputmode="decimal"></div><div class="fg"><label class="fl">体脂肪率 (%) 任意</label><input class="fi no-spinner" type="number" step="0.1" id="w-input-bf" inputmode="decimal"></div><button class="btn-pri" onclick="saveWeight()">記録</button></div></div></div>
+<div class="ov" id="ov-daydetail"><div class="modal"><div class="dd-h"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:10px;letter-spacing:.2em;color:var(--ink-mute);">— その日の記録 —</div><div><span class="dd-date" id="dd-date"></span><span class="dd-day" id="dd-day"></span></div></div><button class="mcl" onclick="closeModal('ov-daydetail')">×</button></div><div class="dd-mode-row"><span class="dd-mode-ico" id="dd-mode-ico"></span><div style="flex:1;"><div style="font-size:10px;color:var(--ink-mute);">モード</div><div style="font-size:14px;font-weight:700;" id="dd-mode-name"></div><div style="font-size:10px;color:var(--ink-mute);" id="dd-mode-desc"></div></div><div style="text-align:right;"><div style="font-size:10px;color:var(--ink-mute);">起床</div><div style="font-size:14px;font-weight:700;" id="dd-wake"></div></div></div></div><div class="subtab-wrap" style="margin:14px 18px 0;grid-template-columns:1fr 1fr;"><button class="subtab on" id="dd-tab-mode" onclick="setDayDetailTab('mode')">モード変更</button><button class="subtab" id="dd-tab-sch" onclick="setDayDetailTab('schedule')">スケジュール</button></div><div class="mbody" id="dd-body"></div></div></div>
+<div class="ov" id="ov-milestone"><div class="modal"><div class="mhd"><div class="mttl"><span id="ms-edit-month"></span>のマイルストーン</div><button class="mcl" onclick="closeModal('ov-milestone')">×</button></div><div class="mbody"><div class="fg"><label class="fl">テーマ</label><input class="fi" type="text" id="ms-edit-theme"></div><div class="fg"><label class="fl">内容 (・区切り)</label><textarea class="fi" id="ms-edit-items" rows="3"></textarea></div><div class="fg"><label class="fl">目標体重 (kg)</label><input class="fi no-spinner" type="number" step="0.1" id="ms-edit-weight"></div><button class="btn-pri" onclick="saveMilestone()">保存</button></div></div></div>
+<div class="ov" id="ov-project-add"><div class="modal"><div class="mhd"><div class="mttl">案件を追加</div><button class="mcl" onclick="closeModal('ov-project-add')">×</button></div><div class="mbody"><div class="fg"><label class="fl">案件名 *</label><input class="fi" type="text" id="pa-name"></div><div class="fg"><label class="fl">クライアント</label><input class="fi" type="text" id="pa-client"></div><div class="fg"><label class="fl">締切</label><input class="fi" type="date" id="pa-deadline"></div><div class="fg"><label class="fl">メモ</label><textarea class="fi" id="pa-note" rows="3"></textarea></div><button class="btn-pri" onclick="saveNewProject()">案件を追加</button></div></div></div>
+<div class="ov" id="ov-insp-add"><div class="modal"><div class="mhd"><div class="mttl">画像を追加</div><button class="mcl" onclick="closeModal('ov-insp-add')">×</button></div><div class="mbody"><div id="insp-upload-zone"></div><input class="fi" type="text" id="insp-credit" placeholder="クレジット (任意)" style="margin-top:12px;"><button class="btn-pri" id="insp-save-btn" disabled style="margin-top:12px;" onclick="saveInspiration()">追加</button></div></div></div>
+<div class="ov" id="ov-image-view" onclick="closeModal('ov-image-view')"><div style="position:relative;max-width:90vw;max-height:80vh;" onclick="event.stopPropagation()"><img id="img-view-src" style="max-width:100%;max-height:80vh;object-fit:contain;border-radius:12px;"><button class="mcl" style="position:absolute;top:10px;right:10px;background:rgba(255,255,255,.95);" onclick="closeModal('ov-image-view')">×</button></div></div>
+
+<!-- spinner CSS for no-spinner inputs -->
+<style>
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+.no-spinner{-moz-appearance:textfield;}
+</style>
+
+<script type="module">
+// ============= FIREBASE =============
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.7.1/firebase-app.js";
+import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC4kuVMrD1iKBxsX8V12n8OHzPBW2xA0Ew",
+  authDomain: "keiriauto-6f8f1.firebaseapp.com",
+  projectId: "keiriauto-6f8f1",
+  storageBucket: "keiriauto-6f8f1.firebasestorage.app",
+  messagingSenderId: "796610783894",
+  appId: "1:796610783894:web:017da7e1949574090cf0b7"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// Collections (経理アプリと完全分離、prefix付き)
+const COL = {
+  meta: collection(db, 'schedule_meta'),
+  weights: collection(db, 'schedule_weights'),
+  dayModes: collection(db, 'schedule_dayModes'),
+  wakeTimes: collection(db, 'schedule_wakeTimes'),
+  todayChecks: collection(db, 'schedule_todayChecks'),
+  nightChecks: collection(db, 'schedule_nightChecks'),
+  customTasks: collection(db, 'schedule_customTasks'),
+  projects: collection(db, 'schedule_projects'),
+  milestones: collection(db, 'schedule_milestones'),
+  motivations: collection(db, 'schedule_motivations'),
+  productionTasks: collection(db, 'schedule_productionTasks'),
+  youtubeLong: collection(db, 'schedule_youtubeLong'),
+  youtubeShort: collection(db, 'schedule_youtubeShort'),
+  savings: collection(db, 'schedule_savings'),
+  hairRemoval: collection(db, 'schedule_hairRemoval'),
+};
+
+// =================== CACHE ===================
+window.cache = {
+  settings: { startWeight:83, targetWeight:68, startBodyFat:25, targetBodyFat:18, youtubeLongTarget:15, youtubeShortTarget:30, vanBudget:400000, gymDays:['月','木'], wakeTime:'10:00', targetSleepHours:8, calendarEmbedUrl:'' },
+  weights: [],
+  dayModes: {},  // {'2026-05-14': 'normal'}
+  wakeTimes: {}, // {'2026-05-14': '11:00'}
+  todayChecks: {}, // {'2026-05-14_wake': true}
+  nightChecks: {}, // {'2026-05-14_teeth': true}
+  customTasks: {}, // {'2026-05-14': [{id,time,label}]}
+  projects: [], // [{id, name, client, deadline, status, note, tasks:[]}]
+  milestones: [],
+  motivations: [], // [{id, imageData, credit}]
+  productionTasks: [],
+  youtubeLong: [],
+  youtubeShort: [],
+  savings: [],
+  hairRemoval: { beard:0, fullBody:0 },
+};
+
+window.DEFAULT_MILESTONES = [
+  { m:'5月', t:'助走', items:'生活リズム矯正・軽バンリサーチ・髭脱毛準備', targetWeight:83 },
+  { m:'6月', t:'本格スタート', items:'髭脱毛1回目・YouTube開設', targetWeight:81 },
+  { m:'7月', t:'YouTube始動', items:'軽バン購入・DIY1本目', targetWeight:79 },
+  { m:'8月', t:'夏', items:'車中泊撮影・髭3回目', targetWeight:77 },
+  { m:'9月', t:'デッドライン', items:'軽バン必達・自主制作ラスト準備', targetWeight:75 },
+  { m:'10月', t:'山場', items:'全身脱毛開始・自主制作山場', targetWeight:73 },
+  { m:'11月', t:'追い込み', items:'自主制作 第1版完成', targetWeight:71 },
+  { m:'12月', t:'完成', items:'自主制作 完成投稿', targetWeight:68 },
+];
+
+window.MODES = {
+  normal:{ label:'お家作業日', icon:'🏠', desc:'在宅編集・通常運転', category:'work', cls:'mc-normal' },
+  cafe:{ label:'カフェ作業日', icon:'☕', desc:'朝ジム→カフェ編集', category:'work', cls:'mc-cafe' },
+  gym:{ label:'ジム→編集日', icon:'💪', desc:'朝ジム→在宅編集', category:'work', cls:'mc-gym' },
+  shoot:{ label:'撮影日', icon:'📷', desc:'日帰り撮影', category:'work', cls:'mc-shoot' },
+  trip_work:{ label:'出張撮影', icon:'✈️', desc:'宿泊撮影', category:'work', cls:'mc-trip_work' },
+  trip_private:{ label:'自主制作日', icon:'🎬', desc:'自主制作にあてる', category:'production', cls:'mc-trip_private' },
+  recovery:{ label:'寝込み・回復日', icon:'🛌', desc:'撮影後の回復', category:'rest', cls:'mc-recovery' },
+  rest:{ label:'休息日', icon:'🌴', desc:'プライベート・有休', category:'rest', cls:'mc-rest' },
+  custom:{ label:'イレギュラー', icon:'🎲', desc:'自分でカスタム', category:'work', cls:'mc-custom' },
+};
+window.MODE_KEYS = ['normal','cafe','gym','shoot','trip_work','trip_private','recovery','rest','custom'];
+
+// Mode別タスク定義
+window.MODE_TASKS = {
+  normal:[
+    { key:'wake', time:'10:00', label:'起床 + カーテンを開く', icon:'☀️' },
+    { key:'breakfast', time:'10:30', label:'朝食・水分補給', icon:'🥣' },
+    { key:'edit_morning', time:'11:00', label:'午前 編集', icon:'✂️' },
+    { key:'lunch_walk', time:'13:00', label:'昼食・散歩', icon:'🥗' },
+    { key:'edit_afternoon', time:'14:00', label:'午後 編集', icon:'🎞️' },
+    { key:'self_production', time:'18:00', label:'自主制作', icon:'🎬' },
+    { key:'dinner', time:'19:30', label:'夕食', icon:'🍽️' },
+  ],
+  cafe:[
+    { key:'wake', time:'08:00', label:'起床 + カーテンを開く', icon:'☀️' },
+    { key:'gym', time:'09:00', label:'ジム (自主)', icon:'💪' },
+    { key:'cafe_move', time:'10:30', label:'カフェ移動', icon:'☕' },
+    { key:'edit_morning', time:'11:00', label:'午前 編集', icon:'✂️' },
+    { key:'lunch_walk', time:'13:00', label:'昼食・散歩', icon:'🥗' },
+    { key:'edit_afternoon', time:'14:00', label:'午後 編集', icon:'🎞️' },
+    { key:'self_production', time:'18:00', label:'自主制作', icon:'🎬' },
+    { key:'dinner', time:'19:30', label:'夕食', icon:'🍽️' },
+  ],
+  gym:[
+    { key:'wake', time:'08:00', label:'起床 + カーテンを開く', icon:'☀️' },
+    { key:'gym', time:'09:00', label:'ジム (自主)', icon:'💪' },
+    { key:'edit_morning', time:'11:00', label:'午前 編集', icon:'✂️' },
+    { key:'lunch_walk', time:'13:00', label:'昼食・散歩', icon:'🥗' },
+    { key:'edit_afternoon', time:'14:00', label:'午後 編集', icon:'🎞️' },
+    { key:'self_production', time:'18:00', label:'自主制作', icon:'🎬' },
+    { key:'dinner', time:'19:30', label:'夕食', icon:'🍽️' },
+  ],
+  shoot:[
+    { key:'wake', time:'06:00', label:'起床 + カーテンを開く', icon:'☀️' },
+    { key:'prep', time:'07:00', label:'機材準備・出発', icon:'📦' },
+    { key:'shoot', time:'09:00', label:'撮影', icon:'🎥' },
+    { key:'lunch', time:'12:30', label:'昼食', icon:'🍱' },
+    { key:'shoot_pm', time:'14:00', label:'撮影 (午後)', icon:'🎬' },
+    { key:'return', time:'18:00', label:'撤収・帰宅', icon:'🏠' },
+  ],
+  trip_work:[
+    { key:'wake', time:'07:00', label:'起床 + カーテンを開く', icon:'☀️' },
+    { key:'shoot', time:'09:00', label:'撮影', icon:'🎥' },
+    { key:'shoot_pm', time:'14:00', label:'撮影 (午後)', icon:'🎬' },
+    { key:'log', time:'21:00', label:'素材整理・記録', icon:'📝' },
+  ],
+  trip_private:[
+    { key:'wake', time:'09:00', label:'起床 + カーテンを開く', icon:'☀️' },
+    { key:'production_morning', time:'10:00', label:'自主制作 (午前)', icon:'🎬' },
+    { key:'lunch', time:'13:00', label:'昼食', icon:'🍱' },
+    { key:'production_afternoon', time:'14:00', label:'自主制作 (午後)', icon:'🎥' },
+    { key:'review', time:'19:00', label:'振り返り', icon:'📝' },
+  ],
+  recovery:[
+    { key:'wake_natural', time:'自然起床', label:'自然に起床 (無理しない)', icon:'😴' },
+    { key:'hydrate', time:'随時', label:'水分・タンパク質', icon:'💧' },
+    { key:'rest_full', time:'終日', label:'完全休息', icon:'🛌' },
+  ],
+  rest:[
+    { key:'wake', time:'自然起床', label:'自然に起床', icon:'☀️' },
+    { key:'enjoy', time:'随時', label:'好きなことをする', icon:'🌴' },
+  ],
+  custom:[],
+};
+
+// =================== UTILS ===================
+function getTodayDateString(){
+  const now = new Date();
+  if(now.getHours() < 5){ now.setDate(now.getDate()-1); }
+  const y = now.getFullYear();
+  const m = String(now.getMonth()+1).padStart(2,'0');
+  const d = String(now.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
+}
+window.getTodayDateString = getTodayDateString;
+function parseTime(s){ const m = (s||'').match(/^(\d{1,2}):(\d{2})/); if(!m) return null; return +m[1]*60 + +m[2]; }
+function fmtTime(mins){ const h = Math.floor(mins/60)%24; const m = mins%60; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`; }
+function adjustTime(orig, shiftMin){
+  if(!shiftMin) return orig;
+  if(!orig) return orig;
+  const range = orig.match(/^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/);
+  if(range){ const t1=parseTime(range[1]), t2=parseTime(range[2]); if(t1!==null&&t2!==null) return `${fmtTime(t1+shiftMin)}-${fmtTime(t2+shiftMin)}`; }
+  const arrow = orig.match(/^〜(\d{1,2}:\d{2})$/);
+  if(arrow){ const t=parseTime(arrow[1]); if(t!==null) return `〜${fmtTime(t+shiftMin)}`; }
+  const b = parseTime(orig); if(b===null) return orig;
+  return fmtTime(b+shiftMin);
+}
+window.adjustTime = adjustTime; window.parseTime = parseTime;
+
+async function compressImage(file, maxSize=1200, quality=0.8){
+  return new Promise((resolve, reject)=>{
+    const r = new FileReader();
+    r.onload = e=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+        if(width > height && width > maxSize){ height *= maxSize/width; width = maxSize; }
+        else if(height > maxSize){ width *= maxSize/height; height = maxSize; }
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+window.compressImage = compressImage;
+
+function showLoading(on){ document.getElementById('loading-overlay').classList.toggle('on', on); }
+window.showLoading = showLoading;
+function $(id){ return document.getElementById(id); }
+window.$ = $;
+function openModal(id){ $(id).classList.add('on'); }
+function closeModal(id){ $(id).classList.remove('on'); }
+window.openModal = openModal; window.closeModal = closeModal;
+
+// =================== LOAD ===================
+async function loadAll(){
+  showLoading(true);
+  try{
+    const tasks = [];
+    
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.meta);
+      snap.docs.forEach(d=>{
+        if(d.id==='settings') Object.assign(cache.settings, d.data());
+        if(d.id==='hairRemoval') cache.hairRemoval = d.data();
+      });
+    })());
+    
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.weights);
+      cache.weights = snap.docs.map(d=>d.data()).sort((a,b)=>a.date.localeCompare(b.date));
+    })());
+    
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.dayModes);
+      snap.docs.forEach(d=>{ cache.dayModes[d.id] = d.data().mode; });
+    })());
+    
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.wakeTimes);
+      snap.docs.forEach(d=>{ cache.wakeTimes[d.id] = d.data().time; });
+    })());
+    
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.todayChecks);
+      snap.docs.forEach(d=>{ cache.todayChecks[d.id] = true; });
+    })());
+    
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.nightChecks);
+      snap.docs.forEach(d=>{ cache.nightChecks[d.id] = true; });
+    })());
+    
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.customTasks);
+      snap.docs.forEach(d=>{ cache.customTasks[d.id] = d.data().tasks || []; });
+    })());
+    
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.projects);
+      cache.projects = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    })());
+    
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.milestones);
+      if(snap.docs.length === 0){
+        cache.milestones = [...DEFAULT_MILESTONES];
+      } else {
+        const arr = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+        arr.sort((a,b)=>parseInt(a.m)-parseInt(b.m));
+        cache.milestones = arr;
+      }
+    })());
+    
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.motivations);
+      cache.motivations = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    })());
+    
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.productionTasks);
+      cache.productionTasks = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    })());
+    
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.youtubeLong);
+      cache.youtubeLong = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    })());
+    
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.youtubeShort);
+      cache.youtubeShort = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    })());
+    
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.savings);
+      cache.savings = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    })());
+    
+    await Promise.all(tasks);
+  } catch(e){ console.error(e); alert('データ読み込みエラー: '+e.message); }
+  showLoading(false);
+}
+
+// =================== SAVE ===================
+window.saveSetting = async (key, value)=>{
+  cache.settings[key] = value;
+  await setDoc(doc(COL.meta,'settings'), cache.settings);
+};
+window.saveAllSettings = async ()=>{
+  await setDoc(doc(COL.meta,'settings'), cache.settings);
+};
+window.saveDayMode = async (date, mode)=>{
+  if(mode){ cache.dayModes[date] = mode; await setDoc(doc(COL.dayModes,date), {mode}); }
+  else { delete cache.dayModes[date]; await deleteDoc(doc(COL.dayModes,date)); }
+};
+window.saveWakeTime = async (date, time)=>{
+  if(time){ cache.wakeTimes[date] = time; await setDoc(doc(COL.wakeTimes,date), {time}); }
+  else { delete cache.wakeTimes[date]; await deleteDoc(doc(COL.wakeTimes,date)); }
+};
+window.toggleTodayCheck = async (key)=>{
+  if(cache.todayChecks[key]){ delete cache.todayChecks[key]; await deleteDoc(doc(COL.todayChecks,key)); }
+  else { cache.todayChecks[key] = true; await setDoc(doc(COL.todayChecks,key), {v:true}); }
+};
+window.toggleNightCheck = async (key)=>{
+  if(cache.nightChecks[key]){ delete cache.nightChecks[key]; await deleteDoc(doc(COL.nightChecks,key)); }
+  else { cache.nightChecks[key] = true; await setDoc(doc(COL.nightChecks,key), {v:true}); }
+};
+window.saveWeightEntry = async (weight, bodyFat)=>{
+  const date = getTodayDateString();
+  cache.weights = cache.weights.filter(w=>w.date !== date);
+  const entry = { date, weight: parseFloat(weight) };
+  if(bodyFat && !isNaN(parseFloat(bodyFat))) entry.bodyFat = parseFloat(bodyFat);
+  cache.weights.push(entry);
+  cache.weights.sort((a,b)=>a.date.localeCompare(b.date));
+  await setDoc(doc(COL.weights,date), entry);
+};
+window.saveProjectFB = async (p)=>{ await setDoc(doc(COL.projects, String(p.id)), p); };
+window.deleteProjectFB = async (id)=>{ await deleteDoc(doc(COL.projects, String(id))); };
+window.saveMilestoneFB = async (ms)=>{ await setDoc(doc(COL.milestones, ms.m), ms); };
+window.saveMotivationFB = async (m)=>{ await setDoc(doc(COL.motivations, String(m.id)), m); };
+window.deleteMotivationFB = async (id)=>{ await deleteDoc(doc(COL.motivations, String(id))); };
+window.saveCustomTasksFB = async (date, tasks)=>{
+  if(tasks.length===0){ delete cache.customTasks[date]; await deleteDoc(doc(COL.customTasks,date)); }
+  else { cache.customTasks[date] = tasks; await setDoc(doc(COL.customTasks,date), {tasks}); }
+};
+// 汎用 setDoc / deleteDoc (collection名指定)
+window.setDocImport = async (colName, data)=>{
+  const c = COL[colName];
+  if(!c) throw new Error('Unknown col '+colName);
+  await setDoc(doc(c, String(data.id)), data);
+};
+window.deleteDocImport = async (colName, id)=>{
+  const c = COL[colName];
+  if(!c) throw new Error('Unknown col '+colName);
+  await deleteDoc(doc(c, String(id)));
+};
+
+// =================== INIT ===================
+async function init(){
+  // Header日付
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth()+1).padStart(2,'0');
+  const d = String(now.getDate()).padStart(2,'0');
+  $('hd-date').textContent = `${y}.${m}.${d}`;
+  $('hd-day').textContent = ['日','月','火','水','木','金','土'][now.getDay()];
+  const ye = new Date(y, 11, 31);
+  $('hd-days').textContent = Math.ceil((ye - now)/(1000*60*60*24));
+  
+  await loadAll();
+  
+  // 初回マイルストーン保存
+  if(cache.milestones.length === 0 || !cache.milestones[0].id){
+    for(const ms of cache.milestones){ await setDoc(doc(COL.milestones, ms.m), ms); }
+  }
+  
+  renderAll();
+}
+
+window.renderAll = function(){
+  if(window.renderToday) renderToday();
+  if(window.renderProjects) renderProjects();
+  if(window.renderProgress) renderProgress();
+  if(window.renderCalendar) renderCalendar();
+  if(window.renderIdeal) renderIdeal();
+  if(window.renderSettings) renderSettings();
+};
+
+// TAB SWITCH
+window.setTab = function(tab){
+  document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
+  $('pg-'+tab).classList.add('on');
+  document.querySelectorAll('.tb').forEach(t=>t.classList.remove('on'));
+  document.querySelector(`.tb[data-tb="${tab}"]`).classList.add('on');
+  window.scrollTo(0, 0);
+};
+
+init();
+</script>
+
+<!-- UI script -->
+<script src="ui.js"></script>
+</body>
+</html>
