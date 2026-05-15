@@ -62,11 +62,6 @@ window.renderToday = function(){
       }).join('');
   $('task-list').innerHTML = taskHtml;
   
-  const doneCount = allTasks.filter(t => cache.todayChecks[`${today}_${t.key}`]).length;
-  $('mission-done').textContent = doneCount;
-  $('mission-total').textContent = allTasks.length;
-  $('mission-bar').style.width = (allTasks.length ? (doneCount/allTasks.length*100) : 0) + '%';
-  
   const isLightNight = ['recovery','rest','trip_work','trip_private'].includes(modeKey);
   const nightRaw = isLightNight ? [
     { key:'teeth', label:'歯磨き', time:'〜寝る前', icon:'🪥' },
@@ -94,8 +89,6 @@ window.renderToday = function(){
   $('night-list').innerHTML = nightHtml;
   const nightDone = nightTasks.filter(t=>cache.nightChecks[`${today}_${t.key}`]).length;
   $('night-count').textContent = `${nightDone}/${nightTasks.length}`;
-  
-  renderEndOfYearProgress();
 };
 
 function renderEndOfYearProgress(){
@@ -534,7 +527,7 @@ window.confirmDeleteProj = async function(pid){
 };
 
 // ============= PROGRESS PAGE =============
-let _progressTab = 'production';
+let _progressTab = 'milestone';
 window.setProgressTab = function(t){
   _progressTab = t;
   document.querySelectorAll('[data-pgt]').forEach(b=>b.classList.toggle('on', b.dataset.pgt===t));
@@ -555,16 +548,20 @@ window.renderProgress = function(){
 
 function renderMilestoneTab(){
   $('progress-content').innerHTML = `
-    <div class="hero-card hero-purple">
-      <div class="hero-head">
-        <span class="hero-icon">📅</span>
-        <div style="flex:1;">
-          <div class="hero-ttl">月別マイルストーン</div>
-          <div class="hero-sub">タップで編集 · 体重は設定と連動</div>
-        </div>
+    <div class="card" style="padding:14px;">
+      <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;margin-bottom:10px;">
+        <span style="font-size:16px;">🎯</span>年末ゴールへの進捗
       </div>
+      <div id="end-of-year-progress"></div>
     </div>
-    <div id="milestone-list"></div>`;
+    <div class="card" style="padding:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;margin-bottom:10px;">
+        <span><span style="font-size:14px;">📅</span> 月別マイルストーン</span>
+        <span style="font-size:9px;color:var(--ink-mute);font-weight:400;">タップで編集</span>
+      </div>
+      <div id="milestone-list"></div>
+    </div>`;
+  renderEndOfYearProgress();
   renderMilestones();
 }
 
