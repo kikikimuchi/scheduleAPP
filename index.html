@@ -22,7 +22,7 @@
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html{height:100%;}
-body{font-family:"Futura","Avenir Next","Hiragino Sans","Yu Gothic Medium",system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100%;padding-bottom:calc(80px + env(safe-area-inset-bottom,34px));overflow-y:auto;-webkit-overflow-scrolling:touch;font-weight:500;}
+body{font-family:"Futura","Avenir Next","Hiragino Sans","Yu Gothic Medium",system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100%;padding-bottom:calc(100px + env(safe-area-inset-bottom,34px));overflow-y:auto;-webkit-overflow-scrolling:touch;font-weight:500;}
 
 /* PC: コンテンツを中央のスマホサイズコラムだけ表示 */
 @media (min-width: 768px){
@@ -47,7 +47,7 @@ input,textarea,select{font-size:16px!important;}
 .hd-left-unit{font-size:11px;color:var(--ink-soft);margin-left:2px;}
 
 /* TAB BAR */
-#tabbar{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--bdr);display:flex;z-index:9999;padding-bottom:max(env(safe-area-inset-bottom,0px),12px);padding-top:10px;}
+#tabbar{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--bdr);display:flex;z-index:9999;padding-bottom:max(env(safe-area-inset-bottom,0px),20px);padding-top:10px;}
 .tb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:4px 2px;font-size:10px;color:var(--ink-faint);background:none;border:none;cursor:pointer;letter-spacing:.1em;font-weight:500;}
 .tb.on{color:var(--ink);}
 .tb.on::after{content:"";display:block;width:16px;height:1px;background:var(--pink);margin-top:2px;}
@@ -122,10 +122,10 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 .wake-shift-info{font-size:10px;color:var(--ink-mute);}
 
 /* NIGHT ROUTINE */
-.night-card{padding:16px;border-radius:14px;background:linear-gradient(135deg,#F0EAFA 0%,#FCEAF1 100%);border:1px solid rgba(0,0,0,.06);margin-bottom:12px;}
-.night-task{display:flex;align-items:center;gap:10px;padding:10px;background:rgba(255,255,255,.45);border-radius:10px;margin-bottom:6px;cursor:pointer;}
-.night-task.on{background:rgba(255,255,255,.75);}
-.night-task .task-label{font-size:12px;}
+.night-card{padding:14px;border-radius:14px;background:linear-gradient(135deg,#F0EAFA 0%,#FCEAF1 100%);border:1px solid rgba(0,0,0,.06);margin-bottom:12px;}
+.night-row{border-bottom:1px solid rgba(0,0,0,.06)!important;}
+.night-row.on{opacity:.85;}
+.night-row:last-child{border-bottom:none!important;}
 
 /* MILESTONE */
 .ms-card{background:linear-gradient(135deg,var(--pink-soft) 0%,var(--lav-soft) 100%);border:1px solid rgba(0,0,0,.04);border-radius:10px;padding:8px 12px;margin-bottom:6px;cursor:pointer;}
@@ -625,34 +625,35 @@ window.MODE_KEYS = ['normal','cafe','gym','shoot','trip_work','trip_private','re
 window.MODE_TASKS = {
   normal:[
     { key:'wake', time:'10:00', label:'起床 + カーテンを開く', icon:'☀️' },
+    { key:'hydrate_skin', time:'10:15', label:'水分補給・洗顔スキンケア', icon:'💧' },
     { key:'breakfast', time:'10:30', label:'朝食・水分補給', icon:'🥣' },
-    { key:'edit_morning', time:'11:00', label:'午前 編集', icon:'✂️' },
+    { key:'work_morning', time:'11:00', label:'午前 仕事', icon:'✂️' },
     { key:'lunch_walk', time:'13:00', label:'昼食・散歩', icon:'🥗' },
-    { key:'edit_afternoon', time:'14:00', label:'午後 編集', icon:'🎞️' },
+    { key:'work_afternoon', time:'14:00', label:'午後 仕事', icon:'🎞️' },
     { key:'self_production', time:'18:00', label:'自主制作', icon:'🎬' },
-    { key:'dinner', time:'19:30', label:'夕食', icon:'🍽️' },
   ],
   cafe:[
     { key:'wake', time:'08:00', label:'起床 + カーテンを開く', icon:'☀️' },
+    { key:'hydrate_skin', time:'08:15', label:'水分補給・洗顔スキンケア', icon:'💧' },
     { key:'gym', time:'09:00', label:'ジム (自主)', icon:'💪' },
     { key:'cafe_move', time:'10:30', label:'カフェ移動', icon:'☕' },
-    { key:'edit_morning', time:'11:00', label:'午前 編集', icon:'✂️' },
+    { key:'work_morning', time:'11:00', label:'午前 仕事', icon:'✂️' },
     { key:'lunch_walk', time:'13:00', label:'昼食・散歩', icon:'🥗' },
-    { key:'edit_afternoon', time:'14:00', label:'午後 編集', icon:'🎞️' },
+    { key:'work_afternoon', time:'14:00', label:'午後 仕事', icon:'🎞️' },
     { key:'self_production', time:'18:00', label:'自主制作', icon:'🎬' },
-    { key:'dinner', time:'19:30', label:'夕食', icon:'🍽️' },
   ],
   gym:[
     { key:'wake', time:'08:00', label:'起床 + カーテンを開く', icon:'☀️' },
+    { key:'hydrate_skin', time:'08:15', label:'水分補給・洗顔スキンケア', icon:'💧' },
     { key:'gym', time:'09:00', label:'ジム (自主)', icon:'💪' },
-    { key:'edit_morning', time:'11:00', label:'午前 編集', icon:'✂️' },
+    { key:'work_morning', time:'11:00', label:'午前 仕事', icon:'✂️' },
     { key:'lunch_walk', time:'13:00', label:'昼食・散歩', icon:'🥗' },
-    { key:'edit_afternoon', time:'14:00', label:'午後 編集', icon:'🎞️' },
+    { key:'work_afternoon', time:'14:00', label:'午後 仕事', icon:'🎞️' },
     { key:'self_production', time:'18:00', label:'自主制作', icon:'🎬' },
-    { key:'dinner', time:'19:30', label:'夕食', icon:'🍽️' },
   ],
   shoot:[
     { key:'wake', time:'06:00', label:'起床 + カーテンを開く', icon:'☀️' },
+    { key:'hydrate_skin', time:'06:15', label:'水分補給・洗顔スキンケア', icon:'💧' },
     { key:'prep', time:'07:00', label:'機材準備・出発', icon:'📦' },
     { key:'shoot', time:'09:00', label:'撮影', icon:'🎥' },
     { key:'lunch', time:'12:30', label:'昼食', icon:'🍱' },
@@ -661,12 +662,14 @@ window.MODE_TASKS = {
   ],
   trip_work:[
     { key:'wake', time:'07:00', label:'起床 + カーテンを開く', icon:'☀️' },
+    { key:'hydrate_skin', time:'07:15', label:'水分補給・洗顔スキンケア', icon:'💧' },
     { key:'shoot', time:'09:00', label:'撮影', icon:'🎥' },
     { key:'shoot_pm', time:'14:00', label:'撮影 (午後)', icon:'🎬' },
     { key:'log', time:'21:00', label:'素材整理・記録', icon:'📝' },
   ],
   trip_private:[
     { key:'wake', time:'09:00', label:'起床 + カーテンを開く', icon:'☀️' },
+    { key:'hydrate_skin', time:'09:15', label:'水分補給・洗顔スキンケア', icon:'💧' },
     { key:'production_morning', time:'10:00', label:'自主制作 (午前)', icon:'🎬' },
     { key:'lunch', time:'13:00', label:'昼食', icon:'🍱' },
     { key:'production_afternoon', time:'14:00', label:'自主制作 (午後)', icon:'🎥' },

@@ -67,22 +67,21 @@ window.renderToday = function(){
     { key:'teeth', label:'歯磨き', time:'〜寝る前', icon:'🪥' },
     { key:'sleep', label:'眠れた', time:'〜寝る前', icon:'😴' },
   ] : [
-    { key:'pc_off', label:'PC作業を終える', time:'23:00', icon:'🖥️' },
-    { key:'bath', label:'入浴 (40度ぬるめ)', time:'23:00-23:30', icon:'🛁' },
-    { key:'bodycare', label:'ボディケア', time:'23:30-23:45', icon:'🧴' },
-    { key:'teeth', label:'歯磨き', time:'23:45-24:00', icon:'🪥' },
-    { key:'reading', label:'読書 (紙の本)', time:'24:00-25:00', icon:'📖' },
-    { key:'sleep', label:'眠気が来たらベッドへ', time:'〜25:00', icon:'😴' },
+    { key:'dinner', label:'夕食', time:'19:30', icon:'🍽️' },
+    { key:'shower', label:'シャワー (週2回は入浴)', time:'20:30', icon:'🛁' },
+    { key:'bodycare', label:'ボディケア', time:'21:00', icon:'🧴' },
+    { key:'teeth', label:'歯磨き', time:'21:20', icon:'🪥' },
+    { key:'free', label:'自由時間', time:'21:30', icon:'🎮' },
+    { key:'reading', label:'読書 (紙の本/ソファで)', time:'23:30', icon:'📖' },
+    { key:'sleep', label:'眠気が来たらベッドへ', time:'〜24:30', icon:'😴' },
   ];
   const nightTasks = nightRaw.map(t=>({...t, time: adjustTime(t.time, shiftMin)}));
   const nightHtml = nightTasks.map(t=>{
     const checked = cache.nightChecks[`${today}_${t.key}`];
-    return `<div class="night-task ${checked?'on':''}" onclick="onNightCheckClick('${t.key}')">
+    return `<div class="task-row night-row ${checked?'on':''}" onclick="onNightCheckClick('${t.key}')">
+      <div class="task-time">${t.time}</div>
       <div class="task-icon">${t.icon}</div>
-      <div style="flex:1;">
-        <div style="font-size:10px;color:var(--ink-mute);">${t.time}</div>
-        <div class="task-label ${checked?'done':''}" style="font-size:12px;">${t.label}</div>
-      </div>
+      <div class="task-label ${checked?'done':''}">${t.label}</div>
       <div class="task-check ${checked?'on':''}">${checked?'✓':''}</div>
     </div>`;
   }).join('');
