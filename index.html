@@ -24,12 +24,15 @@
 html{height:100%;}
 body{font-family:"Futura","Avenir Next","Hiragino Sans","Yu Gothic Medium",system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100%;padding-bottom:calc(80px + env(safe-area-inset-bottom,34px));overflow-y:auto;-webkit-overflow-scrolling:touch;font-weight:500;}
 
-/* PC: 中央のスマホサイズコラムだけ表示 */
+/* PC: コンテンツを中央のスマホサイズコラムだけ表示 */
 @media (min-width: 768px){
   body{background:#EEE;}
-  #app-wrap{max-width:480px;margin:0 auto;background:var(--bg);min-height:100vh;box-shadow:0 0 24px rgba(0,0,0,.06);position:relative;}
-  #header{max-width:480px;left:50%;transform:translateX(-50%);}
-  #tabbar{max-width:480px;left:50%;transform:translateX(-50%);}
+  /* header/tabbarは全幅、中の要素を中央寄せ */
+  #header{justify-content:center;gap:280px;}
+  #tabbar{justify-content:center;}
+  #tabbar .tb{flex:0 0 76px;max-width:76px;}
+  /* コンテンツ部分を白背景の縦カラムに */
+  .pg{background:var(--bg);box-shadow:0 0 24px rgba(0,0,0,.06);min-height:calc(100vh - 100px);padding-left:14px;padding-right:14px;}
 }
 input,textarea,select{font-size:16px!important;}
 
@@ -439,9 +442,10 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 
 <!-- PAGE: SETTINGS -->
 <div class="pg" id="pg-settings">
-  <div style="background:linear-gradient(135deg,var(--pink) 0%,var(--lav) 100%);border-radius:14px;padding:18px;color:#fff;margin-bottom:14px;">
-    <div style="font-size:18px;font-weight:700;">⚙ 設定</div>
-    <div style="font-size:11px;opacity:.9;margin-top:4px;">目標値や曜日を調整</div>
+  <div style="background:linear-gradient(135deg,var(--pink) 0%,var(--lav) 100%);border-radius:10px;padding:8px 14px;color:#fff;margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+    <span style="font-size:14px;">⚙</span>
+    <div style="font-size:13px;font-weight:700;">設定</div>
+    <div style="font-size:10px;opacity:.9;margin-left:auto;">目標値や曜日を調整</div>
   </div>
   
   <div class="card">
