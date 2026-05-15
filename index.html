@@ -185,10 +185,10 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 .subtab.on{background:var(--pink-soft);color:var(--ink);}
 
 /* INSPIRATION GRID */
-.insp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px;}
-.insp-item{aspect-ratio:1;border-radius:10px;overflow:hidden;position:relative;cursor:pointer;}
+.insp-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;padding:8px;}
+.insp-item{aspect-ratio:1;border-radius:6px;overflow:hidden;position:relative;cursor:pointer;}
 .insp-item img{width:100%;height:100%;object-fit:cover;}
-.insp-del{position:absolute;top:4px;right:4px;width:22px;height:22px;background:rgba(255,255,255,.85);backdrop-filter:blur(8px);border:none;border-radius:50%;cursor:pointer;font-size:12px;color:var(--ink-soft);display:flex;align-items:center;justify-content:center;}
+.insp-del{position:absolute;top:2px;right:2px;width:18px;height:18px;background:rgba(255,255,255,.85);backdrop-filter:blur(8px);border:none;border-radius:50%;cursor:pointer;font-size:10px;color:var(--ink-soft);display:flex;align-items:center;justify-content:center;}
 
 /* CALENDAR */
 .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
@@ -289,6 +289,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
       <span style="font-size:14px;">☀️</span>
       <span style="font-size:11px;color:var(--ink-soft);font-weight:600;">起床時刻</span>
       <input type="time" class="fi" id="wake-input" oninput="onWakeTimeChange()">
+      <button onclick="setWakeToNow()" style="background:linear-gradient(135deg,var(--pink) 0%,var(--lav) 100%);color:#fff;border:none;padding:6px 10px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;flex-shrink:0;letter-spacing:.05em;">いま起きた</button>
     </div>
     <div id="task-list"></div>
     <div style="margin-top:14px;display:flex;gap:8px;">
@@ -306,14 +307,6 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
   <div class="card">
     <div class="sec-h"><span class="sec-h-icon">🎯</span>年末ゴールへの進捗</div>
     <div id="end-of-year-progress"></div>
-  </div>
-
-  <div class="card">
-    <div class="sec-h" style="justify-content:space-between;display:flex;">
-      <div><span class="sec-h-icon">📅</span>月別マイルストーン</div>
-      <span style="font-size:10px;color:var(--ink-mute);">タップで編集</span>
-    </div>
-    <div id="milestone-list"></div>
   </div>
 </div>
 
@@ -366,11 +359,6 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 
 <!-- PAGE: CALENDAR -->
 <div class="pg" id="pg-calendar">
-  <div class="text-center" style="margin-bottom:14px;">
-    <div style="font-size:10px;letter-spacing:.4em;color:var(--ink-mute);">— 予定 —</div>
-    <div style="font-size:22px;font-weight:700;margin-top:2px;">予定</div>
-  </div>
-  
   <div class="subtab-wrap" style="grid-template-columns:1fr 1fr;">
     <button class="subtab on" onclick="setCalTab('plan')" data-ct="plan">配分</button>
     <button class="subtab" onclick="setCalTab('google')" data-ct="google">カレンダー</button>
@@ -417,12 +405,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
   </div>
   
   <div id="cal-google-tab" style="display:none;">
-    <div class="card">
-      <div style="font-size:11px;color:var(--ink-soft);margin-bottom:10px;">Googleカレンダーの公開URLを貼り付けてください</div>
-      <input type="text" class="fi" id="gcal-url" placeholder="https://calendar.google.com/calendar/embed?src=...">
-      <button class="btn-pri" style="margin-top:10px;" onclick="saveGcalUrl()">保存</button>
-    </div>
-    <div id="gcal-frame-wrap"></div>
+    <iframe src="https://calendar.google.com/calendar/embed?src=karidokoro.wataru%40gmail.com&ctz=Asia%2FTokyo" style="width:100%;height:600px;border:0;border-radius:14px;"></iframe>
   </div>
 </div>
 
@@ -433,10 +416,9 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
     <button class="subtab" onclick="setIdealTab('food')" data-it="food">🍱 食事</button>
     <button class="subtab" onclick="setIdealTab('wardrobe')" data-it="wardrobe">👕 服飾</button>
   </div>
-  <div id="ideal-content"></div>
   
-  <div class="card" style="margin-top:14px;padding:0;overflow:hidden;">
-    <div style="padding:12px 18px;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;">
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div style="padding:10px 16px;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;">
       <div style="font-size:10px;letter-spacing:.22em;color:var(--ink-mute);">— インスピレーション —</div>
       <div style="display:flex;gap:8px;align-items:center;">
         <span style="font-size:10px;color:var(--ink-mute);" id="insp-count">0枚</span>
@@ -445,6 +427,8 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
     </div>
     <div id="inspiration-content"></div>
   </div>
+  
+  <div id="ideal-content"></div>
 </div>
 
 <!-- PAGE: SETTINGS -->
@@ -530,6 +514,10 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div class="ov" id="ov-insp-add"><div class="modal"><div class="mhd"><div class="mttl">画像を追加</div><button class="mcl" onclick="closeModal('ov-insp-add')">×</button></div><div class="mbody"><div id="insp-upload-zone"></div><input class="fi" type="text" id="insp-credit" placeholder="クレジット (任意)" style="margin-top:12px;"><button class="btn-pri" id="insp-save-btn" disabled style="margin-top:12px;" onclick="saveInspiration()">追加</button></div></div></div>
 <div class="ov" id="ov-image-view" onclick="closeModal('ov-image-view')"><div style="position:relative;max-width:90vw;max-height:80vh;" onclick="event.stopPropagation()"><img id="img-view-src" style="max-width:100%;max-height:80vh;object-fit:contain;border-radius:12px;"><button class="mcl" style="position:absolute;top:10px;right:10px;background:rgba(255,255,255,.95);" onclick="closeModal('ov-image-view')">×</button></div></div>
 
+<div class="ov" id="ov-food-add"><div class="modal"><div class="mhd"><div class="mttl">食事メニューを追加</div><button class="mcl" onclick="closeModal('ov-food-add')">×</button></div><div class="mbody"><div id="food-upload-zone"></div><input class="fi" type="text" id="food-name" placeholder="名前 (例: 鯖の塩焼き)" style="margin-top:12px;"><button class="btn-pri" id="food-save-btn" style="margin-top:12px;" onclick="saveFoodItem()">追加</button></div></div></div>
+
+<div class="ov" id="ov-wardrobe-add"><div class="modal"><div class="mhd"><div class="mttl">服飾を追加</div><button class="mcl" onclick="closeModal('ov-wardrobe-add')">×</button></div><div class="mbody"><div id="wd-upload-zone"></div><input class="fi" type="text" id="wd-name" placeholder="名前 (例: 黒のロンT)" style="margin-top:12px;"><input class="fi" type="text" id="wd-brand" placeholder="ブランド" style="margin-top:8px;"><button class="btn-pri" id="wd-save-btn" style="margin-top:12px;" onclick="saveWardrobeItem()">追加</button></div></div></div>
+
 <!-- spinner CSS for no-spinner inputs -->
 <style>
 .no-spinner::-webkit-outer-spin-button,
@@ -570,6 +558,8 @@ const COL = {
   youtubeShort: collection(db, 'schedule_youtubeShort'),
   savings: collection(db, 'schedule_savings'),
   hairRemoval: collection(db, 'schedule_hairRemoval'),
+  foodMenus: collection(db, 'schedule_foodMenus'),
+  wardrobe: collection(db, 'schedule_wardrobe'),
 };
 
 // =================== CACHE ===================
@@ -589,6 +579,8 @@ window.cache = {
   youtubeShort: [],
   savings: [],
   hairRemoval: { beard:0, fullBody:0 },
+  foodMenus: [], // {id, category:'main'|'snack'|'drink', name, imageData}
+  wardrobe: [], // {id, category:'outer'|'top'|'bottom'|'socks'|'accessory', name, brand, imageData}
 };
 
 window.DEFAULT_MILESTONES = [
@@ -816,6 +808,16 @@ async function loadAll(){
     tasks.push((async()=>{
       const snap = await getDocs(COL.savings);
       cache.savings = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    })());
+    
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.foodMenus);
+      cache.foodMenus = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    })());
+    
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.wardrobe);
+      cache.wardrobe = snap.docs.map(d=>({ id:d.id, ...d.data() }));
     })());
     
     await Promise.all(tasks);

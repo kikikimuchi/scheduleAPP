@@ -1,7 +1,5 @@
 // ============= UI RENDER =============
-// (cache, MODES, MODE_KEYS, MODE_TASKS は index.html の <script type="module"> で window にぶら下げ済み)
 
-// 起床時刻シフト計算
 function getShiftMin(date, mode){
   const wake = cache.wakeTimes[date];
   if(!wake) return 0;
@@ -19,23 +17,31 @@ window.renderToday = function(){
   const modeKey = cache.dayModes[today] || 'normal';
   const mode = MODES[modeKey];
   
-  // モードカード
   $('mode-card').className = 'mode-card ' + mode.cls;
   $('mode-ico').textContent = mode.icon;
   $('mode-name').textContent = mode.label;
   $('mode-desc').textContent = mode.desc;
   
-  // 体重
+  // 体重 + ペース計算
   const latest = cache.weights.length>0 ? cache.weights[cache.weights.length-1] : null;
   const w = latest ? latest.weight : cache.settings.startWeight;
   $('w-kg').textContent = w.toFixed(1);
   $('w-bf').textContent = (latest && latest.bodyFat) ? `体脂肪 ${latest.bodyFat.toFixed(1)}%` : '体脂肪未記録';
-  $('w-rem').textContent = `目標まで ${(w - cache.settings.targetWeight).toFixed(1)}kg ▶ 記録`;
   
-  // 起床時刻
+  const remaining = w - cache.settings.targetWeight;
+  const yearEnd = new Date(new Date().getFullYear(), 11, 31);
+  const daysLeft = Math.ceil((yearEnd - new Date())/(86400000));
+  const weeksLeft = Math.max(daysLeft / 7, 0.1);
+  const weeklyPace = remaining / weeksLeft;
+  
+  if(remaining <= 0){
+    $('w-rem').textContent = `目標達成 🎉 ▶ 記録`;
+  } else {
+    $('w-rem').innerHTML = `目標まで ${remaining.toFixed(1)}kg<br>週 ${weeklyPace.toFixed(2)}kg ペース ▶ 記録`;
+  }
+  
   $('wake-input').value = cache.wakeTimes[today] || '';
   
-  // タスクリスト
   const shiftMin = getShiftMin(today, modeKey);
   const modeTasks = (MODE_TASKS[modeKey] || []).map(t => ({...t, time: adjustTime(t.time, shiftMin)}));
   const customTasks = (cache.customTasks[today] || []).map(t => ({key:`custom_${t.id}`, time:t.time, label:t.label, icon:'⭐', custom:true, id:t.id}));
@@ -56,13 +62,11 @@ window.renderToday = function(){
       }).join('');
   $('task-list').innerHTML = taskHtml;
   
-  // Mission
   const doneCount = allTasks.filter(t => cache.todayChecks[`${today}_${t.key}`]).length;
   $('mission-done').textContent = doneCount;
   $('mission-total').textContent = allTasks.length;
   $('mission-bar').style.width = (allTasks.length ? (doneCount/allTasks.length*100) : 0) + '%';
   
-  // 寝る前ルーティン
   const isLightNight = ['recovery','rest','trip_work','trip_private'].includes(modeKey);
   const nightRaw = isLightNight ? [
     { key:'teeth', label:'歯磨き', time:'〜寝る前', icon:'🪥' },
@@ -91,11 +95,7 @@ window.renderToday = function(){
   const nightDone = nightTasks.filter(t=>cache.nightChecks[`${today}_${t.key}`]).length;
   $('night-count').textContent = `${nightDone}/${nightTasks.length}`;
   
-  // 年末ゴール
   renderEndOfYearProgress();
-  
-  // マイルストーン
-  renderMilestones();
 };
 
 function renderEndOfYearProgress(){
@@ -106,7 +106,7 @@ function renderEndOfYearProgress(){
   const longPct = Math.round(long / cache.settings.youtubeLongTarget * 100);
   const short = cache.youtubeShort.length;
   const shortPct = Math.round(short / cache.settings.youtubeShortTarget * 100);
-  const vanSum = cache.savings.reduce((s,e)=>s+(e.amount||0),0);
+  const vanSum = cache.savings.reduce((s,e)=>s+(+e.amount||0),0);
   const vanPct = Math.round(vanSum / cache.settings.vanBudget * 100);
   const hairTotal = (cache.hairRemoval.beard||0) + (cache.hairRemoval.fullBody||0);
   
@@ -134,29 +134,6 @@ function renderEndOfYearProgress(){
   `;
 }
 
-function renderMilestones(){
-  const today = new Date();
-  const currentMonth = `${today.getMonth()+1}月`;
-  const latest = cache.weights.length>0 ? cache.weights[cache.weights.length-1].weight : cache.settings.startWeight;
-  
-  $('milestone-list').innerHTML = cache.milestones.map(ms=>{
-    const isCurrent = ms.m === currentMonth;
-    const diff = ms.targetWeight ? (latest - ms.targetWeight).toFixed(1) : null;
-    const diffStr = diff !== null && !isNaN(parseFloat(diff))
-      ? `(${diff > 0 ? '+' : ''}${diff})` : '';
-    return `<div class="ms-card ${isCurrent?'current':''}" onclick="openMilestoneEdit('${ms.m}')">
-      <div class="ms-row">
-        <div>
-          <span class="ms-month">${ms.m}</span>
-          <span class="ms-theme">${ms.t||''}</span>
-        </div>
-        ${ms.targetWeight ? `<div><span class="ms-weight">${ms.targetWeight}kg</span><span class="ms-diff">${diffStr}</span></div>` : ''}
-      </div>
-      ${ms.items ? `<div class="ms-items">${ms.items}</div>` : ''}
-    </div>`;
-  }).join('');
-}
-
 // ============= TODAY HANDLERS =============
 window.onTodayCheckClick = async function(key){
   const today = getTodayDateString();
@@ -172,6 +149,16 @@ window.onWakeTimeChange = async function(){
   const today = getTodayDateString();
   const val = $('wake-input').value;
   await saveWakeTime(today, val);
+  renderToday();
+};
+window.setWakeToNow = async function(){
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2,'0');
+  const mm = String(now.getMinutes()).padStart(2,'0');
+  const time = `${hh}:${mm}`;
+  $('wake-input').value = time;
+  const today = getTodayDateString();
+  await saveWakeTime(today, time);
   renderToday();
 };
 window.openWeightInput = function(){
@@ -246,7 +233,7 @@ window.saveMilestone = async function(){
   ms.targetWeight = parseFloat($('ms-edit-weight').value) || 0;
   await saveMilestoneFB(ms);
   closeModal('ov-milestone');
-  renderMilestones();
+  renderProgress();
 };
 
 // ============= PROJECTS PAGE =============
@@ -299,7 +286,7 @@ window.renderProjects = function(){
     const tasks = p.tasks || [];
     const done = tasks.filter(t=>t.done).length;
     const pct = tasks.length ? Math.round(done/tasks.length*100) : 0;
-    const expanded = _expandedProjId === p.id;
+    const expanded = _expandedProjId === String(p.id);
     const isOverdue = p.deadline && new Date(p.deadline) < new Date(todayStr) && p.status==='active';
     
     return `<div class="proj-card">
@@ -327,7 +314,7 @@ window.renderProjects = function(){
           </div>`).join('')
         }
         <div style="display:flex;gap:6px;margin-top:10px;">
-          <input class="fi" type="text" id="ptask-input-${p.id}" placeholder="タスクを追加">
+          <input class="fi" type="text" id="ptask-input-${p.id}" placeholder="タスクを追加" onkeydown="if(event.key==='Enter')addProjTask('${p.id}')">
           <button class="btn-sec" onclick="addProjTask('${p.id}')">＋</button>
         </div>
         <div style="display:flex;gap:6px;margin-top:10px;">
@@ -341,7 +328,7 @@ window.renderProjects = function(){
 
 let _expandedProjId = null;
 window.toggleProjExpand = function(id){
-  _expandedProjId = _expandedProjId === id ? null : id;
+  _expandedProjId = _expandedProjId === String(id) ? null : String(id);
   renderProjects();
 };
 window.openProjectAdd = function(){
@@ -376,12 +363,13 @@ window.deleteProjTask = async function(pid, tid){
 window.addProjTask = async function(pid){
   const p = cache.projects.find(x=>String(x.id)===String(pid));
   if(!p) return;
-  const input = $(`ptask-input-${pid}`);
+  const input = document.getElementById(`ptask-input-${pid}`);
+  if(!input) return alert('入力欄が見つかりません');
   const label = input.value.trim();
   if(!label) return;
-  p.tasks = [...(p.tasks||[]), { id:Date.now(), label, done:false }];
+  if(!Array.isArray(p.tasks)) p.tasks = [];
+  p.tasks.push({ id:Date.now(), label, done:false });
   await saveProjectFB(p);
-  input.value = '';
   renderProjects();
 };
 window.toggleProjStatus = async function(pid){
@@ -415,7 +403,42 @@ window.renderProgress = function(){
   };
   $('progress-content').innerHTML = '';
   map[_progressTab] && map[_progressTab]();
+  // 月別マイルストーン: 進捗ページの末尾
+  $('progress-content').innerHTML += `
+    <div class="card">
+      <div class="sec-h" style="justify-content:space-between;display:flex;">
+        <div><span class="sec-h-icon">📅</span>月別マイルストーン</div>
+        <span style="font-size:10px;color:var(--ink-mute);">タップで編集</span>
+      </div>
+      <div id="milestone-list"></div>
+    </div>`;
+  renderMilestones();
 };
+
+function renderMilestones(){
+  if(!$('milestone-list')) return;
+  const today = new Date();
+  const currentMonth = `${today.getMonth()+1}月`;
+  const latest = cache.weights.length>0 ? cache.weights[cache.weights.length-1].weight : cache.settings.startWeight;
+  
+  $('milestone-list').innerHTML = cache.milestones.map(ms=>{
+    const isCurrent = ms.m === currentMonth;
+    const diff = ms.targetWeight ? (latest - ms.targetWeight).toFixed(1) : null;
+    const diffStr = diff !== null && !isNaN(parseFloat(diff))
+      ? `(${diff > 0 ? '+' : ''}${diff})` : '';
+    return `<div class="ms-card ${isCurrent?'current':''}" onclick="openMilestoneEdit('${ms.m}')">
+      <div class="ms-row">
+        <div>
+          <span class="ms-month">${ms.m}</span>
+          <span class="ms-theme">${ms.t||''}</span>
+        </div>
+        ${ms.targetWeight ? `<div><span class="ms-weight">${ms.targetWeight}kg</span><span class="ms-diff">${diffStr}</span></div>` : ''}
+      </div>
+      ${ms.items ? `<div class="ms-items">${ms.items}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
 function renderProductionTab(){
   const tasks = cache.productionTasks;
   const done = tasks.filter(t=>t.done).length;
@@ -480,7 +503,7 @@ function renderYTTab(isLong){
   const list = isLong ? cache.youtubeLong : cache.youtubeShort;
   const target = isLong ? cache.settings.youtubeLongTarget : cache.settings.youtubeShortTarget;
   const pct = Math.round(list.length / target * 100);
-  const cls = isLong ? 'hero-amber' : 'hero-amber';
+  const cls = 'hero-amber';
   const ico = isLong ? '🎥' : '📱';
   const ttl = isLong ? 'YouTube 長尺' : 'YouTube ショート';
   $('progress-content').innerHTML = `
@@ -633,7 +656,6 @@ window.setCalTab = function(t){
   document.querySelectorAll('[data-ct]').forEach(b=>b.classList.toggle('on', b.dataset.ct===t));
   $('cal-plan-tab').style.display = t==='plan' ? '' : 'none';
   $('cal-google-tab').style.display = t==='google' ? '' : 'none';
-  if(t==='google') renderGCal();
 };
 window.calMonth = function(delta){
   _calMonth += delta;
@@ -642,15 +664,13 @@ window.calMonth = function(delta){
   renderCalendar();
 };
 window.renderCalendar = function(){
-  if(_calTab === 'google'){ renderGCal(); return; }
+  if(_calTab === 'google') return;
   $('cal-year').textContent = `— ${_calYear} —`;
   $('cal-mtxt').textContent = `${_calMonth+1}月`;
   
-  // 週ヘッダ
   const wd = ['日','月','火','水','木','金','土'];
   $('cal-week').innerHTML = wd.map((d,i)=>`<div class="cal-wd ${i===0?'sun':''} ${i===6?'sat':''}">${d}</div>`).join('');
   
-  // グリッド
   const first = new Date(_calYear, _calMonth, 1);
   const last = new Date(_calYear, _calMonth+1, 0);
   const daysInMonth = last.getDate();
@@ -678,7 +698,6 @@ window.renderCalendar = function(){
   }
   $('cal-grid').innerHTML = cells;
   
-  // 配分集計
   const ye = new Date(_calYear, 11, 31);
   const daysLeft = Math.ceil((ye - new Date())/(86400000));
   $('alloc-days-left').textContent = daysLeft;
@@ -709,19 +728,6 @@ window.fillWeekendsRest = async function(){
   }
   renderCalendar();
 };
-window.saveGcalUrl = async function(){
-  const url = $('gcal-url').value.trim();
-  cache.settings.calendarEmbedUrl = url;
-  await saveAllSettings();
-  renderGCal();
-};
-function renderGCal(){
-  $('gcal-url').value = cache.settings.calendarEmbedUrl || '';
-  const url = cache.settings.calendarEmbedUrl;
-  $('gcal-frame-wrap').innerHTML = url
-    ? `<iframe src="${url}" style="width:100%;height:600px;border:0;border-radius:14px;margin-top:14px;"></iframe>`
-    : `<div class="empty-state"><div class="em-ico">📅</div><div>カレンダーURLを設定すると表示されます</div></div>`;
-}
 
 // ============= DAY DETAIL MODAL =============
 let _ddDate = null;
@@ -801,12 +807,17 @@ window.renderIdeal = function(){
   else if(_idealTab === 'wardrobe') renderWardrobeTab();
   renderInspiration();
 };
+
 function renderWeightTab(){
   const latest = cache.weights.length>0 ? cache.weights[cache.weights.length-1] : null;
   const w = latest ? latest.weight : cache.settings.startWeight;
   const bf = latest && latest.bodyFat ? latest.bodyFat : null;
   const change = (w - cache.settings.startWeight).toFixed(1);
-  const remaining = (w - cache.settings.targetWeight).toFixed(1);
+  const remaining = (w - cache.settings.targetWeight);
+  const yearEnd = new Date(new Date().getFullYear(), 11, 31);
+  const daysLeft = Math.ceil((yearEnd - new Date())/(86400000));
+  const weeksLeft = Math.max(daysLeft / 7, 0.1);
+  const weeklyPace = remaining / weeksLeft;
   
   $('ideal-content').innerHTML = `
     <div class="hero-card hero-blue">
@@ -823,10 +834,11 @@ function renderWeightTab(){
           <div style="font-size:10px;opacity:.85;margin-top:4px;">スタート ${cache.settings.startBodyFat}% → 目標 ${cache.settings.targetBodyFat}%</div>
         </div>
       </div>
-      <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:8px;">
         <span>変化: ${change > 0 ? '+' : ''}${change}kg</span>
-        <span>残り: ${remaining}kg</span>
+        <span>残り: ${remaining.toFixed(1)}kg</span>
       </div>
+      ${remaining > 0 ? `<div style="background:rgba(255,255,255,.2);border-radius:8px;padding:8px 12px;font-size:12px;text-align:center;">📅 12月末まで <span style="font-weight:700;">週 ${weeklyPace.toFixed(2)}kg</span> ペースで減量</div>` : ''}
     </div>
     <div class="card">
       <div class="sec-h">記録する</div>
@@ -855,16 +867,165 @@ window.saveWeightFromIdeal = async function(){
   await saveWeightEntry(w, bf);
   renderAll();
 };
+
+// ============= FOOD MENU =============
+const FOOD_CATS = [
+  { key:'main', label:'主食', icon:'🍱' },
+  { key:'snack', label:'間食', icon:'🍪' },
+  { key:'drink', label:'飲物', icon:'🥤' },
+];
+let _foodCat = 'main';
 function renderFoodTab(){
-  $('ideal-content').innerHTML = `<div class="card"><div class="sec-h">食事メニュー</div><div class="empty-state"><div class="em-ico">🍱</div><div>食事の好み・定番を記録</div><div style="font-size:10px;margin-top:8px;">この機能は後日実装します</div></div></div>`;
+  const items = cache.foodMenus.filter(i=>i.category===_foodCat);
+  $('ideal-content').innerHTML = `
+    <div class="subtab-wrap" style="grid-template-columns:repeat(3,1fr);">
+      ${FOOD_CATS.map(c=>`<button class="subtab ${_foodCat===c.key?'on':''}" onclick="setFoodCat('${c.key}')">${c.icon} ${c.label}</button>`).join('')}
+    </div>
+    <div class="card">
+      <div class="sec-h" style="display:flex;justify-content:space-between;">
+        <div><span class="sec-h-icon">${FOOD_CATS.find(c=>c.key===_foodCat).icon}</span>${FOOD_CATS.find(c=>c.key===_foodCat).label}</div>
+        <button class="btn-sec" style="padding:6px 12px;" onclick="openFoodAdd()">＋ 追加</button>
+      </div>
+      ${items.length===0 ? `<div class="empty-state"><div class="em-ico">📷</div><div>まだ登録がありません</div></div>` :
+        `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">${items.map(it=>`
+          <div style="border:1px solid var(--bdr);border-radius:10px;overflow:hidden;background:#fff;">
+            <div style="aspect-ratio:1;background:#f0f0f0;position:relative;cursor:pointer;" onclick="viewImg('${it.imageData||''}')">
+              ${it.imageData ? `<img src="${it.imageData}" style="width:100%;height:100%;object-fit:cover;">` : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--ink-mute);font-size:32px;">🍱</div>`}
+              <button onclick="event.stopPropagation();deleteFood('${it.id}')" style="position:absolute;top:4px;right:4px;width:22px;height:22px;background:rgba(255,255,255,.85);border:none;border-radius:50%;color:var(--ink-soft);font-size:11px;cursor:pointer;">×</button>
+            </div>
+            <div style="padding:8px;font-size:12px;font-weight:600;">${it.name}</div>
+          </div>
+        `).join('')}</div>`
+      }
+    </div>
+  `;
 }
+window.setFoodCat = function(c){ _foodCat=c; renderFoodTab(); };
+
+let _newFoodData = null;
+window.openFoodAdd = function(){
+  _newFoodData = null;
+  $('food-name').value = '';
+  $('food-save-btn').disabled = false;
+  $('food-upload-zone').innerHTML = `<label class="upload-box"><input type="file" accept="image/*" onchange="onFoodFile(event)"><div style="font-size:24px;margin-bottom:8px;">📷</div><div style="font-size:11px;">写真を選ぶ (任意)</div></label>`;
+  openModal('ov-food-add');
+};
+window.onFoodFile = async function(e){
+  const f = e.target.files && e.target.files[0];
+  if(!f) return;
+  $('food-upload-zone').innerHTML = `<div class="empty-state" style="padding:60px 20px;"><div class="em-ico">○</div><div>変換中…</div></div>`;
+  try{
+    _newFoodData = await compressImage(f, 1200, 0.8);
+    $('food-upload-zone').innerHTML = `<div class="upload-preview"><img src="${_newFoodData}"><button class="del" onclick="resetFoodUpload()">×</button></div>`;
+  } catch(err){ alert('画像処理失敗: '+err.message); }
+};
+window.resetFoodUpload = function(){
+  _newFoodData = null;
+  $('food-upload-zone').innerHTML = `<label class="upload-box"><input type="file" accept="image/*" onchange="onFoodFile(event)"><div style="font-size:24px;margin-bottom:8px;">📷</div><div style="font-size:11px;">写真を選ぶ (任意)</div></label>`;
+};
+window.saveFoodItem = async function(){
+  const name = $('food-name').value.trim();
+  if(!name) return alert('名前を入力');
+  const item = { id:Date.now(), category:_foodCat, name, imageData:_newFoodData || '' };
+  cache.foodMenus.push(item);
+  await window.setDocImport('foodMenus', item);
+  closeModal('ov-food-add');
+  renderFoodTab();
+};
+window.deleteFood = async function(id){
+  if(!confirm('削除しますか?')) return;
+  cache.foodMenus = cache.foodMenus.filter(x=>String(x.id)!==String(id));
+  await window.deleteDocImport('foodMenus', id);
+  renderFoodTab();
+};
+
+// ============= WARDROBE =============
+const WD_CATS = [
+  { key:'outer', label:'アウター', icon:'🧥' },
+  { key:'top', label:'上着', icon:'👕' },
+  { key:'bottom', label:'ズボン', icon:'👖' },
+  { key:'socks', label:'靴下', icon:'🧦' },
+  { key:'accessory', label:'服飾', icon:'👜' },
+];
+let _wdCat = 'outer';
 function renderWardrobeTab(){
-  $('ideal-content').innerHTML = `<div class="card"><div class="sec-h">服飾</div><div class="empty-state"><div class="em-ico">👕</div><div>理想の服スタイル記録</div><div style="font-size:10px;margin-top:8px;">この機能は後日実装します</div></div></div>`;
+  const items = cache.wardrobe.filter(i=>i.category===_wdCat);
+  $('ideal-content').innerHTML = `
+    <div class="subtab-wrap" style="grid-template-columns:repeat(5,1fr);">
+      ${WD_CATS.map(c=>`<button class="subtab ${_wdCat===c.key?'on':''}" onclick="setWdCat('${c.key}')" style="font-size:10px;padding:8px 2px;line-height:1.3;">${c.icon}<br>${c.label}</button>`).join('')}
+    </div>
+    <div class="card">
+      <div class="sec-h" style="display:flex;justify-content:space-between;">
+        <div><span class="sec-h-icon">${WD_CATS.find(c=>c.key===_wdCat).icon}</span>${WD_CATS.find(c=>c.key===_wdCat).label}</div>
+        <button class="btn-sec" style="padding:6px 12px;" onclick="openWdAdd()">＋ 追加</button>
+      </div>
+      ${items.length===0 ? `<div class="empty-state"><div class="em-ico">📷</div><div>まだ登録がありません</div></div>` :
+        `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">${items.map(it=>`
+          <div style="border:1px solid var(--bdr);border-radius:10px;overflow:hidden;background:#fff;">
+            <div style="aspect-ratio:1;background:#f0f0f0;position:relative;cursor:pointer;" onclick="viewImg('${it.imageData||''}')">
+              ${it.imageData ? `<img src="${it.imageData}" style="width:100%;height:100%;object-fit:cover;">` : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--ink-mute);font-size:32px;">👕</div>`}
+              <button onclick="event.stopPropagation();deleteWd('${it.id}')" style="position:absolute;top:4px;right:4px;width:22px;height:22px;background:rgba(255,255,255,.85);border:none;border-radius:50%;color:var(--ink-soft);font-size:11px;cursor:pointer;">×</button>
+            </div>
+            <div style="padding:8px;">
+              <div style="font-size:12px;font-weight:600;">${it.name}</div>
+              ${it.brand ? `<div style="font-size:10px;color:var(--ink-mute);margin-top:2px;">${it.brand}</div>` : ''}
+            </div>
+          </div>
+        `).join('')}</div>`
+      }
+    </div>
+  `;
 }
+window.setWdCat = function(c){ _wdCat=c; renderWardrobeTab(); };
+
+let _newWdData = null;
+window.openWdAdd = function(){
+  _newWdData = null;
+  $('wd-name').value = '';
+  $('wd-brand').value = '';
+  $('wd-save-btn').disabled = false;
+  $('wd-upload-zone').innerHTML = `<label class="upload-box"><input type="file" accept="image/*" onchange="onWdFile(event)"><div style="font-size:24px;margin-bottom:8px;">📷</div><div style="font-size:11px;">写真を選ぶ (任意)</div></label>`;
+  openModal('ov-wardrobe-add');
+};
+window.onWdFile = async function(e){
+  const f = e.target.files && e.target.files[0];
+  if(!f) return;
+  $('wd-upload-zone').innerHTML = `<div class="empty-state" style="padding:60px 20px;"><div class="em-ico">○</div><div>変換中…</div></div>`;
+  try{
+    _newWdData = await compressImage(f, 1200, 0.8);
+    $('wd-upload-zone').innerHTML = `<div class="upload-preview"><img src="${_newWdData}"><button class="del" onclick="resetWdUpload()">×</button></div>`;
+  } catch(err){ alert('画像処理失敗: '+err.message); }
+};
+window.resetWdUpload = function(){
+  _newWdData = null;
+  $('wd-upload-zone').innerHTML = `<label class="upload-box"><input type="file" accept="image/*" onchange="onWdFile(event)"><div style="font-size:24px;margin-bottom:8px;">📷</div><div style="font-size:11px;">写真を選ぶ (任意)</div></label>`;
+};
+window.saveWardrobeItem = async function(){
+  const name = $('wd-name').value.trim();
+  if(!name) return alert('名前を入力');
+  const item = { id:Date.now(), category:_wdCat, name, brand:$('wd-brand').value.trim(), imageData:_newWdData || '' };
+  cache.wardrobe.push(item);
+  await window.setDocImport('wardrobe', item);
+  closeModal('ov-wardrobe-add');
+  renderWardrobeTab();
+};
+window.deleteWd = async function(id){
+  if(!confirm('削除しますか?')) return;
+  cache.wardrobe = cache.wardrobe.filter(x=>String(x.id)!==String(id));
+  await window.deleteDocImport('wardrobe', id);
+  renderWardrobeTab();
+};
+window.viewImg = function(src){
+  if(!src) return;
+  $('img-view-src').src = src;
+  openModal('ov-image-view');
+};
+
+// ============= INSPIRATION =============
 function renderInspiration(){
   $('insp-count').textContent = `${cache.motivations.length}枚`;
   if(cache.motivations.length === 0){
-    $('inspiration-content').innerHTML = '<div class="empty-state"><div class="em-ico">📷</div><div>理想の画像を追加</div><div style="font-size:10px;margin-top:8px;">アルバムから選んで保存</div></div>';
+    $('inspiration-content').innerHTML = '<div class="empty-state" style="padding:24px 20px;"><div class="em-ico">📷</div><div style="font-size:11px;">理想の画像を追加</div></div>';
     return;
   }
   $('inspiration-content').innerHTML = `<div class="insp-grid">${cache.motivations.map(m=>`
@@ -950,7 +1111,6 @@ window.saveSettings = async function(){
   cache.settings.wakeTime = $('s-wake-time').value;
   cache.settings.targetSleepHours = parseFloat($('s-sleep-hours').value);
   
-  // マイルストーンの目標体重を線形補間で再計算
   const sw = cache.settings.startWeight;
   const tw = cache.settings.targetWeight;
   const total = cache.milestones.length;
@@ -965,7 +1125,6 @@ window.saveSettings = async function(){
   
   await saveAllSettings();
   
-  // 視覚フィードバック
   const btn = $('settings-save-btn');
   btn.textContent = '✓ 保存しました';
   btn.disabled = true;
