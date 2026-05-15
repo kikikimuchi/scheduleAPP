@@ -248,22 +248,43 @@ window.renderProjects = function(){
   const active = cache.projects.filter(p=>p.status==='active');
   const filtered = cache.projects.filter(p=>_projFilter==='all' || p.status===_projFilter);
   const allOpenTasks = active.flatMap(p => (p.tasks||[]).filter(t=>!t.done).map(t=>({...t, projName:p.name, projId:p.id})));
+  const priorityTasks = allOpenTasks.filter(t=>t.priority);
+  const otherTasks = allOpenTasks.filter(t=>!t.priority);
   
   $('proj-active-count').textContent = active.length;
   $('proj-task-count').textContent = allOpenTasks.length;
   
   if(allOpenTasks.length > 0){
     $('all-tasks-card').style.display = '';
-    $('all-tasks-count').textContent = allOpenTasks.length + '件';
-    $('all-tasks-list').innerHTML = allOpenTasks.map(t=>`
-      <div class="ptask-row">
-        <div class="ptask-check" onclick="toggleProjTask('${t.projId}','${t.id}')"></div>
-        <div style="flex:1;">
-          <div style="font-size:13px;">${t.label}</div>
-          <div style="font-size:10px;color:var(--ink-mute);">— ${t.projName}</div>
+    $('all-tasks-count').textContent = otherTasks.length + '件';
+    
+    // 優先タスクリスト (左)
+    $('priority-tasks-list').innerHTML = priorityTasks.length === 0
+      ? `<div style="font-size:10px;color:var(--ink-faint);text-align:center;padding:14px 4px;background:rgba(244,166,181,.08);border-radius:8px;border:1px dashed rgba(244,166,181,.4);">右からタップで⭐</div>`
+      : priorityTasks.map(t=>`
+        <div class="ptask-row" style="padding:6px 0;" onclick="toggleTaskPriority('${t.projId}','${t.id}')">
+          <div class="ptask-check ${t.done?'on':''}" onclick="event.stopPropagation();toggleProjTask('${t.projId}','${t.id}')">${t.done?'✓':''}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;font-weight:600;">${t.label}</div>
+            <div style="font-size:9px;color:var(--ink-mute);">— ${t.projName}</div>
+          </div>
+          <span style="font-size:14px;">⭐</span>
         </div>
-      </div>
-    `).join('');
+      `).join('');
+    
+    // 全タスクリスト (右) - 優先以外
+    $('all-tasks-list').innerHTML = otherTasks.length === 0
+      ? `<div style="font-size:10px;color:var(--ink-faint);text-align:center;padding:14px 4px;">タスクなし</div>`
+      : otherTasks.map(t=>`
+        <div class="ptask-row" style="padding:6px 0;" onclick="toggleTaskPriority('${t.projId}','${t.id}')">
+          <div class="ptask-check" onclick="event.stopPropagation();toggleProjTask('${t.projId}','${t.id}')"></div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;">${t.label}</div>
+            <div style="font-size:9px;color:var(--ink-mute);">— ${t.projName}</div>
+          </div>
+          <span style="font-size:11px;color:var(--ink-faint);">☆</span>
+        </div>
+      `).join('');
   } else {
     $('all-tasks-card').style.display = 'none';
   }
@@ -306,24 +327,122 @@ window.renderProjects = function(){
         <span style="float:right;">${expanded ? '▲' : '▼'}</span>
       </div>
       ${expanded ? `<div class="proj-body">
+        ${p.note ? `<div style="background:rgba(0,0,0,.03);border-radius:8px;padding:10px;font-size:11px;line-height:1.6;color:var(--ink-soft);margin-bottom:10px;white-space:pre-wrap;">📝 ${p.note}</div>` : ''}
         ${tasks.length === 0 ? `<div style="text-align:center;font-size:11px;color:var(--ink-mute);padding:10px;">タスクがありません</div>` :
-          tasks.map(t=>`<div class="ptask-row">
-            <div class="ptask-check ${t.done?'on':''}" onclick="toggleProjTask('${p.id}','${t.id}')">${t.done?'✓':''}</div>
-            <div class="ptask-label ${t.done?'done':''}">${t.label}</div>
-            <button class="btn-sec" style="padding:4px 8px;border:none;font-size:11px;color:var(--ink-mute);" onclick="deleteProjTask('${p.id}','${t.id}')">×</button>
-          </div>`).join('')
+          `<div id="ptask-sortable-${p.id}" style="touch-action:none;">${tasks.map((t,idx)=>`
+            <div class="ptask-row" draggable="true" data-pid="${p.id}" data-tid="${t.id}" data-idx="${idx}" 
+              ondragstart="onPTaskDragStart(event)" ondragover="onPTaskDragOver(event)" ondrop="onPTaskDrop(event)" ondragend="onPTaskDragEnd(event)"
+              ontouchstart="onPTaskTouchStart(event,'${p.id}','${t.id}')" ontouchmove="onPTaskTouchMove(event)" ontouchend="onPTaskTouchEnd(event)">
+              <span style="color:var(--ink-faint);font-size:14px;cursor:grab;padding:0 4px;">⋮⋮</span>
+              <div class="ptask-check ${t.done?'on':''}" onclick="toggleProjTask('${p.id}','${t.id}')">${t.done?'✓':''}</div>
+              <div class="ptask-label ${t.done?'done':''}" style="flex:1;">${t.label}</div>
+              <button class="btn-sec" style="padding:4px 8px;border:none;font-size:11px;color:var(--ink-mute);" onclick="deleteProjTask('${p.id}','${t.id}')">×</button>
+            </div>`).join('')}</div>`
         }
         <div style="display:flex;gap:6px;margin-top:10px;">
-          <input class="fi" type="text" id="ptask-input-${p.id}" placeholder="タスクを追加" onkeydown="if(event.key==='Enter')addProjTask('${p.id}')">
+          <input class="fi" type="text" id="ptask-input-${p.id}" placeholder="タスクを追加 (Enterで追加)"
+            oncompositionstart="this.dataset.composing='1'"
+            oncompositionend="this.dataset.composing=''"
+            onkeydown="if(event.key==='Enter'&&!this.dataset.composing){event.preventDefault();addProjTask('${p.id}')}">
           <button class="btn-sec" onclick="addProjTask('${p.id}')">＋</button>
         </div>
         <div style="display:flex;gap:6px;margin-top:10px;">
+          <button class="btn-sec" style="flex:1;" onclick="openProjectEdit('${p.id}')">編集</button>
           <button class="btn-sec" style="flex:1;" onclick="toggleProjStatus('${p.id}')">${p.status==='active'?'完了にする':'進行中に戻す'}</button>
           <button class="btn-sec" style="color:var(--ink-mute);" onclick="confirmDeleteProj('${p.id}')">削除</button>
         </div>
       </div>` : ''}
     </div>`;
   }).join('');
+};
+
+// 優先タスク切替
+window.toggleTaskPriority = async function(pid, tid){
+  const p = cache.projects.find(x=>String(x.id)===String(pid));
+  if(!p) return;
+  const t = (p.tasks||[]).find(x=>String(x.id)===String(tid));
+  if(!t) return;
+  t.priority = !t.priority;
+  await saveProjectFB(p);
+  renderProjects();
+};
+
+// ============= DRAG & DROP (デスクトップ) =============
+let _dragPTask = null;
+window.onPTaskDragStart = function(e){
+  _dragPTask = { pid:e.currentTarget.dataset.pid, tid:e.currentTarget.dataset.tid };
+  e.currentTarget.style.opacity = '0.4';
+  e.dataTransfer.effectAllowed = 'move';
+};
+window.onPTaskDragOver = function(e){
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+};
+window.onPTaskDrop = async function(e){
+  e.preventDefault();
+  if(!_dragPTask) return;
+  const target = e.currentTarget;
+  const targetPid = target.dataset.pid;
+  const targetTid = target.dataset.tid;
+  if(_dragPTask.pid !== targetPid) return; // 別の案件同士の並べ替えは不可
+  const p = cache.projects.find(x=>String(x.id)===String(targetPid));
+  if(!p || !p.tasks) return;
+  const fromIdx = p.tasks.findIndex(x=>String(x.id)===String(_dragPTask.tid));
+  const toIdx = p.tasks.findIndex(x=>String(x.id)===String(targetTid));
+  if(fromIdx < 0 || toIdx < 0) return;
+  const [moved] = p.tasks.splice(fromIdx, 1);
+  p.tasks.splice(toIdx, 0, moved);
+  await saveProjectFB(p);
+  renderProjects();
+};
+window.onPTaskDragEnd = function(e){
+  e.currentTarget.style.opacity = '';
+  _dragPTask = null;
+};
+
+// ============= TOUCH DRAG (モバイル) =============
+let _touchDrag = null;
+window.onPTaskTouchStart = function(e, pid, tid){
+  const target = e.currentTarget;
+  // ⋮⋮ をタッチした時だけドラッグ開始
+  const x = e.touches[0].clientX;
+  const rect = target.getBoundingClientRect();
+  if(x - rect.left > 30) return; // ハンドル以外なら無視
+  _touchDrag = { pid, tid, el:target, startY:e.touches[0].clientY };
+  target.style.opacity = '0.5';
+};
+window.onPTaskTouchMove = function(e){
+  if(!_touchDrag) return;
+  e.preventDefault();
+  const y = e.touches[0].clientY;
+  const elements = document.elementsFromPoint(e.touches[0].clientX, y);
+  const target = elements.find(el => el.classList && el.classList.contains('ptask-row') && el !== _touchDrag.el && el.dataset.pid === _touchDrag.pid);
+  if(target){
+    _touchDrag.target = target;
+    // ビジュアルフィードバック
+    document.querySelectorAll('.ptask-row.drag-over').forEach(el=>el.classList.remove('drag-over'));
+    target.classList.add('drag-over');
+  }
+};
+window.onPTaskTouchEnd = async function(e){
+  if(!_touchDrag) return;
+  _touchDrag.el.style.opacity = '';
+  document.querySelectorAll('.ptask-row.drag-over').forEach(el=>el.classList.remove('drag-over'));
+  if(_touchDrag.target){
+    const targetTid = _touchDrag.target.dataset.tid;
+    const p = cache.projects.find(x=>String(x.id)===String(_touchDrag.pid));
+    if(p && p.tasks){
+      const fromIdx = p.tasks.findIndex(x=>String(x.id)===String(_touchDrag.tid));
+      const toIdx = p.tasks.findIndex(x=>String(x.id)===String(targetTid));
+      if(fromIdx >= 0 && toIdx >= 0 && fromIdx !== toIdx){
+        const [moved] = p.tasks.splice(fromIdx, 1);
+        p.tasks.splice(toIdx, 0, moved);
+        await saveProjectFB(p);
+        renderProjects();
+      }
+    }
+  }
+  _touchDrag = null;
 };
 
 let _expandedProjId = null;
@@ -344,6 +463,34 @@ window.saveNewProject = async function(){
   closeModal('ov-project-add');
   renderProjects();
 };
+
+// 案件編集
+let _editingProjId = null;
+window.openProjectEdit = function(pid){
+  const p = cache.projects.find(x=>String(x.id)===String(pid));
+  if(!p) return;
+  _editingProjId = pid;
+  $('pe-name').value = p.name || '';
+  $('pe-client').value = p.client || '';
+  $('pe-deadline').value = p.deadline || '';
+  $('pe-note').value = p.note || '';
+  openModal('ov-project-edit');
+};
+window.saveEditedProject = async function(){
+  if(!_editingProjId) return;
+  const p = cache.projects.find(x=>String(x.id)===String(_editingProjId));
+  if(!p) return;
+  const name = $('pe-name').value.trim();
+  if(!name) return alert('案件名を入力');
+  p.name = name;
+  p.client = $('pe-client').value.trim();
+  p.deadline = $('pe-deadline').value;
+  p.note = $('pe-note').value.trim();
+  await saveProjectFB(p);
+  closeModal('ov-project-edit');
+  renderProjects();
+};
+
 window.toggleProjTask = async function(pid, tid){
   const p = cache.projects.find(x=>String(x.id)===String(pid));
   if(!p) return;
@@ -364,7 +511,7 @@ window.addProjTask = async function(pid){
   const p = cache.projects.find(x=>String(x.id)===String(pid));
   if(!p) return;
   const input = document.getElementById(`ptask-input-${pid}`);
-  if(!input) return alert('入力欄が見つかりません');
+  if(!input) return;
   const label = input.value.trim();
   if(!label) return;
   if(!Array.isArray(p.tasks)) p.tasks = [];
@@ -400,20 +547,26 @@ window.renderProgress = function(){
     short: ()=>renderYTTab(false),
     van: renderVanTab,
     hair: renderHairTab,
+    milestone: renderMilestoneTab,
   };
   $('progress-content').innerHTML = '';
   map[_progressTab] && map[_progressTab]();
-  // 月別マイルストーン: 進捗ページの末尾
-  $('progress-content').innerHTML += `
-    <div class="card">
-      <div class="sec-h" style="justify-content:space-between;display:flex;">
-        <div><span class="sec-h-icon">📅</span>月別マイルストーン</div>
-        <span style="font-size:10px;color:var(--ink-mute);">タップで編集</span>
-      </div>
-      <div id="milestone-list"></div>
-    </div>`;
-  renderMilestones();
 };
+
+function renderMilestoneTab(){
+  $('progress-content').innerHTML = `
+    <div class="hero-card hero-purple">
+      <div class="hero-head">
+        <span class="hero-icon">📅</span>
+        <div style="flex:1;">
+          <div class="hero-ttl">月別マイルストーン</div>
+          <div class="hero-sub">タップで編集 · 体重は設定と連動</div>
+        </div>
+      </div>
+    </div>
+    <div id="milestone-list"></div>`;
+  renderMilestones();
+}
 
 function renderMilestones(){
   if(!$('milestone-list')) return;
@@ -459,7 +612,10 @@ function renderProductionTab(){
     <div class="card">
       <div class="sec-h">タスク追加</div>
       <div style="display:flex;gap:8px;">
-        <input class="fi" id="prod-input" placeholder="例: シーン1のラフカット完成" style="flex:1;">
+        <input class="fi" id="prod-input" placeholder="例: シーン1のラフカット完成 (Enterで追加)" style="flex:1;"
+          oncompositionstart="this.dataset.composing='1'"
+          oncompositionend="this.dataset.composing=''"
+          onkeydown="if(event.key==='Enter'&&!this.dataset.composing){event.preventDefault();addProductionTask()}">
         <button class="btn-pri" style="width:auto;padding:0 16px;" onclick="addProductionTask()">＋</button>
       </div>
     </div>
@@ -1023,18 +1179,76 @@ window.viewImg = function(src){
 
 // ============= INSPIRATION =============
 function renderInspiration(){
-  $('insp-count').textContent = `${cache.motivations.length}枚`;
   if(cache.motivations.length === 0){
-    $('inspiration-content').innerHTML = '<div class="empty-state" style="padding:24px 20px;"><div class="em-ico">📷</div><div style="font-size:11px;">理想の画像を追加</div></div>';
+    $('inspiration-content').innerHTML = '<div class="empty-state" style="padding:18px 20px;"><div class="em-ico">📷</div><div style="font-size:11px;">＋から理想の画像を追加</div></div>';
     return;
   }
   $('inspiration-content').innerHTML = `<div class="insp-grid">${cache.motivations.map(m=>`
-    <div class="insp-item">
-      <img src="${m.imageData||m.url||''}" alt="${m.credit||''}" onclick="viewInspiration('${m.id}')">
-      <button class="insp-del" onclick="event.stopPropagation();deleteInspiration('${m.id}')">×</button>
+    <div class="insp-item" 
+      onclick="onInspClick('${m.id}')"
+      oncontextmenu="event.preventDefault();onInspLongPress('${m.id}')"
+      ontouchstart="startInspLongPress(event,'${m.id}')"
+      ontouchend="cancelInspLongPress()"
+      ontouchmove="cancelInspLongPress()">
+      <img src="${m.imageData||m.url||''}" alt="${m.credit||''}" draggable="false">
     </div>
   `).join('')}</div>`;
 }
+let _inspLongPressTimer = null;
+let _longPressInspId = null;
+let _activeInspId = null;
+window.startInspLongPress = function(e, id){
+  _longPressInspId = id;
+  if(_inspLongPressTimer) clearTimeout(_inspLongPressTimer);
+  _inspLongPressTimer = setTimeout(()=>{
+    onInspLongPress(id);
+    _longPressInspId = null;
+  }, 500);
+};
+window.cancelInspLongPress = function(){
+  if(_inspLongPressTimer){ clearTimeout(_inspLongPressTimer); _inspLongPressTimer = null; }
+};
+window.onInspClick = function(id){
+  // 長押し中なら通常クリックを無視
+  if(!_longPressInspId) return;
+  // 通常タップは拡大表示
+  viewInspiration(id);
+};
+window.onInspLongPress = function(id){
+  cancelInspLongPress();
+  _activeInspId = id;
+  _longPressInspId = null;
+  openModal('ov-insp-menu');
+};
+window.changeInspirationImage = function(){
+  closeModal('ov-insp-menu');
+  // ファイル選択 → 画像差し替え
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = async (e)=>{
+    const f = e.target.files && e.target.files[0];
+    if(!f) return;
+    try{
+      const data = await compressImage(f, 1200, 0.8);
+      const m = cache.motivations.find(x=>String(x.id)===String(_activeInspId));
+      if(!m) return;
+      m.imageData = data;
+      await saveMotivationFB(m);
+      renderInspiration();
+    } catch(err){ alert('画像処理失敗: '+err.message); }
+  };
+  input.click();
+};
+window.deleteInspirationFromMenu = async function(){
+  closeModal('ov-insp-menu');
+  if(!_activeInspId) return;
+  if(!confirm('画像を削除しますか?')) return;
+  cache.motivations = cache.motivations.filter(m=>String(m.id)!==String(_activeInspId));
+  await deleteMotivationFB(_activeInspId);
+  _activeInspId = null;
+  renderInspiration();
+};
 let _newInspData = null;
 window.openInspirationAdd = function(){
   _newInspData = null;
