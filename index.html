@@ -26,13 +26,31 @@ body{font-family:"Futura","Avenir Next","Hiragino Sans","Yu Gothic Medium",syste
 
 /* PC: コンテンツを中央のスマホサイズコラムだけ表示 */
 @media (min-width: 768px){
-  body{background:#EEE;}
-  /* header/tabbarは全幅、中の要素を中央寄せ */
-  #header{justify-content:center;gap:280px;}
-  #tabbar{justify-content:center;}
-  #tabbar .tb{flex:0 0 76px;max-width:76px;}
-  /* コンテンツ部分を白背景の縦カラムに */
-  .pg{background:var(--bg);box-shadow:0 0 24px rgba(0,0,0,.06);min-height:calc(100vh - 100px);padding-left:14px;padding-right:14px;}
+  body{background:#E7E5E1;}
+  /* ヘッダー・本文・タブバーを同じ幅で中央寄せ（PC最適化・アプリ枠） */
+  #header{
+    left:auto;right:auto;margin:0 auto;width:100%;max-width:880px;
+    justify-content:space-between;gap:0;
+    border-left:1px solid var(--bdr);border-right:1px solid var(--bdr);
+  }
+  .pg{
+    max-width:880px;
+    background:var(--bg);box-shadow:0 0 28px rgba(0,0,0,.07);
+    min-height:calc(100vh - 100px);
+    border-left:1px solid var(--bdr);border-right:1px solid var(--bdr);
+    padding:20px 24px 32px;
+  }
+  /* 今日ページはPCの横幅を活かして2カラム（上段カードは横断） */
+  #pg-today.on{display:grid;grid-template-columns:1fr 1fr;gap:0 20px;align-items:start;}
+  #pg-today.on > .dash-grid{grid-column:1 / -1;}
+  /* タブバーも中央のアプリ幅にそろえる */
+  #tabbar{
+    left:50%;right:auto;transform:translateX(-50%);
+    width:880px;max-width:100%;
+    justify-content:space-around;
+    border-left:1px solid var(--bdr);border-right:1px solid var(--bdr);
+  }
+  #tabbar .tb{flex:1 1 0;max-width:120px;}
 }
 input,textarea,select{font-size:16px!important;}
 
@@ -187,6 +205,9 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 /* MODAL */
 .ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:10000;align-items:center;justify-content:center;padding:16px;}
 .ov.on{display:flex;}
+/* 編集・確認モーダルは他モーダル（日別画面など）より前面に重ねる */
+#ov-task-edit{z-index:10010;}
+#ov-confirm{z-index:10020;}
 .modal{background:#fff;border-radius:16px;width:100%;max-width:420px;max-height:85vh;overflow-y:auto;}
 .mhd{padding:18px;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:rgba(255,255,255,.95);backdrop-filter:blur(20px);z-index:2;}
 .mttl{font-size:15px;font-weight:700;}
@@ -258,7 +279,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v9</span></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v10</span></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
