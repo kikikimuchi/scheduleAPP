@@ -43,21 +43,34 @@ window.renderToday = function(){
   $('wake-input').value = cache.wakeTimes[today] || '';
   
   const shiftMin = getShiftMin(today, modeKey);
-  const modeTasks = (MODE_TASKS[modeKey] || []).map(t => ({...t, time: adjustTime(t.time, shiftMin)}));
+  const overrides = cache.taskOverrides[today] || {};
+  const modeTasks = (MODE_TASKS[modeKey] || []).map(t => {
+    const ov = overrides[t.key];
+    // 上書きがある場合は明示的な時刻として尊重（起床シフトは再適用しない）
+    if(ov) return {...t, time: ov.time, label: ov.label, edited:true};
+    return {...t, time: adjustTime(t.time, shiftMin)};
+  });
   const customTasks = (cache.customTasks[today] || []).map(t => ({key:`custom_${t.id}`, time:t.time, label:t.label, icon:'⭐', custom:true, id:t.id}));
   const allTasks = [...modeTasks, ...customTasks];
-  
+
+  // 編集モーダル用にタスクの現在値を保持
+  window._todayTaskMap = {};
+  allTasks.forEach(t => { window._todayTaskMap[t.key] = { time:t.time, label:t.label, custom:!!t.custom, id:t.id, edited:!!t.edited }; });
+
   const taskHtml = allTasks.length === 0
     ? '<div class="empty-state"><div class="em-ico">○</div><div style="font-size:11px;">タスクが設定されていません</div></div>'
     : allTasks.map(t => {
         const checked = cache.todayChecks[`${today}_${t.key}`];
         const delBtn = t.custom ? `<button class="btn-sec" style="padding:4px 8px;font-size:10px;border:none;color:var(--ink-mute);" onclick="event.stopPropagation();removeCustomTaskById(${t.id})">×</button>` : '';
-        return `<div class="task-row" onclick="onTodayCheckClick('${t.key}')">
-          <div class="task-time">${t.time||'—'}</div>
-          <div class="task-icon">${t.icon}</div>
-          <div class="task-label ${checked?'done':''}">${t.label}</div>
+        return `<div class="task-row">
+          <div class="task-main" onclick="openEditTask('${t.key}')">
+            <div class="task-time">${t.time||'—'}</div>
+            <div class="task-icon">${t.icon}</div>
+            <div class="task-label ${checked?'done':''}">${t.label}</div>
+            <div class="task-edit-mark">✎</div>
+          </div>
           ${delBtn}
-          <div class="task-check ${checked?'on':''}">${checked?'✓':''}</div>
+          <div class="task-check ${checked?'on':''}" onclick="event.stopPropagation();onTodayCheckClick('${t.key}')">${checked?'✓':''}</div>
         </div>`;
       }).join('');
   $('task-list').innerHTML = taskHtml;
@@ -182,6 +195,45 @@ window.removeCustomTaskById = async function(id){
   const today = getTodayDateString();
   const tasks = (cache.customTasks[today]||[]).filter(t=>t.id!==id);
   await saveCustomTasksFB(today, tasks);
+  renderToday();
+};
+// スケジュール項目の編集
+window.openEditTask = function(key){
+  const t = (window._todayTaskMap || {})[key];
+  if(!t) return;
+  $('te-key').value = key;
+  $('te-time').value = t.time || '';
+  $('te-label').value = t.label || '';
+  // モードタスクで上書き済みのものだけ「デフォルトに戻す」を表示
+  const isMode = !t.custom;
+  $('te-reset-btn').style.display = (isMode && t.edited) ? 'block' : 'none';
+  openModal('ov-task-edit');
+};
+window.saveTaskEdit = async function(){
+  const key = $('te-key').value;
+  const time = $('te-time').value.trim();
+  const label = $('te-label').value.trim();
+  if(!label) return alert('内容を入力してください');
+  const today = getTodayDateString();
+  if(key.startsWith('custom_')){
+    const id = Number(key.slice('custom_'.length));
+    const tasks = (cache.customTasks[today]||[]).map(x => x.id===id ? {...x, time, label} : x);
+    await saveCustomTasksFB(today, tasks);
+  } else {
+    const overrides = {...(cache.taskOverrides[today]||{})};
+    overrides[key] = { time, label };
+    await saveTaskOverridesFB(today, overrides);
+  }
+  closeModal('ov-task-edit');
+  renderToday();
+};
+window.resetTaskEdit = async function(){
+  const key = $('te-key').value;
+  const today = getTodayDateString();
+  const overrides = {...(cache.taskOverrides[today]||{})};
+  delete overrides[key];
+  await saveTaskOverridesFB(today, overrides);
+  closeModal('ov-task-edit');
   renderToday();
 };
 

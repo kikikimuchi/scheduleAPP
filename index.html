@@ -99,10 +99,12 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 /* TASKS */
 .task-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bdr);}
 .task-row:last-child{border-bottom:none;}
-.task-time{font-size:10px;color:var(--ink-mute);width:54px;letter-spacing:.04em;}
-.task-icon{font-size:14px;}
-.task-label{flex:1;font-size:12px;}
+.task-main{flex:1;display:flex;align-items:center;gap:8px;min-width:0;cursor:pointer;}
+.task-time{font-size:10px;color:var(--ink-mute);width:54px;letter-spacing:.04em;flex-shrink:0;}
+.task-icon{font-size:14px;flex-shrink:0;}
+.task-label{flex:1;font-size:12px;min-width:0;}
 .task-label.done{color:var(--ink-faint);text-decoration:line-through;}
+.task-edit-mark{font-size:9px;color:var(--ink-faint);flex-shrink:0;}
 .task-check{width:18px;height:18px;border:1.5px solid var(--bdr-s);border-radius:5px;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;background:#fff;}
 .task-check.on{background:var(--pink);border-color:var(--pink);color:#fff;font-size:11px;font-weight:700;}
 
@@ -517,6 +519,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 
 <!-- MODAL CONTAINERS -->
 <div class="ov" id="ov-mode"><div class="modal"><div class="mhd"><div class="mttl">モード変更</div><button class="mcl" onclick="closeModal('ov-mode')">×</button></div><div class="mbody"><div class="mode-grid" id="mode-grid-container"></div></div></div></div>
+<div class="ov" id="ov-task-edit"><div class="modal"><div class="mhd"><div class="mttl">スケジュールを編集</div><button class="mcl" onclick="closeModal('ov-task-edit')">×</button></div><div class="mbody"><input type="hidden" id="te-key"><div class="fg"><label class="fl">時間</label><input class="fi" type="text" id="te-time" placeholder="例: 10:30 / 自然起床"></div><div class="fg"><label class="fl">内容</label><input class="fi" type="text" id="te-label" placeholder="やること"></div><button class="btn-pri" onclick="saveTaskEdit()">保存</button><button class="btn-sec" id="te-reset-btn" style="margin-top:8px;width:100%;display:none;" onclick="resetTaskEdit()">↺ デフォルトに戻す</button></div></div></div>
 <div class="ov" id="ov-weight"><div class="modal"><div class="mhd"><div class="mttl">体重を記録</div><button class="mcl" onclick="closeModal('ov-weight')">×</button></div><div class="mbody"><div class="fg"><label class="fl">体重 (kg)</label><input class="fi no-spinner" type="number" step="0.1" id="w-input-kg" inputmode="decimal"></div><div class="fg"><label class="fl">体脂肪率 (%) 任意</label><input class="fi no-spinner" type="number" step="0.1" id="w-input-bf" inputmode="decimal"></div><button class="btn-pri" onclick="saveWeight()">記録</button></div></div></div>
 <div class="ov" id="ov-daydetail"><div class="modal"><div class="dd-h"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:10px;letter-spacing:.2em;color:var(--ink-mute);">— その日の記録 —</div><div><span class="dd-date" id="dd-date"></span><span class="dd-day" id="dd-day"></span></div></div><button class="mcl" onclick="closeModal('ov-daydetail')">×</button></div><div class="dd-mode-row"><span class="dd-mode-ico" id="dd-mode-ico"></span><div style="flex:1;"><div style="font-size:10px;color:var(--ink-mute);">モード</div><div style="font-size:14px;font-weight:700;" id="dd-mode-name"></div><div style="font-size:10px;color:var(--ink-mute);" id="dd-mode-desc"></div></div><div style="text-align:right;"><div style="font-size:10px;color:var(--ink-mute);">起床</div><div style="font-size:14px;font-weight:700;" id="dd-wake"></div></div></div></div><div class="subtab-wrap" style="margin:14px 18px 0;grid-template-columns:1fr 1fr;"><button class="subtab on" id="dd-tab-mode" onclick="setDayDetailTab('mode')">モード変更</button><button class="subtab" id="dd-tab-sch" onclick="setDayDetailTab('schedule')">スケジュール</button></div><div class="mbody" id="dd-body"></div></div></div>
 <div class="ov" id="ov-milestone"><div class="modal"><div class="mhd"><div class="mttl"><span id="ms-edit-month"></span>のマイルストーン</div><button class="mcl" onclick="closeModal('ov-milestone')">×</button></div><div class="mbody"><div class="fg"><label class="fl">テーマ</label><input class="fi" type="text" id="ms-edit-theme"></div><div class="fg"><label class="fl">内容 (・区切り)</label><textarea class="fi" id="ms-edit-items" rows="3"></textarea></div><div class="fg"><label class="fl">目標体重 (kg)</label><input class="fi no-spinner" type="number" step="0.1" id="ms-edit-weight"></div><button class="btn-pri" onclick="saveMilestone()">保存</button></div></div></div>
@@ -564,6 +567,7 @@ const COL = {
   todayChecks: collection(db, 'schedule_todayChecks'),
   nightChecks: collection(db, 'schedule_nightChecks'),
   customTasks: collection(db, 'schedule_customTasks'),
+  taskOverrides: collection(db, 'schedule_taskOverrides'),
   projects: collection(db, 'schedule_projects'),
   milestones: collection(db, 'schedule_milestones'),
   motivations: collection(db, 'schedule_motivations'),
@@ -585,6 +589,7 @@ window.cache = {
   todayChecks: {}, // {'2026-05-14_wake': true}
   nightChecks: {}, // {'2026-05-14_teeth': true}
   customTasks: {}, // {'2026-05-14': [{id,time,label}]}
+  taskOverrides: {}, // {'2026-05-14': {taskKey:{time,label}}} モードタスクの日別上書き
   projects: [], // [{id, name, client, deadline, status, note, tasks:[]}]
   milestones: [],
   motivations: [], // [{id, imageData, credit}]
@@ -785,6 +790,11 @@ async function loadAll(){
       const snap = await getDocs(COL.customTasks);
       snap.docs.forEach(d=>{ cache.customTasks[d.id] = d.data().tasks || []; });
     })());
+
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.taskOverrides);
+      snap.docs.forEach(d=>{ cache.taskOverrides[d.id] = d.data().overrides || {}; });
+    })());
     
     tasks.push((async()=>{
       const snap = await getDocs(COL.projects);
@@ -883,6 +893,10 @@ window.deleteMotivationFB = async (id)=>{ await deleteDoc(doc(COL.motivations, S
 window.saveCustomTasksFB = async (date, tasks)=>{
   if(tasks.length===0){ delete cache.customTasks[date]; await deleteDoc(doc(COL.customTasks,date)); }
   else { cache.customTasks[date] = tasks; await setDoc(doc(COL.customTasks,date), {tasks}); }
+};
+window.saveTaskOverridesFB = async (date, overrides)=>{
+  if(!overrides || Object.keys(overrides).length===0){ delete cache.taskOverrides[date]; await deleteDoc(doc(COL.taskOverrides,date)); }
+  else { cache.taskOverrides[date] = overrides; await setDoc(doc(COL.taskOverrides,date), {overrides}); }
 };
 // 汎用 setDoc / deleteDoc (collection名指定)
 window.setDocImport = async (colName, data)=>{
