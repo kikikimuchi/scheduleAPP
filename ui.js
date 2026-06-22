@@ -44,12 +44,15 @@ window.renderToday = function(){
   
   const shiftMin = getShiftMin(today, modeKey);
   const overrides = cache.taskOverrides[today] || {};
-  const modeTasks = (MODE_TASKS[modeKey] || []).map(t => {
-    const ov = overrides[t.key];
-    // 上書きがある場合は明示的な時刻として尊重（起床シフトは再適用しない）
-    if(ov) return {...t, time: ov.time, label: ov.label, edited:true};
-    return {...t, time: adjustTime(t.time, shiftMin)};
-  });
+  const hidden = cache.taskHidden[today] || [];
+  const modeTasks = (MODE_TASKS[modeKey] || [])
+    .filter(t => !hidden.includes(t.key))
+    .map(t => {
+      const ov = overrides[t.key];
+      // 上書きがある場合は明示的な時刻として尊重（起床シフトは再適用しない）
+      if(ov) return {...t, time: ov.time, label: ov.label, edited:true};
+      return {...t, time: adjustTime(t.time, shiftMin)};
+    });
   const customTasks = (cache.customTasks[today] || []).map(t => ({key:`custom_${t.id}`, time:t.time, label:t.label, icon:'⭐', custom:true, id:t.id}));
   const allTasks = [...modeTasks, ...customTasks];
 
@@ -61,15 +64,13 @@ window.renderToday = function(){
     ? '<div class="empty-state"><div class="em-ico">○</div><div style="font-size:11px;">タスクが設定されていません</div></div>'
     : allTasks.map(t => {
         const checked = cache.todayChecks[`${today}_${t.key}`];
-        const delBtn = t.custom ? `<button class="btn-sec" style="padding:4px 8px;font-size:10px;border:none;color:var(--ink-mute);" onclick="event.stopPropagation();removeCustomTaskById(${t.id})">×</button>` : '';
         return `<div class="task-row">
           <div class="task-main" onclick="openEditTask('${t.key}')">
             <div class="task-time">${t.time||'—'}</div>
             <div class="task-icon">${t.icon}</div>
             <div class="task-label ${checked?'done':''}">${t.label}</div>
-            <div class="task-edit-mark">✎</div>
           </div>
-          ${delBtn}
+          <button class="task-del" onclick="event.stopPropagation();deleteTask('${t.key}')">×</button>
           <div class="task-check ${checked?'on':''}" onclick="event.stopPropagation();onTodayCheckClick('${t.key}')">${checked?'✓':''}</div>
         </div>`;
       }).join('');
@@ -88,14 +89,28 @@ window.renderToday = function(){
     { key:'reading', label:'読書 (紙の本/ソファで)', time:'23:30', icon:'📖' },
     { key:'sleep', label:'眠気が来たらベッドへ', time:'〜24:30', icon:'😴' },
   ];
-  const nightTasks = nightRaw.map(t=>({...t, time: adjustTime(t.time, shiftMin)}));
+  const nightOverrides = cache.nightOverrides[today] || {};
+  const nightHidden = cache.nightHidden[today] || [];
+  const nightTasks = nightRaw
+    .filter(t => !nightHidden.includes(t.key))
+    .map(t=>{
+      const ov = nightOverrides[t.key];
+      if(ov) return {...t, time: ov.time, label: ov.label, edited:true};
+      return {...t, time: adjustTime(t.time, shiftMin)};
+    });
+  // 編集モーダル用に夜タスクの現在値を保持
+  window._nightTaskMap = {};
+  nightTasks.forEach(t => { window._nightTaskMap[t.key] = { time:t.time, label:t.label, edited:!!t.edited }; });
   const nightHtml = nightTasks.map(t=>{
     const checked = cache.nightChecks[`${today}_${t.key}`];
-    return `<div class="task-row night-row ${checked?'on':''}" onclick="onNightCheckClick('${t.key}')">
-      <div class="task-time">${t.time}</div>
-      <div class="task-icon">${t.icon}</div>
-      <div class="task-label ${checked?'done':''}">${t.label}</div>
-      <div class="task-check ${checked?'on':''}">${checked?'✓':''}</div>
+    return `<div class="task-row night-row ${checked?'on':''}">
+      <div class="task-main" onclick="openEditNightTask('${t.key}')">
+        <div class="task-time">${t.time}</div>
+        <div class="task-icon">${t.icon}</div>
+        <div class="task-label ${checked?'done':''}">${t.label}</div>
+      </div>
+      <button class="task-del" onclick="event.stopPropagation();deleteNightTask('${t.key}')">×</button>
+      <div class="task-check ${checked?'on':''}" onclick="event.stopPropagation();onNightCheckClick('${t.key}')">${checked?'✓':''}</div>
     </div>`;
   }).join('');
   $('night-list').innerHTML = nightHtml;
@@ -191,13 +206,15 @@ window.addCustomTask = async function(){
   $('custom-task-label').value = '';
   renderToday();
 };
-window.removeCustomTaskById = async function(id){
-  const today = getTodayDateString();
-  const tasks = (cache.customTasks[today]||[]).filter(t=>t.id!==id);
-  await saveCustomTasksFB(today, tasks);
-  renderToday();
+// ============= 確認ダイアログ =============
+window.confirmDialog = function(msg, onOk){
+  $('cf-msg').textContent = msg;
+  const btn = $('cf-ok');
+  btn.onclick = async ()=>{ closeModal('ov-confirm'); await onOk(); };
+  openModal('ov-confirm');
 };
-// スケジュール項目の編集
+
+// ============= 昼スケジュールの編集 =============
 window.openEditTask = function(key){
   const t = (window._todayTaskMap || {})[key];
   if(!t) return;
@@ -210,32 +227,83 @@ window.openEditTask = function(key){
   openModal('ov-task-edit');
 };
 window.saveTaskEdit = async function(){
-  const key = $('te-key').value;
+  const raw = $('te-key').value;
   const time = $('te-time').value.trim();
   const label = $('te-label').value.trim();
   if(!label) return alert('内容を入力してください');
   const today = getTodayDateString();
-  if(key.startsWith('custom_')){
-    const id = Number(key.slice('custom_'.length));
+  if(raw.startsWith('night:')){
+    const key = raw.slice('night:'.length);
+    cache.nightOverrides[today] = {...(cache.nightOverrides[today]||{}), [key]:{time,label}};
+    await saveOverridesFB(today);
+  } else if(raw.startsWith('custom_')){
+    const id = Number(raw.slice('custom_'.length));
     const tasks = (cache.customTasks[today]||[]).map(x => x.id===id ? {...x, time, label} : x);
     await saveCustomTasksFB(today, tasks);
   } else {
-    const overrides = {...(cache.taskOverrides[today]||{})};
-    overrides[key] = { time, label };
-    await saveTaskOverridesFB(today, overrides);
+    cache.taskOverrides[today] = {...(cache.taskOverrides[today]||{}), [raw]:{time,label}};
+    await saveOverridesFB(today);
   }
   closeModal('ov-task-edit');
   renderToday();
 };
 window.resetTaskEdit = async function(){
-  const key = $('te-key').value;
+  const raw = $('te-key').value;
   const today = getTodayDateString();
-  const overrides = {...(cache.taskOverrides[today]||{})};
-  delete overrides[key];
-  await saveTaskOverridesFB(today, overrides);
+  if(raw.startsWith('night:')){
+    const key = raw.slice('night:'.length);
+    if(cache.nightOverrides[today]){ delete cache.nightOverrides[today][key]; }
+  } else {
+    if(cache.taskOverrides[today]){ delete cache.taskOverrides[today][raw]; }
+  }
+  await saveOverridesFB(today);
   closeModal('ov-task-edit');
   renderToday();
 };
+window.deleteTask = function(key){
+  const t = (window._todayTaskMap || {})[key];
+  confirmDialog(`「${t ? t.label : 'このタスク'}」を削除しますか？`, ()=> doDeleteTask(key));
+};
+async function doDeleteTask(key){
+  const today = getTodayDateString();
+  if(key.startsWith('custom_')){
+    const id = Number(key.slice('custom_'.length));
+    const tasks = (cache.customTasks[today]||[]).filter(t=>t.id!==id);
+    await saveCustomTasksFB(today, tasks);
+  } else {
+    // モード（フォーマット）タスクは当日分を非表示にする
+    const list = [...(cache.taskHidden[today]||[])];
+    if(!list.includes(key)) list.push(key);
+    cache.taskHidden[today] = list;
+    if(cache.taskOverrides[today]) delete cache.taskOverrides[today][key];
+    await saveOverridesFB(today);
+  }
+  renderToday();
+}
+
+// ============= 夜ルーティンの編集 =============
+window.openEditNightTask = function(key){
+  const t = (window._nightTaskMap || {})[key];
+  if(!t) return;
+  $('te-key').value = 'night:' + key;
+  $('te-time').value = t.time || '';
+  $('te-label').value = t.label || '';
+  $('te-reset-btn').style.display = t.edited ? 'block' : 'none';
+  openModal('ov-task-edit');
+};
+window.deleteNightTask = function(key){
+  const t = (window._nightTaskMap || {})[key];
+  confirmDialog(`「${t ? t.label : 'このタスク'}」を削除しますか？`, ()=> doDeleteNightTask(key));
+};
+async function doDeleteNightTask(key){
+  const today = getTodayDateString();
+  const list = [...(cache.nightHidden[today]||[])];
+  if(!list.includes(key)) list.push(key);
+  cache.nightHidden[today] = list;
+  if(cache.nightOverrides[today]) delete cache.nightOverrides[today][key];
+  await saveOverridesFB(today);
+  renderToday();
+}
 
 // ============= MODE SELECTOR =============
 window.openModeSelector = function(){

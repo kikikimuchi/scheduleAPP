@@ -104,7 +104,8 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 .task-icon{font-size:14px;flex-shrink:0;}
 .task-label{flex:1;font-size:12px;min-width:0;}
 .task-label.done{color:var(--ink-faint);text-decoration:line-through;}
-.task-edit-mark{font-size:9px;color:var(--ink-faint);flex-shrink:0;}
+.task-del{width:30px;height:30px;border:none;background:transparent;color:var(--ink-faint);font-size:20px;line-height:1;border-radius:8px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;}
+.task-del:active{background:rgba(0,0,0,.07);color:#E88FA1;}
 .task-check{width:18px;height:18px;border:1.5px solid var(--bdr-s);border-radius:5px;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;background:#fff;}
 .task-check.on{background:var(--pink);border-color:var(--pink);color:#fff;font-size:11px;font-weight:700;}
 
@@ -520,6 +521,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <!-- MODAL CONTAINERS -->
 <div class="ov" id="ov-mode"><div class="modal"><div class="mhd"><div class="mttl">モード変更</div><button class="mcl" onclick="closeModal('ov-mode')">×</button></div><div class="mbody"><div class="mode-grid" id="mode-grid-container"></div></div></div></div>
 <div class="ov" id="ov-task-edit"><div class="modal"><div class="mhd"><div class="mttl">スケジュールを編集</div><button class="mcl" onclick="closeModal('ov-task-edit')">×</button></div><div class="mbody"><input type="hidden" id="te-key"><div class="fg"><label class="fl">時間</label><input class="fi" type="text" id="te-time" placeholder="例: 10:30 / 自然起床"></div><div class="fg"><label class="fl">内容</label><input class="fi" type="text" id="te-label" placeholder="やること"></div><button class="btn-pri" onclick="saveTaskEdit()">保存</button><button class="btn-sec" id="te-reset-btn" style="margin-top:8px;width:100%;display:none;" onclick="resetTaskEdit()">↺ デフォルトに戻す</button></div></div></div>
+<div class="ov" id="ov-confirm"><div class="modal" style="max-width:320px;"><div class="mhd"><div class="mttl" id="cf-title">確認</div><button class="mcl" onclick="closeModal('ov-confirm')">×</button></div><div class="mbody"><div id="cf-msg" style="font-size:13px;color:var(--ink-soft);line-height:1.7;margin-bottom:18px;"></div><div style="display:flex;gap:8px;"><button class="btn-sec" style="flex:1;" onclick="closeModal('ov-confirm')">キャンセル</button><button class="btn-pri" id="cf-ok" style="flex:1;background:#E88FA1;">削除する</button></div></div></div></div>
 <div class="ov" id="ov-weight"><div class="modal"><div class="mhd"><div class="mttl">体重を記録</div><button class="mcl" onclick="closeModal('ov-weight')">×</button></div><div class="mbody"><div class="fg"><label class="fl">体重 (kg)</label><input class="fi no-spinner" type="number" step="0.1" id="w-input-kg" inputmode="decimal"></div><div class="fg"><label class="fl">体脂肪率 (%) 任意</label><input class="fi no-spinner" type="number" step="0.1" id="w-input-bf" inputmode="decimal"></div><button class="btn-pri" onclick="saveWeight()">記録</button></div></div></div>
 <div class="ov" id="ov-daydetail"><div class="modal"><div class="dd-h"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:10px;letter-spacing:.2em;color:var(--ink-mute);">— その日の記録 —</div><div><span class="dd-date" id="dd-date"></span><span class="dd-day" id="dd-day"></span></div></div><button class="mcl" onclick="closeModal('ov-daydetail')">×</button></div><div class="dd-mode-row"><span class="dd-mode-ico" id="dd-mode-ico"></span><div style="flex:1;"><div style="font-size:10px;color:var(--ink-mute);">モード</div><div style="font-size:14px;font-weight:700;" id="dd-mode-name"></div><div style="font-size:10px;color:var(--ink-mute);" id="dd-mode-desc"></div></div><div style="text-align:right;"><div style="font-size:10px;color:var(--ink-mute);">起床</div><div style="font-size:14px;font-weight:700;" id="dd-wake"></div></div></div></div><div class="subtab-wrap" style="margin:14px 18px 0;grid-template-columns:1fr 1fr;"><button class="subtab on" id="dd-tab-mode" onclick="setDayDetailTab('mode')">モード変更</button><button class="subtab" id="dd-tab-sch" onclick="setDayDetailTab('schedule')">スケジュール</button></div><div class="mbody" id="dd-body"></div></div></div>
 <div class="ov" id="ov-milestone"><div class="modal"><div class="mhd"><div class="mttl"><span id="ms-edit-month"></span>のマイルストーン</div><button class="mcl" onclick="closeModal('ov-milestone')">×</button></div><div class="mbody"><div class="fg"><label class="fl">テーマ</label><input class="fi" type="text" id="ms-edit-theme"></div><div class="fg"><label class="fl">内容 (・区切り)</label><textarea class="fi" id="ms-edit-items" rows="3"></textarea></div><div class="fg"><label class="fl">目標体重 (kg)</label><input class="fi no-spinner" type="number" step="0.1" id="ms-edit-weight"></div><button class="btn-pri" onclick="saveMilestone()">保存</button></div></div></div>
@@ -590,6 +592,9 @@ window.cache = {
   nightChecks: {}, // {'2026-05-14_teeth': true}
   customTasks: {}, // {'2026-05-14': [{id,time,label}]}
   taskOverrides: {}, // {'2026-05-14': {taskKey:{time,label}}} モードタスクの日別上書き
+  taskHidden: {}, // {'2026-05-14': [taskKey]} 削除したモードタスクの日別非表示
+  nightOverrides: {}, // {'2026-05-14': {taskKey:{time,label}}} 夜ルーティンの日別上書き
+  nightHidden: {}, // {'2026-05-14': [taskKey]} 削除した夜ルーティンの日別非表示
   projects: [], // [{id, name, client, deadline, status, note, tasks:[]}]
   milestones: [],
   motivations: [], // [{id, imageData, credit}]
@@ -793,7 +798,13 @@ async function loadAll(){
 
     tasks.push((async()=>{
       const snap = await getDocs(COL.taskOverrides);
-      snap.docs.forEach(d=>{ cache.taskOverrides[d.id] = d.data().overrides || {}; });
+      snap.docs.forEach(d=>{
+        const data = d.data();
+        if(data.overrides) cache.taskOverrides[d.id] = data.overrides;
+        if(data.hidden) cache.taskHidden[d.id] = data.hidden;
+        if(data.nightOverrides) cache.nightOverrides[d.id] = data.nightOverrides;
+        if(data.nightHidden) cache.nightHidden[d.id] = data.nightHidden;
+      });
     })());
     
     tasks.push((async()=>{
@@ -894,9 +905,22 @@ window.saveCustomTasksFB = async (date, tasks)=>{
   if(tasks.length===0){ delete cache.customTasks[date]; await deleteDoc(doc(COL.customTasks,date)); }
   else { cache.customTasks[date] = tasks; await setDoc(doc(COL.customTasks,date), {tasks}); }
 };
-window.saveTaskOverridesFB = async (date, overrides)=>{
-  if(!overrides || Object.keys(overrides).length===0){ delete cache.taskOverrides[date]; await deleteDoc(doc(COL.taskOverrides,date)); }
-  else { cache.taskOverrides[date] = overrides; await setDoc(doc(COL.taskOverrides,date), {overrides}); }
+// 昼/夜スケジュールの上書き・非表示を1ドキュメントにまとめて保存
+window.saveOverridesFB = async (date)=>{
+  const clean = (m)=> (m && Object.keys(m).length) ? m : null;
+  const cleanArr = (a)=> (a && a.length) ? a : null;
+  const data = {};
+  if(clean(cache.taskOverrides[date])) data.overrides = cache.taskOverrides[date];
+  if(cleanArr(cache.taskHidden[date])) data.hidden = cache.taskHidden[date];
+  if(clean(cache.nightOverrides[date])) data.nightOverrides = cache.nightOverrides[date];
+  if(cleanArr(cache.nightHidden[date])) data.nightHidden = cache.nightHidden[date];
+  if(Object.keys(data).length===0){
+    delete cache.taskOverrides[date]; delete cache.taskHidden[date];
+    delete cache.nightOverrides[date]; delete cache.nightHidden[date];
+    await deleteDoc(doc(COL.taskOverrides,date));
+  } else {
+    await setDoc(doc(COL.taskOverrides,date), data);
+  }
 };
 // 汎用 setDoc / deleteDoc (collection名指定)
 window.setDocImport = async (colName, data)=>{
