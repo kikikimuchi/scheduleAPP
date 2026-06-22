@@ -151,6 +151,38 @@ function afterScheduleChange(){
   if(dd && dd.classList && dd.classList.contains('on') && typeof renderDayDetailBody==='function') renderDayDetailBody();
 }
 
+// ===== 通知用: 今後7日分の予定をFirestoreの1ドキュメントに公開（GASが読む） =====
+let _notifySyncTimer = null;
+function scheduleNotifySync(){
+  if(_notifySyncTimer) clearTimeout(_notifySyncTimer);
+  _notifySyncTimer = setTimeout(()=>{ if(window.syncNotifySchedule) syncNotifySchedule(); }, 1500);
+}
+window.syncNotifySchedule = async function(){
+  if(typeof saveNotifyDoc !== 'function') return;
+  try {
+    const s = cache.settings || {};
+    const base = getTodayDateString();
+    const baseD = new Date(base+'T00:00');
+    const days = {};
+    for(let i=0;i<7;i++){
+      const d = new Date(baseD); d.setDate(d.getDate()+i);
+      const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      days[ds] = [...computeDayTasks(ds), ...computeNightTasks(ds)]
+        .filter(t => parseTime(t.time) !== null)   // 時刻として読めるものだけ
+        .map(t => ({ t: t.time, l: t.label }));
+    }
+    const payload = {
+      enabled: !!s.notifyEnabled,
+      email: s.notifyEmail || '',
+      leadMin: (s.notifyLeadMin!=null ? Number(s.notifyLeadMin) : 5),
+      tz: 'Asia/Tokyo',
+      days,
+      updatedAt: Date.now(),
+    };
+    await saveNotifyDoc(payload);
+  } catch(e){ console.warn('notify sync失敗', e); }
+};
+
 // ============= TODAY PAGE =============
 window.renderToday = function(){
   const today = getTodayDateString();
@@ -191,6 +223,8 @@ window.renderToday = function(){
   $('night-list').innerHTML = nightTasks.map(t => taskRowHtml(today, t, 'night')).join('');
   const nightDone = nightTasks.filter(t=>cache.nightChecks[`${today}_${t.key}`]).length;
   $('night-count').textContent = `${nightDone}/${nightTasks.length}`;
+
+  scheduleNotifySync(); // スケジュール変更を通知用ドキュメントへ反映（デバウンス）
 };
 
 function renderEndOfYearProgress(){
@@ -1516,7 +1550,10 @@ window.renderSettings = function(){
   $('s-van-budget').value = s.vanBudget;
   $('s-wake-time').value = s.wakeTime;
   $('s-sleep-hours').value = s.targetSleepHours;
-  
+  if($('s-notify-enabled')) $('s-notify-enabled').checked = !!s.notifyEnabled;
+  if($('s-notify-email')) $('s-notify-email').value = s.notifyEmail || '';
+  if($('s-notify-lead')) $('s-notify-lead').value = (s.notifyLeadMin!=null ? s.notifyLeadMin : 5);
+
   const gymDays = ['日','月','火','水','木','金','土'];
   $('gym-days').innerHTML = gymDays.map(d=>`<button class="gym-day ${(s.gymDays||[]).includes(d)?'on':''}" onclick="toggleGymDay('${d}')">${d}</button>`).join('');
 };
@@ -1535,7 +1572,10 @@ window.saveSettings = async function(){
   cache.settings.vanBudget = parseInt($('s-van-budget').value);
   cache.settings.wakeTime = $('s-wake-time').value;
   cache.settings.targetSleepHours = parseFloat($('s-sleep-hours').value);
-  
+  if($('s-notify-enabled')) cache.settings.notifyEnabled = $('s-notify-enabled').checked;
+  if($('s-notify-email')) cache.settings.notifyEmail = ($('s-notify-email').value||'').trim();
+  if($('s-notify-lead')){ const lv = parseInt($('s-notify-lead').value); cache.settings.notifyLeadMin = isNaN(lv) ? 5 : Math.max(0, lv); }
+
   const sw = cache.settings.startWeight;
   const tw = cache.settings.targetWeight;
   const total = cache.milestones.length;
@@ -1549,7 +1589,12 @@ window.saveSettings = async function(){
   }
   
   await saveAllSettings();
-  
+  if(window.syncNotifySchedule) await syncNotifySchedule();
+  const ns = $('notify-status');
+  if(ns) ns.textContent = cache.settings.notifyEnabled
+    ? `通知ON：${cache.settings.notifyEmail||'(メール未設定)'} に ${cache.settings.notifyLeadMin}分前に送信`
+    : '通知OFF';
+
   const btn = $('settings-save-btn');
   btn.textContent = '✓ 保存しました';
   btn.disabled = true;

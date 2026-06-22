@@ -262,7 +262,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v13</span></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v14</span></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -490,6 +490,19 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
     
     <button class="btn-pri" id="settings-save-btn" style="margin-top:18px;" onclick="saveSettings()">保存</button>
   </div>
+
+  <div class="card">
+    <div style="font-size:14px;font-weight:700;margin-bottom:4px;">🔔 メール通知（5分前）</div>
+    <div style="font-size:10px;color:var(--ink-mute);line-height:1.6;margin-bottom:10px;">アプリを閉じていても、各タスクの設定時間の前にメールでお知らせします。<br>※ 別途 Google Apps Script の初期設定が必要です（notify-backend/README 参照）。</div>
+    <label class="fl" style="display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer;">
+      <input type="checkbox" id="s-notify-enabled" style="width:18px;height:18px;">
+      <span style="font-size:13px;font-weight:600;">メール通知を有効にする</span>
+    </label>
+    <div class="fg"><label class="fl">通知先メールアドレス</label><input class="fi" type="email" id="s-notify-email" placeholder="you@example.com" inputmode="email"></div>
+    <div class="fg"><label class="fl">何分前に通知するか（分）</label><input class="fi no-spinner" type="number" id="s-notify-lead" min="0" step="1" inputmode="numeric"></div>
+    <button class="btn-pri" style="margin-top:6px;" onclick="saveSettings()">通知設定を保存</button>
+    <div id="notify-status" style="font-size:10px;color:var(--ink-mute);margin-top:8px;"></div>
+  </div>
 </div>
 
 <!-- TABBAR -->
@@ -575,6 +588,7 @@ const COL = {
   nightChecks: collection(db, 'schedule_nightChecks'),
   customTasks: collection(db, 'schedule_customTasks'),
   taskOverrides: collection(db, 'schedule_taskOverrides'),
+  notify: collection(db, 'schedule_notify'),
   projects: collection(db, 'schedule_projects'),
   milestones: collection(db, 'schedule_milestones'),
   motivations: collection(db, 'schedule_motivations'),
@@ -589,7 +603,7 @@ const COL = {
 
 // =================== CACHE ===================
 window.cache = {
-  settings: { startWeight:83, targetWeight:68, startBodyFat:25, targetBodyFat:18, youtubeLongTarget:15, youtubeShortTarget:30, vanBudget:400000, gymDays:['月','木'], wakeTime:'10:00', targetSleepHours:8, calendarEmbedUrl:'' },
+  settings: { startWeight:83, targetWeight:68, startBodyFat:25, targetBodyFat:18, youtubeLongTarget:15, youtubeShortTarget:30, vanBudget:400000, gymDays:['月','木'], wakeTime:'10:00', targetSleepHours:8, calendarEmbedUrl:'', notifyEnabled:false, notifyEmail:'', notifyLeadMin:5 },
   weights: [],
   dayModes: {},  // {'2026-05-14': 'normal'}
   wakeTimes: {}, // {'2026-05-14': '11:00'}
@@ -876,6 +890,10 @@ window.saveSetting = async (key, value)=>{
 window.saveAllSettings = async ()=>{
   await setDoc(doc(COL.meta,'settings'), cache.settings);
 };
+// 通知バックエンド(GAS)が読む「今後の予定」を1ドキュメントに公開（JSON文字列）
+window.saveNotifyDoc = async (payload)=>{
+  await setDoc(doc(COL.notify,'upcoming'), { data: JSON.stringify(payload) });
+};
 window.saveDayMode = async (date, mode)=>{
   if(mode){ cache.dayModes[date] = mode; await setDoc(doc(COL.dayModes,date), {mode}); }
   else { delete cache.dayModes[date]; await deleteDoc(doc(COL.dayModes,date)); }
@@ -959,6 +977,7 @@ async function init(){
   }
   
   renderAll();
+  if(window.syncNotifySchedule) window.syncNotifySchedule();
 }
 
 window.renderAll = function(){
@@ -983,6 +1002,6 @@ init();
 </script>
 
 <!-- UI script -->
-<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=13"></script>
+<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=14"></script>
 </body>
 </html>
