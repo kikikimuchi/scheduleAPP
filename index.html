@@ -25,33 +25,7 @@ html{height:100%;}
 body{font-family:"Futura","Avenir Next","Hiragino Sans","Yu Gothic Medium",system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100%;padding-bottom:calc(100px + env(safe-area-inset-bottom,34px));overflow-y:auto;-webkit-overflow-scrolling:touch;font-weight:500;}
 
 /* PC: コンテンツを中央のスマホサイズコラムだけ表示 */
-@media (min-width: 768px){
-  body{background:#E7E5E1;}
-  /* ヘッダー・本文・タブバーを同じ幅で中央寄せ（PC最適化・アプリ枠） */
-  #header{
-    left:auto;right:auto;margin:0 auto;width:100%;max-width:880px;
-    justify-content:space-between;gap:0;
-    border-left:1px solid var(--bdr);border-right:1px solid var(--bdr);
-  }
-  .pg{
-    max-width:880px;
-    background:var(--bg);box-shadow:0 0 28px rgba(0,0,0,.07);
-    min-height:calc(100vh - 100px);
-    border-left:1px solid var(--bdr);border-right:1px solid var(--bdr);
-    padding:20px 24px 32px;
-  }
-  /* 今日ページはPCの横幅を活かして2カラム（上段カードは横断） */
-  #pg-today.on{display:grid;grid-template-columns:1fr 1fr;gap:0 20px;align-items:start;}
-  #pg-today.on > .dash-grid{grid-column:1 / -1;}
-  /* タブバーも中央のアプリ幅にそろえる */
-  #tabbar{
-    left:50%;right:auto;transform:translateX(-50%);
-    width:880px;max-width:100%;
-    justify-content:space-around;
-    border-left:1px solid var(--bdr);border-right:1px solid var(--bdr);
-  }
-  #tabbar .tb{flex:1 1 0;max-width:120px;}
-}
+/* PC(>=768px)用レイアウトは基本ルールより後（末尾）で定義 → 確実に上書き */
 input,textarea,select{font-size:16px!important;}
 
 /* HEADER */
@@ -271,6 +245,15 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 .text-center{text-align:center;}
 .empty-state{padding:40px 20px;text-align:center;color:var(--ink-mute);}
 .empty-state .em-ico{font-size:24px;opacity:.4;margin-bottom:8px;}
+
+/* ===== PC(>=768px)レイアウト：基本ルールの後に置き確実に上書き。スマホは未変更 ===== */
+@media (min-width: 768px){
+  body{background:#E7E5E1;}
+  /* ヘッダー・本文・タブバーを同じ幅で中央寄せし、ひとつのアプリ枠に */
+  #header{left:auto;right:auto;margin:0 auto;width:100%;max-width:640px;border-left:1px solid var(--bdr);border-right:1px solid var(--bdr);}
+  .pg{max-width:640px;background:var(--bg);box-shadow:0 0 30px rgba(0,0,0,.07);min-height:calc(100vh - 64px);border-left:1px solid var(--bdr);border-right:1px solid var(--bdr);}
+  #tabbar{left:50%;right:auto;transform:translateX(-50%);width:640px;max-width:100%;border-left:1px solid var(--bdr);border-right:1px solid var(--bdr);}
+}
 </style>
 </head>
 <body>
@@ -279,7 +262,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v10</span></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v11</span></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
