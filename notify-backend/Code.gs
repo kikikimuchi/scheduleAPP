@@ -1,10 +1,10 @@
 /**
  * scheduleAPP メール通知バックエンド（Google Apps Script・完全無料）
  *
- * 仕組み:
- *   アプリが Firestore の schedule_notify/upcoming に「今後7日分の予定」を
- *   JSON文字列で公開する。本スクリプトを1分ごとに動かし、各タスクの
- *   「指定分前」になったらメール(Gmail)で通知する。
+ * ★このコードは「指定の絶対時刻が来たら送るだけ」の最小構成です。
+ *   日付の境界・24時超・何分前 などの計算はすべてアプリ側で済ませて
+ *   送信時刻(payload.sends[].m = エポック分) を渡してくるので、
+ *   今後アプリのロジックが変わっても、この GAS は変更不要です。
  *
  * セットアップ手順は notify-backend/README.md を参照。
  */
@@ -12,7 +12,6 @@
 // ===== 設定（このアプリのFirebaseプロジェクト。基本そのままでOK） =====
 var PROJECT_ID = 'keiriauto-6f8f1';
 var API_KEY    = 'AIzaSyC4kuVMrD1iKBxsX8V12n8OHzPBW2xA0Ew';
-var TZ         = 'Asia/Tokyo';   // アプリの時刻基準（日本時間）
 
 // ===== メイン: 1分ごとに実行される =====
 function checkAndNotify() {
@@ -29,73 +28,44 @@ function checkAndNotify() {
   var payload = JSON.parse(fields.data.stringValue);
   if (!payload.enabled) { return; }                 // 通知OFF
   if (!payload.email)   { console.log('メール未設定'); return; }
-  var lead = (payload.leadMin != null) ? Number(payload.leadMin) : 5;
 
-  var now    = new Date();
-  var hh     = Number(Utilities.formatDate(now, TZ, 'HH'));
-  var mm     = Number(Utilities.formatDate(now, TZ, 'mm'));
-  var nowMin = hh * 60 + mm;                          // 実時計 0〜1439
-
-  var todayStr = Utilities.formatDate(now, TZ, 'yyyy-MM-dd');
-  var yDate    = new Date(now.getTime() - 24 * 3600 * 1000);
-  var yStr     = Utilities.formatDate(yDate, TZ, 'yyyy-MM-dd');
-  var days     = payload.days || {};
-
-  // 発火候補を「実時計の分(rm)」に正規化して集める
-  var cand = [];
-  // 1) 今日の通常タスク（0:00〜23:59）
-  (days[todayStr] || []).forEach(function (t) {
-    var tm = parseHM(t.t);
-    if (tm === null || tm >= 1440) return;
-    cand.push({ rm: tm, t: t.t, l: t.l, dkey: todayStr });
-  });
-  // 2) 前日の深夜タスク（24:00以上）→ 今日の実時刻にマップ（25:30→01:30）
-  (days[yStr] || []).forEach(function (t) {
-    var tm = parseHM(t.t);
-    if (tm === null || tm < 1440) return;
-    cand.push({ rm: tm - 1440, t: t.t, l: t.l, dkey: yStr });
-  });
-
+  var sends = payload.sends || [];
+  var nowM  = Math.floor(Date.now() / 60000);       // 現在のエポック分（タイムゾーン非依存）
   var props = PropertiesService.getScriptProperties();
-  for (var i = 0; i < cand.length; i++) {
-    var c = cand[i];
-    var fireAt = c.rm - lead;
-    // トリガ遅延に備え、発火時刻〜+2分の窓で1回だけ送信
-    if (nowMin < fireAt || nowMin > fireAt + 2) continue;
 
-    var sentKey = 'sent_' + todayStr + '_' + c.dkey + '_' + c.t + '_' + c.l;
+  for (var i = 0; i < sends.length; i++) {
+    var s = sends[i];
+    if (typeof s.m !== 'number') continue;
+    // 送信時刻〜+2分の窓で1回だけ（トリガ遅延に強い）
+    if (nowM < s.m || nowM > s.m + 2) continue;
+
+    var sentKey = 'sent_' + s.m + '_' + s.title;
     if (props.getProperty(sentKey)) continue;
     props.setProperty(sentKey, '1');
 
     try {
       MailApp.sendEmail({
         to: payload.email,
-        subject: 'まもなく ' + c.t + '  ' + c.l,
-        body: c.t + ' に「' + c.l + '」が始まります（' + lead + '分前のお知らせ）。\n\n— scheduleAPP'
+        subject: 'まもなく ' + s.time + '  ' + s.title,
+        body: s.time + ' に「' + s.title + '」が始まります（お知らせ）。\n\n— scheduleAPP'
       });
-      console.log('送信: ' + c.t + ' ' + c.l);
+      console.log('送信: ' + s.time + ' ' + s.title);
     } catch (e) {
       console.log('送信失敗: ' + e);
       props.deleteProperty(sentKey); // 失敗時は次回再試行できるよう解除
     }
   }
 
-  cleanupOldSentKeys(props, todayStr);
+  cleanupOldSentKeys(props, nowM);
 }
 
-// "HH:MM" → 分。読めなければ null
-function parseHM(s) {
-  var m = (s || '').match(/^(\d{1,2}):(\d{2})/);
-  return m ? (Number(m[1]) * 60 + Number(m[2])) : null;
-}
-
-// 当日以外の送信済みフラグを掃除（プロパティ肥大化防止）
-function cleanupOldSentKeys(props, keepDate) {
+// 2日より前の送信済みフラグを掃除（プロパティ肥大化防止）
+function cleanupOldSentKeys(props, nowM) {
   var all = props.getProperties();
   for (var k in all) {
-    if (k.indexOf('sent_') === 0 && k.indexOf(keepDate) === -1) {
-      props.deleteProperty(k);
-    }
+    if (k.indexOf('sent_') !== 0) continue;
+    var m = parseInt(k.split('_')[1], 10);
+    if (!isNaN(m) && m < nowM - 2880) props.deleteProperty(k);
   }
 }
 

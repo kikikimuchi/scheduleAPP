@@ -194,22 +194,31 @@ window.syncNotifySchedule = async function(){
   if(typeof saveNotifyDoc !== 'function') return;
   try {
     const s = cache.settings || {};
+    const leadMin = (s.notifyLeadMin!=null ? Number(s.notifyLeadMin) : 5);
     const base = getTodayDateString();
     const baseD = new Date(base+'T00:00');
     const days = {};
+    const sends = []; // GASが送るだけで済むよう「送信時刻(絶対)」まで計算して渡す
     for(let i=0;i<7;i++){
       const d = new Date(baseD); d.setDate(d.getDate()+i);
       const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-      days[ds] = [...computeDayTasks(ds), ...computeNightTasks(ds)]
-        .filter(t => parseTime(t.time) !== null)   // 時刻として読めるものだけ
-        .map(t => ({ t: t.time, l: t.label }));
+      const list = [...computeDayTasks(ds), ...computeNightTasks(ds)]
+        .filter(t => parseTime(t.time) !== null);   // 時刻として読めるものだけ
+      days[ds] = list.map(t => ({ t: t.time, l: t.label })); // 旧GAS互換のため残す
+      const midMs = new Date(ds+'T00:00:00').getTime(); // その日0時(端末ローカル=JST)の絶対時刻
+      for(const t of list){
+        const tmin = parseTime(t.time);                 // 24:00以上(深夜)もそのまま分換算
+        const fireMs = midMs + (tmin - leadMin)*60000;  // 送信(=タスク−リード)の絶対時刻
+        sends.push({ m: Math.floor(fireMs/60000), title: t.label, time: t.time });
+      }
     }
     const payload = {
       enabled: !!s.notifyEnabled,
       email: s.notifyEmail || '',
-      leadMin: (s.notifyLeadMin!=null ? Number(s.notifyLeadMin) : 5),
+      leadMin,
       tz: 'Asia/Tokyo',
-      days,
+      sends,   // ★これだけ見れば送れる（GASは時刻判定不要・恒久的に変更不要）
+      days,    // 後方互換（旧GAS用）
       updatedAt: Date.now(),
     };
     await saveNotifyDoc(payload);
