@@ -104,6 +104,16 @@ function guessIcon(label, fallback){
   }
   return fallback;
 }
+// その日のスケジュール終了時刻(分・その日0時起点)。深夜(24:00=1440以上)タスクがあれば
+// 最後のタスク+15分、無ければ1440(=翌0時)。getTodayDateStringの日付切替判定に使う。
+window.scheduleLateEndMinutes = function(date){
+  try {
+    const all = [...computeDayTasks(date), ...computeNightTasks(date)];
+    let maxT = -1;
+    for(const t of all){ const v = parseTime(t.time); if(v!==null && v>maxT) maxT = v; }
+    return (maxT >= 1440) ? (maxT + 15) : 1440;
+  } catch(e){ return 1440; }
+};
 // 時刻(HH:MM)で昇順ソート。時刻として解釈できないものは末尾へ（安定ソート）
 function sortByTime(arr){
   return arr.sort((a,b)=>{
@@ -364,10 +374,31 @@ function toTimeInput(s){
   const m = (s||'').match(/^(\d{1,2}):(\d{2})/);
   return m ? (String(m[1]).padStart(2,'0') + ':' + m[2]) : '';
 }
-// time入力の値 + 元の値 から保存する時刻を決定（特殊表記は変更が無ければ保持）
+// 時刻文字列を time入力＋深夜チェックに展開（24:00以上は 0〜5時表示＋チェックON）
+function setTimeFields(s){
+  const v = parseTime(s);
+  const ln = $('te-latenight');
+  if(v !== null && v >= 1440){
+    const h = Math.floor(v/60) - 24;   // 25 → 1
+    const mn = v % 60;
+    $('te-time').value = String(h).padStart(2,'0') + ':' + String(mn).padStart(2,'0');
+    if(ln) ln.checked = true;
+  } else {
+    $('te-time').value = toTimeInput(s);
+    if(ln) ln.checked = false;
+  }
+}
+// time入力＋深夜チェック＋元の値 から保存する時刻を決定
 function resolveEditTime(){
-  const picked = ($('te-time').value || '').trim();
-  if(picked) return picked;                                   // 時刻を選んだ
+  let picked = ($('te-time').value || '').trim();
+  if(picked){
+    const ln = $('te-latenight');
+    if(ln && ln.checked){
+      const m = picked.match(/^(\d{1,2}):(\d{2})/);
+      if(m) picked = (Number(m[1]) + 24) + ':' + m[2];   // 1:30 → 25:30
+    }
+    return picked;
+  }
   if(_origTime && parseTime(_origTime) === null) return _origTime; // 元が特殊表記→保持
   return '';                                                  // 時刻なし
 }
@@ -388,7 +419,7 @@ window.openEditTask = function(date, key){
   _iconManual = false;
   _origTime = t.time || '';
   $('te-key').value = key;
-  $('te-time').value = toTimeInput(t.time);
+  setTimeFields(t.time);
   $('te-label').value = t.label || '';
   $('te-icon').value = t.icon || '';
   // モードタスクで上書き済みのものだけ「デフォルトに戻す」を表示
@@ -458,7 +489,7 @@ window.openEditNightTask = function(date, key){
   _iconManual = false;
   _origTime = t.time || '';
   $('te-key').value = 'night:' + key;
-  $('te-time').value = toTimeInput(t.time);
+  setTimeFields(t.time);
   $('te-label').value = t.label || '';
   $('te-icon').value = t.icon || '';
   $('te-reset-btn').style.display = t.edited ? 'block' : 'none';

@@ -33,45 +33,54 @@ function checkAndNotify() {
 
   var now    = new Date();
   var hh     = Number(Utilities.formatDate(now, TZ, 'HH'));
-  var mm      = Number(Utilities.formatDate(now, TZ, 'mm'));
-  var nowMin = hh * 60 + mm;
+  var mm     = Number(Utilities.formatDate(now, TZ, 'mm'));
+  var nowMin = hh * 60 + mm;                          // 実時計 0〜1439
 
-  // アプリの日付境界（朝5時前は前日扱い）に合わせる
-  var dateStr = Utilities.formatDate(now, TZ, 'yyyy-MM-dd');
-  if (hh < 5) {
-    var y = new Date(now.getTime() - 24 * 3600 * 1000);
-    dateStr = Utilities.formatDate(y, TZ, 'yyyy-MM-dd');
-  }
+  var todayStr = Utilities.formatDate(now, TZ, 'yyyy-MM-dd');
+  var yDate    = new Date(now.getTime() - 24 * 3600 * 1000);
+  var yStr     = Utilities.formatDate(yDate, TZ, 'yyyy-MM-dd');
+  var days     = payload.days || {};
 
-  var tasks = (payload.days && payload.days[dateStr]) || [];
+  // 発火候補を「実時計の分(rm)」に正規化して集める
+  var cand = [];
+  // 1) 今日の通常タスク（0:00〜23:59）
+  (days[todayStr] || []).forEach(function (t) {
+    var tm = parseHM(t.t);
+    if (tm === null || tm >= 1440) return;
+    cand.push({ rm: tm, t: t.t, l: t.l, dkey: todayStr });
+  });
+  // 2) 前日の深夜タスク（24:00以上）→ 今日の実時刻にマップ（25:30→01:30）
+  (days[yStr] || []).forEach(function (t) {
+    var tm = parseHM(t.t);
+    if (tm === null || tm < 1440) return;
+    cand.push({ rm: tm - 1440, t: t.t, l: t.l, dkey: yStr });
+  });
+
   var props = PropertiesService.getScriptProperties();
-
-  for (var i = 0; i < tasks.length; i++) {
-    var task = tasks[i];
-    var tmin = parseHM(task.t);
-    if (tmin === null) continue;
-    var fireAt = tmin - lead;
+  for (var i = 0; i < cand.length; i++) {
+    var c = cand[i];
+    var fireAt = c.rm - lead;
     // トリガ遅延に備え、発火時刻〜+2分の窓で1回だけ送信
     if (nowMin < fireAt || nowMin > fireAt + 2) continue;
 
-    var sentKey = 'sent_' + dateStr + '_' + task.t + '_' + task.l;
+    var sentKey = 'sent_' + todayStr + '_' + c.dkey + '_' + c.t + '_' + c.l;
     if (props.getProperty(sentKey)) continue;
     props.setProperty(sentKey, '1');
 
     try {
       MailApp.sendEmail({
         to: payload.email,
-        subject: 'まもなく ' + task.t + '  ' + task.l,
-        body: task.t + ' に「' + task.l + '」が始まります（' + lead + '分前のお知らせ）。\n\n— scheduleAPP'
+        subject: 'まもなく ' + c.t + '  ' + c.l,
+        body: c.t + ' に「' + c.l + '」が始まります（' + lead + '分前のお知らせ）。\n\n— scheduleAPP'
       });
-      console.log('送信: ' + task.t + ' ' + task.l);
+      console.log('送信: ' + c.t + ' ' + c.l);
     } catch (e) {
       console.log('送信失敗: ' + e);
       props.deleteProperty(sentKey); // 失敗時は次回再試行できるよう解除
     }
   }
 
-  cleanupOldSentKeys(props, dateStr);
+  cleanupOldSentKeys(props, todayStr);
 }
 
 // "HH:MM" → 分。読めなければ null
