@@ -262,7 +262,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" onclick="forceUpdate()" title="タップで最新に更新" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;cursor:pointer;">v16</span></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v17</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -272,9 +272,6 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 
 <!-- PAGE: TODAY -->
 <div class="pg on" id="pg-today">
-  <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:8px;">
-    <button class="btn-sec" style="font-size:11px;padding:6px 12px;" onclick="forceUpdate()">🔄 最新に更新</button>
-  </div>
   <div class="dash-grid">
     <button class="mode-card" id="mode-card" onclick="openModeSelector()">
       <div>
