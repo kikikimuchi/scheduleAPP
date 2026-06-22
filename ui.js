@@ -334,6 +334,20 @@ window.confirmDialog = function(msg, onOk){
 // 編集対象の日付（モーダルが開いている間保持）
 let _editDate = null;
 let _iconManual = false; // アイコン欄をユーザーが手動変更したか
+let _origTime = '';      // 編集前の時刻（特殊表記の保持用）
+
+// "10:00"等→time入力用(HH:MM)。読めなければ空（自然起床/随時/〜24:30 など）
+function toTimeInput(s){
+  const m = (s||'').match(/^(\d{1,2}):(\d{2})/);
+  return m ? (String(m[1]).padStart(2,'0') + ':' + m[2]) : '';
+}
+// time入力の値 + 元の値 から保存する時刻を決定（特殊表記は変更が無ければ保持）
+function resolveEditTime(){
+  const picked = ($('te-time').value || '').trim();
+  if(picked) return picked;                                   // 時刻を選んだ
+  if(_origTime && parseTime(_origTime) === null) return _origTime; // 元が特殊表記→保持
+  return '';                                                  // 時刻なし
+}
 
 // 内容入力中: 手動変更がなければアイコンを内容から自動更新
 window.onEditLabelInput = function(){
@@ -349,8 +363,9 @@ window.openEditTask = function(date, key){
   if(!t) return;
   _editDate = date;
   _iconManual = false;
+  _origTime = t.time || '';
   $('te-key').value = key;
-  $('te-time').value = t.time || '';
+  $('te-time').value = toTimeInput(t.time);
   $('te-label').value = t.label || '';
   $('te-icon').value = t.icon || '';
   // モードタスクで上書き済みのものだけ「デフォルトに戻す」を表示
@@ -359,7 +374,7 @@ window.openEditTask = function(date, key){
 };
 window.saveTaskEdit = async function(){
   const raw = $('te-key').value;
-  const time = $('te-time').value.trim();
+  const time = resolveEditTime();
   const label = $('te-label').value.trim();
   if(!label) return alert('内容を入力してください');
   const icon = ($('te-icon').value || '').trim() || guessIcon(label, '⭐');
@@ -418,8 +433,9 @@ window.openEditNightTask = function(date, key){
   if(!t) return;
   _editDate = date;
   _iconManual = false;
+  _origTime = t.time || '';
   $('te-key').value = 'night:' + key;
-  $('te-time').value = t.time || '';
+  $('te-time').value = toTimeInput(t.time);
   $('te-label').value = t.label || '';
   $('te-icon').value = t.icon || '';
   $('te-reset-btn').style.display = t.edited ? 'block' : 'none';
