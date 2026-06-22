@@ -98,11 +98,11 @@ function computeDayTasks(date){
     .map(t => {
       const ov = overrides[t.key];
       // 上書きがある場合は明示的な時刻として尊重（起床シフトは再適用しない）
-      // 内容を変えたらアイコンも内容に合わせて自動更新（合致しなければ元アイコン）
-      if(ov) return {...t, time: ov.time, label: ov.label, icon: guessIcon(ov.label, t.icon), edited:true};
+      // アイコンは保存値があれば優先、無ければ内容から自動推定（最後は元アイコン）
+      if(ov) return {...t, time: ov.time, label: ov.label, icon: ov.icon || guessIcon(ov.label, t.icon), edited:true};
       return {...t, time: adjustTime(t.time, shiftMin)};
     });
-  const customs = (cache.customTasks[date] || []).map(t => ({key:`custom_${t.id}`, time:t.time, label:t.label, icon: guessIcon(t.label,'⭐'), custom:true, id:t.id}));
+  const customs = (cache.customTasks[date] || []).map(t => ({key:`custom_${t.id}`, time:t.time, label:t.label, icon: t.icon || guessIcon(t.label,'⭐'), custom:true, id:t.id}));
   return sortByTime([...modeTasks, ...customs]);
 }
 function computeNightTasks(date){
@@ -114,7 +114,7 @@ function computeNightTasks(date){
     .filter(t => !hidden.includes(t.key))
     .map(t => {
       const ov = overrides[t.key];
-      if(ov) return {...t, time: ov.time, label: ov.label, icon: guessIcon(ov.label, t.icon), edited:true};
+      if(ov) return {...t, time: ov.time, label: ov.label, icon: ov.icon || guessIcon(ov.label, t.icon), edited:true};
       return {...t, time: adjustTime(t.time, shiftMin)};
     }));
 }
@@ -299,15 +299,26 @@ window.confirmDialog = function(msg, onOk){
 
 // 編集対象の日付（モーダルが開いている間保持）
 let _editDate = null;
+let _iconManual = false; // アイコン欄をユーザーが手動変更したか
+
+// 内容入力中: 手動変更がなければアイコンを内容から自動更新
+window.onEditLabelInput = function(){
+  if(_iconManual) return;
+  const label = $('te-label').value;
+  $('te-icon').value = guessIcon(label, $('te-icon').value || '');
+};
+window.onEditIconInput = function(){ _iconManual = true; };
 
 // ============= 昼スケジュールの編集 =============
 window.openEditTask = function(date, key){
   const t = computeDayTasks(date).find(x=>x.key===key);
   if(!t) return;
   _editDate = date;
+  _iconManual = false;
   $('te-key').value = key;
   $('te-time').value = t.time || '';
   $('te-label').value = t.label || '';
+  $('te-icon').value = t.icon || '';
   // モードタスクで上書き済みのものだけ「デフォルトに戻す」を表示
   $('te-reset-btn').style.display = (!t.custom && t.edited) ? 'block' : 'none';
   openModal('ov-task-edit');
@@ -317,17 +328,18 @@ window.saveTaskEdit = async function(){
   const time = $('te-time').value.trim();
   const label = $('te-label').value.trim();
   if(!label) return alert('内容を入力してください');
+  const icon = ($('te-icon').value || '').trim() || guessIcon(label, '⭐');
   const date = _editDate || getTodayDateString();
   if(raw.startsWith('night:')){
     const key = raw.slice('night:'.length);
-    cache.nightOverrides[date] = {...(cache.nightOverrides[date]||{}), [key]:{time,label}};
+    cache.nightOverrides[date] = {...(cache.nightOverrides[date]||{}), [key]:{time,label,icon}};
     await saveOverridesFB(date);
   } else if(raw.startsWith('custom_')){
     const id = Number(raw.slice('custom_'.length));
-    const tasks = (cache.customTasks[date]||[]).map(x => x.id===id ? {...x, time, label} : x);
+    const tasks = (cache.customTasks[date]||[]).map(x => x.id===id ? {...x, time, label, icon} : x);
     await saveCustomTasksFB(date, tasks);
   } else {
-    cache.taskOverrides[date] = {...(cache.taskOverrides[date]||{}), [raw]:{time,label}};
+    cache.taskOverrides[date] = {...(cache.taskOverrides[date]||{}), [raw]:{time,label,icon}};
     await saveOverridesFB(date);
   }
   closeModal('ov-task-edit');
@@ -371,9 +383,11 @@ window.openEditNightTask = function(date, key){
   const t = computeNightTasks(date).find(x=>x.key===key);
   if(!t) return;
   _editDate = date;
+  _iconManual = false;
   $('te-key').value = 'night:' + key;
   $('te-time').value = t.time || '';
   $('te-label').value = t.label || '';
+  $('te-icon').value = t.icon || '';
   $('te-reset-btn').style.display = t.edited ? 'block' : 'none';
   openModal('ov-task-edit');
 };
