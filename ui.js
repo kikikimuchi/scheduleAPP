@@ -11,6 +11,84 @@ function getShiftMin(date, mode){
   return a - b;
 }
 
+// ============= スケジュール計算・描画（昼/夜・日付共通） =============
+function nightRawFor(modeKey){
+  const light = ['recovery','rest','trip_work','trip_private'].includes(modeKey);
+  return light ? [
+    { key:'teeth', label:'歯磨き', time:'〜寝る前', icon:'🪥' },
+    { key:'sleep', label:'眠れた', time:'〜寝る前', icon:'😴' },
+  ] : [
+    { key:'dinner', label:'夕食', time:'19:30', icon:'🍽️' },
+    { key:'shower', label:'シャワー (週2回は入浴)', time:'20:30', icon:'🛁' },
+    { key:'bodycare', label:'ボディケア', time:'21:00', icon:'🧴' },
+    { key:'teeth', label:'歯磨き', time:'21:20', icon:'🪥' },
+    { key:'free', label:'自由時間', time:'21:30', icon:'🎮' },
+    { key:'reading', label:'読書 (紙の本/ソファで)', time:'23:30', icon:'📖' },
+    { key:'sleep', label:'眠気が来たらベッドへ', time:'〜24:30', icon:'😴' },
+  ];
+}
+function computeDayTasks(date){
+  const modeKey = cache.dayModes[date] || 'normal';
+  const shiftMin = getShiftMin(date, modeKey);
+  const overrides = cache.taskOverrides[date] || {};
+  const hidden = cache.taskHidden[date] || [];
+  const modeTasks = (MODE_TASKS[modeKey] || [])
+    .filter(t => !hidden.includes(t.key))
+    .map(t => {
+      const ov = overrides[t.key];
+      // 上書きがある場合は明示的な時刻として尊重（起床シフトは再適用しない）
+      if(ov) return {...t, time: ov.time, label: ov.label, edited:true};
+      return {...t, time: adjustTime(t.time, shiftMin)};
+    });
+  const customs = (cache.customTasks[date] || []).map(t => ({key:`custom_${t.id}`, time:t.time, label:t.label, icon:'⭐', custom:true, id:t.id}));
+  return [...modeTasks, ...customs];
+}
+function computeNightTasks(date){
+  const modeKey = cache.dayModes[date] || 'normal';
+  const shiftMin = getShiftMin(date, modeKey);
+  const overrides = cache.nightOverrides[date] || {};
+  const hidden = cache.nightHidden[date] || [];
+  return nightRawFor(modeKey)
+    .filter(t => !hidden.includes(t.key))
+    .map(t => {
+      const ov = overrides[t.key];
+      if(ov) return {...t, time: ov.time, label: ov.label, edited:true};
+      return {...t, time: adjustTime(t.time, shiftMin)};
+    });
+}
+// 1行のHTML（section: 'day' | 'night'）。date を各操作に引き渡す
+function taskRowHtml(date, t, section){
+  const checkMap = section==='night' ? cache.nightChecks : cache.todayChecks;
+  const checked = checkMap[`${date}_${t.key}`];
+  const editFn  = section==='night' ? 'openEditNightTask' : 'openEditTask';
+  const delFn   = section==='night' ? 'deleteNightTask'   : 'deleteTask';
+  const checkFn = section==='night' ? 'onNightCheckClick'  : 'onTodayCheckClick';
+  const rowCls  = 'task-row' + (section==='night' ? ' night-row'+(checked?' on':'') : '');
+  return `<div class="${rowCls}">
+    <div class="task-main" onclick="${editFn}('${date}','${t.key}')">
+      <div class="task-time">${t.time||'—'}</div>
+      <div class="task-icon">${t.icon}</div>
+      <div class="task-label ${checked?'done':''}">${t.label}</div>
+    </div>
+    <button class="task-del" onclick="event.stopPropagation();${delFn}('${date}','${t.key}')">×</button>
+    <div class="task-check ${checked?'on':''}" onclick="event.stopPropagation();${checkFn}('${date}','${t.key}')">${checked?'✓':''}</div>
+  </div>`;
+}
+// カスタム追加フォーム（任意の日付向け・入力idを分離）
+function customAddFormHtml(date, timeId, labelId){
+  return `<div style="margin-top:8px;display:flex;gap:6px;">
+    <input type="time" class="fi" id="${timeId}" style="flex:0 0 100px;">
+    <input type="text" class="fi" id="${labelId}" placeholder="タスク追加" style="flex:1;">
+    <button class="btn-sec" onclick="addCustomTaskInput('${date}','${timeId}','${labelId}')">＋</button>
+  </div>`;
+}
+// 変更後の再描画（ホーム＋開いていれば日別モーダル）
+function afterScheduleChange(){
+  if(window.renderToday) renderToday();
+  const dd = $('ov-daydetail');
+  if(dd && dd.classList && dd.classList.contains('on') && typeof renderDayDetailBody==='function') renderDayDetailBody();
+}
+
 // ============= TODAY PAGE =============
 window.renderToday = function(){
   const today = getTodayDateString();
@@ -41,79 +119,14 @@ window.renderToday = function(){
   }
   
   $('wake-input').value = cache.wakeTimes[today] || '';
-  
-  const shiftMin = getShiftMin(today, modeKey);
-  const overrides = cache.taskOverrides[today] || {};
-  const hidden = cache.taskHidden[today] || [];
-  const modeTasks = (MODE_TASKS[modeKey] || [])
-    .filter(t => !hidden.includes(t.key))
-    .map(t => {
-      const ov = overrides[t.key];
-      // 上書きがある場合は明示的な時刻として尊重（起床シフトは再適用しない）
-      if(ov) return {...t, time: ov.time, label: ov.label, edited:true};
-      return {...t, time: adjustTime(t.time, shiftMin)};
-    });
-  const customTasks = (cache.customTasks[today] || []).map(t => ({key:`custom_${t.id}`, time:t.time, label:t.label, icon:'⭐', custom:true, id:t.id}));
-  const allTasks = [...modeTasks, ...customTasks];
 
-  // 編集モーダル用にタスクの現在値を保持
-  window._todayTaskMap = {};
-  allTasks.forEach(t => { window._todayTaskMap[t.key] = { time:t.time, label:t.label, custom:!!t.custom, id:t.id, edited:!!t.edited }; });
-
-  const taskHtml = allTasks.length === 0
+  const dayTasks = computeDayTasks(today);
+  $('task-list').innerHTML = dayTasks.length === 0
     ? '<div class="empty-state"><div class="em-ico">○</div><div style="font-size:11px;">タスクが設定されていません</div></div>'
-    : allTasks.map(t => {
-        const checked = cache.todayChecks[`${today}_${t.key}`];
-        return `<div class="task-row">
-          <div class="task-main" onclick="openEditTask('${t.key}')">
-            <div class="task-time">${t.time||'—'}</div>
-            <div class="task-icon">${t.icon}</div>
-            <div class="task-label ${checked?'done':''}">${t.label}</div>
-          </div>
-          <button class="task-del" onclick="event.stopPropagation();deleteTask('${t.key}')">×</button>
-          <div class="task-check ${checked?'on':''}" onclick="event.stopPropagation();onTodayCheckClick('${t.key}')">${checked?'✓':''}</div>
-        </div>`;
-      }).join('');
-  $('task-list').innerHTML = taskHtml;
-  
-  const isLightNight = ['recovery','rest','trip_work','trip_private'].includes(modeKey);
-  const nightRaw = isLightNight ? [
-    { key:'teeth', label:'歯磨き', time:'〜寝る前', icon:'🪥' },
-    { key:'sleep', label:'眠れた', time:'〜寝る前', icon:'😴' },
-  ] : [
-    { key:'dinner', label:'夕食', time:'19:30', icon:'🍽️' },
-    { key:'shower', label:'シャワー (週2回は入浴)', time:'20:30', icon:'🛁' },
-    { key:'bodycare', label:'ボディケア', time:'21:00', icon:'🧴' },
-    { key:'teeth', label:'歯磨き', time:'21:20', icon:'🪥' },
-    { key:'free', label:'自由時間', time:'21:30', icon:'🎮' },
-    { key:'reading', label:'読書 (紙の本/ソファで)', time:'23:30', icon:'📖' },
-    { key:'sleep', label:'眠気が来たらベッドへ', time:'〜24:30', icon:'😴' },
-  ];
-  const nightOverrides = cache.nightOverrides[today] || {};
-  const nightHidden = cache.nightHidden[today] || [];
-  const nightTasks = nightRaw
-    .filter(t => !nightHidden.includes(t.key))
-    .map(t=>{
-      const ov = nightOverrides[t.key];
-      if(ov) return {...t, time: ov.time, label: ov.label, edited:true};
-      return {...t, time: adjustTime(t.time, shiftMin)};
-    });
-  // 編集モーダル用に夜タスクの現在値を保持
-  window._nightTaskMap = {};
-  nightTasks.forEach(t => { window._nightTaskMap[t.key] = { time:t.time, label:t.label, edited:!!t.edited }; });
-  const nightHtml = nightTasks.map(t=>{
-    const checked = cache.nightChecks[`${today}_${t.key}`];
-    return `<div class="task-row night-row ${checked?'on':''}">
-      <div class="task-main" onclick="openEditNightTask('${t.key}')">
-        <div class="task-time">${t.time}</div>
-        <div class="task-icon">${t.icon}</div>
-        <div class="task-label ${checked?'done':''}">${t.label}</div>
-      </div>
-      <button class="task-del" onclick="event.stopPropagation();deleteNightTask('${t.key}')">×</button>
-      <div class="task-check ${checked?'on':''}" onclick="event.stopPropagation();onNightCheckClick('${t.key}')">${checked?'✓':''}</div>
-    </div>`;
-  }).join('');
-  $('night-list').innerHTML = nightHtml;
+    : dayTasks.map(t => taskRowHtml(today, t, 'day')).join('');
+
+  const nightTasks = computeNightTasks(today);
+  $('night-list').innerHTML = nightTasks.map(t => taskRowHtml(today, t, 'night')).join('');
   const nightDone = nightTasks.filter(t=>cache.nightChecks[`${today}_${t.key}`]).length;
   $('night-count').textContent = `${nightDone}/${nightTasks.length}`;
 };
@@ -155,15 +168,13 @@ function renderEndOfYearProgress(){
 }
 
 // ============= TODAY HANDLERS =============
-window.onTodayCheckClick = async function(key){
-  const today = getTodayDateString();
-  await toggleTodayCheck(`${today}_${key}`);
-  renderToday();
+window.onTodayCheckClick = async function(date, key){
+  await toggleTodayCheck(`${date}_${key}`);
+  afterScheduleChange();
 };
-window.onNightCheckClick = async function(key){
-  const today = getTodayDateString();
-  await toggleNightCheck(`${today}_${key}`);
-  renderToday();
+window.onNightCheckClick = async function(date, key){
+  await toggleNightCheck(`${date}_${key}`);
+  afterScheduleChange();
 };
 window.onWakeTimeChange = async function(){
   const today = getTodayDateString();
@@ -194,17 +205,27 @@ window.saveWeight = async function(){
   closeModal('ov-weight');
   renderAll();
 };
-window.addCustomTask = async function(){
-  const today = getTodayDateString();
-  const time = $('custom-task-time').value;
-  const label = $('custom-task-label').value.trim();
+// カスタムタスク追加（任意の日付・入力id指定）
+window.addCustomTaskInput = async function(date, timeId, labelId){
+  const time = $(timeId).value;
+  const label = $(labelId).value.trim();
   if(!label) return;
-  const tasks = [...(cache.customTasks[today]||[])];
+  const tasks = [...(cache.customTasks[date]||[])];
   tasks.push({ id:Date.now(), time, label });
-  await saveCustomTasksFB(today, tasks);
-  $('custom-task-time').value = '';
-  $('custom-task-label').value = '';
-  renderToday();
+  await saveCustomTasksFB(date, tasks);
+  $(timeId).value = '';
+  $(labelId).value = '';
+  afterScheduleChange();
+};
+// ホーム（今日）の追加ボタン用
+window.addCustomTask = function(){ return addCustomTaskInput(getTodayDateString(), 'custom-task-time', 'custom-task-label'); };
+// 明日のスケジュールを組む（日別モーダルをスケジュールタブで開く）
+window.openTomorrow = function(){
+  const base = getTodayDateString();
+  const d = new Date(base+'T00:00'); d.setDate(d.getDate()+1);
+  const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  openDayDetail(ds);
+  setDayDetailTab('schedule');
 };
 // ============= 確認ダイアログ =============
 window.confirmDialog = function(msg, onOk){
@@ -214,16 +235,19 @@ window.confirmDialog = function(msg, onOk){
   openModal('ov-confirm');
 };
 
+// 編集対象の日付（モーダルが開いている間保持）
+let _editDate = null;
+
 // ============= 昼スケジュールの編集 =============
-window.openEditTask = function(key){
-  const t = (window._todayTaskMap || {})[key];
+window.openEditTask = function(date, key){
+  const t = computeDayTasks(date).find(x=>x.key===key);
   if(!t) return;
+  _editDate = date;
   $('te-key').value = key;
   $('te-time').value = t.time || '';
   $('te-label').value = t.label || '';
   // モードタスクで上書き済みのものだけ「デフォルトに戻す」を表示
-  const isMode = !t.custom;
-  $('te-reset-btn').style.display = (isMode && t.edited) ? 'block' : 'none';
+  $('te-reset-btn').style.display = (!t.custom && t.edited) ? 'block' : 'none';
   openModal('ov-task-edit');
 };
 window.saveTaskEdit = async function(){
@@ -231,78 +255,77 @@ window.saveTaskEdit = async function(){
   const time = $('te-time').value.trim();
   const label = $('te-label').value.trim();
   if(!label) return alert('内容を入力してください');
-  const today = getTodayDateString();
+  const date = _editDate || getTodayDateString();
   if(raw.startsWith('night:')){
     const key = raw.slice('night:'.length);
-    cache.nightOverrides[today] = {...(cache.nightOverrides[today]||{}), [key]:{time,label}};
-    await saveOverridesFB(today);
+    cache.nightOverrides[date] = {...(cache.nightOverrides[date]||{}), [key]:{time,label}};
+    await saveOverridesFB(date);
   } else if(raw.startsWith('custom_')){
     const id = Number(raw.slice('custom_'.length));
-    const tasks = (cache.customTasks[today]||[]).map(x => x.id===id ? {...x, time, label} : x);
-    await saveCustomTasksFB(today, tasks);
+    const tasks = (cache.customTasks[date]||[]).map(x => x.id===id ? {...x, time, label} : x);
+    await saveCustomTasksFB(date, tasks);
   } else {
-    cache.taskOverrides[today] = {...(cache.taskOverrides[today]||{}), [raw]:{time,label}};
-    await saveOverridesFB(today);
+    cache.taskOverrides[date] = {...(cache.taskOverrides[date]||{}), [raw]:{time,label}};
+    await saveOverridesFB(date);
   }
   closeModal('ov-task-edit');
-  renderToday();
+  afterScheduleChange();
 };
 window.resetTaskEdit = async function(){
   const raw = $('te-key').value;
-  const today = getTodayDateString();
+  const date = _editDate || getTodayDateString();
   if(raw.startsWith('night:')){
     const key = raw.slice('night:'.length);
-    if(cache.nightOverrides[today]){ delete cache.nightOverrides[today][key]; }
+    if(cache.nightOverrides[date]){ delete cache.nightOverrides[date][key]; }
   } else {
-    if(cache.taskOverrides[today]){ delete cache.taskOverrides[today][raw]; }
+    if(cache.taskOverrides[date]){ delete cache.taskOverrides[date][raw]; }
   }
-  await saveOverridesFB(today);
+  await saveOverridesFB(date);
   closeModal('ov-task-edit');
-  renderToday();
+  afterScheduleChange();
 };
-window.deleteTask = function(key){
-  const t = (window._todayTaskMap || {})[key];
-  confirmDialog(`「${t ? t.label : 'このタスク'}」を削除しますか？`, ()=> doDeleteTask(key));
+window.deleteTask = function(date, key){
+  const t = computeDayTasks(date).find(x=>x.key===key);
+  confirmDialog(`「${t ? t.label : 'このタスク'}」を削除しますか？`, ()=> doDeleteTask(date, key));
 };
-async function doDeleteTask(key){
-  const today = getTodayDateString();
+async function doDeleteTask(date, key){
   if(key.startsWith('custom_')){
     const id = Number(key.slice('custom_'.length));
-    const tasks = (cache.customTasks[today]||[]).filter(t=>t.id!==id);
-    await saveCustomTasksFB(today, tasks);
+    const tasks = (cache.customTasks[date]||[]).filter(t=>t.id!==id);
+    await saveCustomTasksFB(date, tasks);
   } else {
     // モード（フォーマット）タスクは当日分を非表示にする
-    const list = [...(cache.taskHidden[today]||[])];
+    const list = [...(cache.taskHidden[date]||[])];
     if(!list.includes(key)) list.push(key);
-    cache.taskHidden[today] = list;
-    if(cache.taskOverrides[today]) delete cache.taskOverrides[today][key];
-    await saveOverridesFB(today);
+    cache.taskHidden[date] = list;
+    if(cache.taskOverrides[date]) delete cache.taskOverrides[date][key];
+    await saveOverridesFB(date);
   }
-  renderToday();
+  afterScheduleChange();
 }
 
 // ============= 夜ルーティンの編集 =============
-window.openEditNightTask = function(key){
-  const t = (window._nightTaskMap || {})[key];
+window.openEditNightTask = function(date, key){
+  const t = computeNightTasks(date).find(x=>x.key===key);
   if(!t) return;
+  _editDate = date;
   $('te-key').value = 'night:' + key;
   $('te-time').value = t.time || '';
   $('te-label').value = t.label || '';
   $('te-reset-btn').style.display = t.edited ? 'block' : 'none';
   openModal('ov-task-edit');
 };
-window.deleteNightTask = function(key){
-  const t = (window._nightTaskMap || {})[key];
-  confirmDialog(`「${t ? t.label : 'このタスク'}」を削除しますか？`, ()=> doDeleteNightTask(key));
+window.deleteNightTask = function(date, key){
+  const t = computeNightTasks(date).find(x=>x.key===key);
+  confirmDialog(`「${t ? t.label : 'このタスク'}」を削除しますか？`, ()=> doDeleteNightTask(date, key));
 };
-async function doDeleteNightTask(key){
-  const today = getTodayDateString();
-  const list = [...(cache.nightHidden[today]||[])];
+async function doDeleteNightTask(date, key){
+  const list = [...(cache.nightHidden[date]||[])];
   if(!list.includes(key)) list.push(key);
-  cache.nightHidden[today] = list;
-  if(cache.nightOverrides[today]) delete cache.nightOverrides[today][key];
-  await saveOverridesFB(today);
-  renderToday();
+  cache.nightHidden[date] = list;
+  if(cache.nightOverrides[date]) delete cache.nightOverrides[date][key];
+  await saveOverridesFB(date);
+  afterScheduleChange();
 }
 
 // ============= MODE SELECTOR =============
@@ -1039,25 +1062,21 @@ function renderDayDetailBody(){
     }).join('')}</div>
     ${current ? `<button class="btn-sec" style="margin-top:14px;width:100%;" onclick="ddSelectMode(null)">解除</button>` : ''}`;
   } else {
-    const modeKey = cache.dayModes[_ddDate] || 'normal';
-    const shiftMin = getShiftMin(_ddDate, modeKey);
-    const modeTasks = (MODE_TASKS[modeKey] || []).map(t=>({...t, time:adjustTime(t.time, shiftMin)}));
-    const customs = (cache.customTasks[_ddDate] || []).map(t=>({key:`custom_${t.id}`, time:t.time, label:t.label, icon:'⭐'}));
-    const all = [...modeTasks, ...customs];
-    const done = all.filter(t=>cache.todayChecks[`${_ddDate}_${t.key}`]).length;
-    
-    $('dd-body').innerHTML = `<div style="font-size:10px;letter-spacing:.2em;color:var(--ink-mute);margin-bottom:8px;">— タイムライン — ${done}/${all.length}</div>
-    ${all.length === 0 ? '<div class="empty-state"><div class="em-ico">○</div><div>タスクなし</div></div>' :
-      all.map(t=>{
-        const checked = cache.todayChecks[`${_ddDate}_${t.key}`];
-        return `<div class="task-row">
-          <div class="task-time">${t.time||'—'}</div>
-          <div class="task-icon">${t.icon}</div>
-          <div class="task-label ${checked?'done':''}">${t.label}</div>
-          <div class="task-check ${checked?'on':''}">${checked?'✓':''}</div>
-        </div>`;
-      }).join('')
-    }`;
+    const date = _ddDate;
+    const dayTasks = computeDayTasks(date);
+    const nightTasks = computeNightTasks(date);
+    const done = dayTasks.filter(t=>cache.todayChecks[`${date}_${t.key}`]).length;
+
+    $('dd-body').innerHTML = `
+      <div style="font-size:10px;letter-spacing:.2em;color:var(--ink-mute);margin-bottom:8px;">— 昼のタイムライン — ${done}/${dayTasks.length}</div>
+      ${dayTasks.length === 0
+        ? '<div class="empty-state"><div class="em-ico">○</div><div style="font-size:11px;">タスクなし</div></div>'
+        : dayTasks.map(t=>taskRowHtml(date, t, 'day')).join('')}
+      ${customAddFormHtml(date, 'dd-custom-time', 'dd-custom-label')}
+      <div style="font-size:10px;letter-spacing:.2em;color:var(--ink-mute);margin:18px 0 8px;">— 寝る前ルーティン —</div>
+      ${nightTasks.length === 0
+        ? '<div class="empty-state"><div class="em-ico">○</div><div style="font-size:11px;">タスクなし</div></div>'
+        : nightTasks.map(t=>taskRowHtml(date, t, 'night')).join('')}`;
   }
 }
 window.ddSelectMode = async function(key){
