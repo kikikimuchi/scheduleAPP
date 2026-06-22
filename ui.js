@@ -1,3 +1,26 @@
+// ============= 強制アップデート（確実に最新を取り直す） =============
+window.forceUpdate = async function(){
+  const btn = document.getElementById('app-version');
+  if(btn) btn.textContent = '更新中…';
+  // Service Worker を全解除（あれば）
+  try {
+    if('serviceWorker' in navigator){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r=>r.unregister()));
+    }
+  } catch(e){}
+  // Cache Storage を全削除（あれば）
+  try {
+    if(window.caches){
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k=>caches.delete(k)));
+    }
+  } catch(e){}
+  // 一意なクエリでHTTPキャッシュを確実に回避して読み込み直す
+  const base = location.href.split('#')[0].split('?')[0];
+  location.replace(base + '?u=' + Date.now());
+};
+
 // ============= UI RENDER =============
 
 function getShiftMin(date, mode){
