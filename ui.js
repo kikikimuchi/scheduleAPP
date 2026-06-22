@@ -27,6 +27,67 @@ function nightRawFor(modeKey){
     { key:'sleep', label:'眠気が来たらベッドへ', time:'〜24:30', icon:'😴' },
   ];
 }
+// 内容（ラベル）から合いそうな絵文字を推定。該当が無ければ fallback を返す
+const ICON_RULES = [
+  [['起床','目覚','wake'],'☀️'],
+  [['カーテン'],'🪟'],
+  [['水分','給水','ハイドレ'],'💧'],
+  [['スキンケア','洗顔','化粧水','保湿'],'🧴'],
+  [['朝食','朝ごはん','モーニング'],'🥣'],
+  [['昼食','ランチ','昼ごはん'],'🍱'],
+  [['夕食','夜ごはん','晩ごはん','ディナー'],'🍽️'],
+  [['食事','ごはん','食べ','ランチ'],'🍽️'],
+  [['散歩','ウォーキング'],'🚶'],
+  [['ランニング','ジョギング','走'],'🏃'],
+  [['ジム','筋トレ','トレーニング','運動','ワークアウト'],'💪'],
+  [['撮影','ロケ','収録'],'🎥'],
+  [['編集','カット編集','テロップ'],'✂️'],
+  [['動画','youtube','ユーチューブ','投稿','アップ','ショート'],'🎬'],
+  [['自主制作','制作'],'🎬'],
+  [['会議','打ち合わせ','打合せ','ミーティング','商談'],'🤝'],
+  [['電話','コール'],'📞'],
+  [['メール','返信','連絡'],'📧'],
+  [['ikea','買い物','買物','ショッピング','スーパー','購入','受け取り','受取'],'🛒'],
+  [['組み立て','組立','diy','工作'],'🔧'],
+  [['掃除','片付','清掃'],'🧹'],
+  [['洗濯'],'🧺'],
+  [['ゴミ','ごみ','粗大'],'🗑️'],
+  [['税理士','経理','確定申告','請求','振込','支払','入金','銀行','納税'],'🧾'],
+  [['美容院','床屋','散髪'],'💇'],
+  [['脱毛','エステ'],'✨'],
+  [['病院','通院','診察','歯医者','クリニック'],'🏥'],
+  [['薬','服薬','サプリ'],'💊'],
+  [['シャワー','入浴','風呂','バス'],'🛁'],
+  [['歯磨き','歯みがき','ハミガキ'],'🪥'],
+  [['ボディケア','ストレッチ','マッサージ','ケア'],'🧴'],
+  [['読書','読む'],'📖'],
+  [['勉強','学習','研究'],'📚'],
+  [['ゲーム'],'🎮'],
+  [['休憩','リラックス','のんびり','自由時間'],'☕'],
+  [['カフェ','珈琲','コーヒー'],'☕'],
+  [['睡眠','就寝','寝る','眠','ベッドへ'],'😴'],
+  [['ベッド'],'🛏️'],
+  [['デスク','机'],'🪑'],
+  [['棚','収納'],'🗄️'],
+  [['移動','出発','向か','電車'],'🚃'],
+  [['準備','支度'],'🎒'],
+  [['振り返り','記録','日記','ログ','メモ'],'📝'],
+];
+function guessIcon(label, fallback){
+  if(!label) return fallback;
+  const s = String(label).toLowerCase();
+  for(const [keys, emoji] of ICON_RULES){
+    if(keys.some(k => s.includes(k.toLowerCase()))) return emoji;
+  }
+  return fallback;
+}
+// 時刻(HH:MM)で昇順ソート。時刻として解釈できないものは末尾へ（安定ソート）
+function sortByTime(arr){
+  return arr.sort((a,b)=>{
+    const av = parseTime(a.time), bv = parseTime(b.time);
+    return (av===null?Infinity:av) - (bv===null?Infinity:bv);
+  });
+}
 function computeDayTasks(date){
   const modeKey = cache.dayModes[date] || 'normal';
   const shiftMin = getShiftMin(date, modeKey);
@@ -37,24 +98,25 @@ function computeDayTasks(date){
     .map(t => {
       const ov = overrides[t.key];
       // 上書きがある場合は明示的な時刻として尊重（起床シフトは再適用しない）
-      if(ov) return {...t, time: ov.time, label: ov.label, edited:true};
+      // 内容を変えたらアイコンも内容に合わせて自動更新（合致しなければ元アイコン）
+      if(ov) return {...t, time: ov.time, label: ov.label, icon: guessIcon(ov.label, t.icon), edited:true};
       return {...t, time: adjustTime(t.time, shiftMin)};
     });
-  const customs = (cache.customTasks[date] || []).map(t => ({key:`custom_${t.id}`, time:t.time, label:t.label, icon:'⭐', custom:true, id:t.id}));
-  return [...modeTasks, ...customs];
+  const customs = (cache.customTasks[date] || []).map(t => ({key:`custom_${t.id}`, time:t.time, label:t.label, icon: guessIcon(t.label,'⭐'), custom:true, id:t.id}));
+  return sortByTime([...modeTasks, ...customs]);
 }
 function computeNightTasks(date){
   const modeKey = cache.dayModes[date] || 'normal';
   const shiftMin = getShiftMin(date, modeKey);
   const overrides = cache.nightOverrides[date] || {};
   const hidden = cache.nightHidden[date] || [];
-  return nightRawFor(modeKey)
+  return sortByTime(nightRawFor(modeKey)
     .filter(t => !hidden.includes(t.key))
     .map(t => {
       const ov = overrides[t.key];
-      if(ov) return {...t, time: ov.time, label: ov.label, edited:true};
+      if(ov) return {...t, time: ov.time, label: ov.label, icon: guessIcon(ov.label, t.icon), edited:true};
       return {...t, time: adjustTime(t.time, shiftMin)};
-    });
+    }));
 }
 // 1行のHTML（section: 'day' | 'night'）。date を各操作に引き渡す
 function taskRowHtml(date, t, section){
