@@ -599,6 +599,15 @@ window.renderProjects = function(){
   const allOpenTasks = active.flatMap(p => (p.tasks||[]).filter(t=>!t.done).map(t=>({...t, projName:p.name, projId:p.id})));
   const priorityTasks = allOpenTasks.filter(t=>t.priority);
   const otherTasks = allOpenTasks.filter(t=>!t.priority);
+  // 優先タスクは保存済みの並び順(priorityOrder)で表示。新規は末尾、消えた分は除去
+  const prioKey = t => `${t.projId}_${t.id}`;
+  {
+    const curKeys = priorityTasks.map(prioKey);
+    let order = (cache.settings.priorityOrder || []).filter(k => curKeys.includes(k));
+    for(const k of curKeys){ if(!order.includes(k)) order.push(k); }
+    cache.settings.priorityOrder = order;
+    priorityTasks.sort((a,b)=> order.indexOf(prioKey(a)) - order.indexOf(prioKey(b)));
+  }
   
   $('proj-active-count').textContent = active.length;
   $('proj-task-count').textContent = allOpenTasks.length;
@@ -611,13 +620,16 @@ window.renderProjects = function(){
     $('priority-tasks-list').innerHTML = priorityTasks.length === 0
       ? `<div style="font-size:10px;color:var(--ink-faint);text-align:center;padding:14px 4px;background:rgba(244,166,181,.08);border-radius:8px;border:1px dashed rgba(244,166,181,.4);">右からタップで⭐</div>`
       : priorityTasks.map(t=>`
-        <div class="ptask-row" style="padding:6px 0;" onclick="toggleTaskPriority('${t.projId}','${t.id}')">
+        <div class="ptask-row prio-row" style="padding:6px 0;" data-key="${t.projId}_${t.id}" draggable="true"
+          ondragstart="onPrioDragStart(event)" ondragover="onPrioDragOver(event)" ondrop="onPrioDrop(event)" ondragend="onPrioDragEnd(event)"
+          ontouchstart="onPrioTouchStart(event)" ontouchmove="onPrioTouchMove(event)" ontouchend="onPrioTouchEnd(event)">
+          <span style="color:var(--ink-faint);font-size:14px;cursor:grab;padding:0 4px;flex-shrink:0;">⋮⋮</span>
           <div class="ptask-check ${t.done?'on':''}" onclick="event.stopPropagation();toggleProjTask('${t.projId}','${t.id}')">${t.done?'✓':''}</div>
-          <div style="flex:1;min-width:0;">
+          <div style="flex:1;min-width:0;" onclick="toggleTaskPriority('${t.projId}','${t.id}')">
             <div style="font-size:12px;font-weight:600;">${t.label}</div>
             <div style="font-size:9px;color:var(--ink-mute);">— ${t.projName}</div>
           </div>
-          <span style="font-size:14px;">⭐</span>
+          <span style="font-size:14px;" onclick="toggleTaskPriority('${t.projId}','${t.id}')">⭐</span>
         </div>
       `).join('');
     
@@ -792,6 +804,55 @@ window.onPTaskTouchEnd = async function(e){
     }
   }
   _touchDrag = null;
+};
+
+// ============= 優先タスクの並び替え（案件横断・priorityOrderに保存） =============
+async function movePriority(fromKey, toKey){
+  if(!fromKey || !toKey || fromKey === toKey) return;
+  const order = [...(cache.settings.priorityOrder || [])];
+  const fi = order.indexOf(fromKey);
+  if(fi < 0) return;
+  const [moved] = order.splice(fi, 1);
+  const ti = order.indexOf(toKey);
+  if(ti < 0){ order.push(moved); } else { order.splice(ti, 0, moved); }
+  cache.settings.priorityOrder = order;
+  await saveAllSettings();
+  renderProjects();
+}
+// デスクトップ
+let _dragPrio = null;
+window.onPrioDragStart = function(e){ _dragPrio = e.currentTarget.dataset.key; e.currentTarget.style.opacity='0.4'; e.dataTransfer.effectAllowed='move'; };
+window.onPrioDragOver = function(e){ e.preventDefault(); e.dataTransfer.dropEffect='move'; };
+window.onPrioDrop = async function(e){ e.preventDefault(); if(!_dragPrio) return; await movePriority(_dragPrio, e.currentTarget.dataset.key); };
+window.onPrioDragEnd = function(e){ e.currentTarget.style.opacity=''; _dragPrio=null; };
+// モバイル（⋮⋮ ハンドルから）
+let _touchPrio = null;
+window.onPrioTouchStart = function(e){
+  const target = e.currentTarget;
+  const x = e.touches[0].clientX;
+  const rect = target.getBoundingClientRect();
+  if(x - rect.left > 30) return; // ハンドル以外は無視（タップは⭐解除に使う）
+  _touchPrio = { key:target.dataset.key, el:target };
+  target.style.opacity='0.5';
+};
+window.onPrioTouchMove = function(e){
+  if(!_touchPrio) return;
+  e.preventDefault();
+  const els = document.elementsFromPoint(e.touches[0].clientX, e.touches[0].clientY);
+  const target = els.find(el => el.classList && el.classList.contains('prio-row') && el !== _touchPrio.el && el.dataset.key);
+  if(target){
+    _touchPrio.target = target;
+    document.querySelectorAll('.prio-row.drag-over').forEach(el=>el.classList.remove('drag-over'));
+    target.classList.add('drag-over');
+  }
+};
+window.onPrioTouchEnd = async function(e){
+  if(!_touchPrio) return;
+  _touchPrio.el.style.opacity='';
+  document.querySelectorAll('.prio-row.drag-over').forEach(el=>el.classList.remove('drag-over'));
+  const fromKey = _touchPrio.key, t = _touchPrio.target;
+  _touchPrio = null;
+  if(t) await movePriority(fromKey, t.dataset.key);
 };
 
 let _expandedProjId = null;
