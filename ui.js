@@ -1364,43 +1364,52 @@ function renderDayDetailBody(){
     ${current ? `<button class="btn-sec" style="margin-top:14px;width:100%;" onclick="ddSelectMode(null)">解除</button>` : ''}`;
   } else {
     const date = _ddDate;
-    const dayTasks = computeDayTasks(date);
-    const nightTasks = computeNightTasks(date);
-    const done = dayTasks.filter(t=>cache.todayChecks[`${date}_${t.key}`]).length;
-
+    // 起床予定の入力(ピッカー)は作り直さない。タスク部分だけ別コンテナ(#dd-sch-tasks)に描画する
     $('dd-body').innerHTML = `
       <div class="wake-input-row" style="margin-bottom:6px;">
         <span style="font-size:14px;">☀️</span>
         <span style="font-size:11px;color:var(--ink-soft);font-weight:600;">起床予定</span>
         <input type="time" class="fi" id="dd-wake-input" value="${cache.wakeTimes[date]||''}" onchange="onDDWakeChange()">
-        ${cache.wakeTimes[date] ? `<button onclick="clearDDWake()" style="background:none;border:none;color:var(--ink-mute);font-size:11px;cursor:pointer;flex-shrink:0;padding:0 4px;">クリア</button>` : ''}
+        <button onclick="clearDDWake()" style="background:none;border:none;color:var(--ink-mute);font-size:11px;cursor:pointer;flex-shrink:0;padding:0 4px;">クリア</button>
       </div>
       <div style="font-size:9px;color:var(--ink-mute);margin:0 0 10px 2px;">起床予定を決めると全タスクの時間が連動してずれます</div>
-      <div style="font-size:10px;letter-spacing:.2em;color:var(--ink-mute);margin-bottom:8px;">— 昼のタイムライン — ${done}/${dayTasks.length}</div>
-      ${dayTasks.length === 0
-        ? '<div class="empty-state"><div class="em-ico">○</div><div style="font-size:11px;">タスクなし</div></div>'
-        : dayTasks.map(t=>taskRowHtml(date, t, 'day')).join('')}
-      ${customAddFormHtml(date, 'dd-custom-time', 'dd-custom-label')}
-      <div style="font-size:10px;letter-spacing:.2em;color:var(--ink-mute);margin:18px 0 8px;">— 寝る前ルーティン —</div>
-      ${nightTasks.length === 0
-        ? '<div class="empty-state"><div class="em-ico">○</div><div style="font-size:11px;">タスクなし</div></div>'
-        : nightTasks.map(t=>taskRowHtml(date, t, 'night')).join('')}`;
+      <div id="dd-sch-tasks"></div>`;
+    renderDDScheduleTasks(date);
   }
 }
-// 日別モーダルの起床予定（変更で全タスクが連動）
+// 日別モーダルのタスク部分だけ描画（起床ピッカーは触らない）
+function renderDDScheduleTasks(date){
+  const el = $('dd-sch-tasks');
+  if(!el) return;
+  const dayTasks = computeDayTasks(date);
+  const nightTasks = computeNightTasks(date);
+  const done = dayTasks.filter(t=>cache.todayChecks[`${date}_${t.key}`]).length;
+  el.innerHTML = `
+    <div style="font-size:10px;letter-spacing:.2em;color:var(--ink-mute);margin-bottom:8px;">— 昼のタイムライン — ${done}/${dayTasks.length}</div>
+    ${dayTasks.length === 0
+      ? '<div class="empty-state"><div class="em-ico">○</div><div style="font-size:11px;">タスクなし</div></div>'
+      : dayTasks.map(t=>taskRowHtml(date, t, 'day')).join('')}
+    ${customAddFormHtml(date, 'dd-custom-time', 'dd-custom-label')}
+    <div style="font-size:10px;letter-spacing:.2em;color:var(--ink-mute);margin:18px 0 8px;">— 寝る前ルーティン —</div>
+    ${nightTasks.length === 0
+      ? '<div class="empty-state"><div class="em-ico">○</div><div style="font-size:11px;">タスクなし</div></div>'
+      : nightTasks.map(t=>taskRowHtml(date, t, 'night')).join('')}`;
+}
+// 日別モーダルの起床予定（変更で全タスクが連動。ピッカーは作り直さずタスクだけ更新）
 window.onDDWakeChange = async function(){
   if(!_ddDate) return;
   const val = $('dd-wake-input').value;
   await saveWakeTime(_ddDate, val);
   const w = $('dd-wake'); if(w) w.textContent = val || '—';
-  renderDayDetailBody();
+  renderDDScheduleTasks(_ddDate);
   if(window.scheduleNotifySync) scheduleNotifySync();
 };
 window.clearDDWake = async function(){
   if(!_ddDate) return;
   await saveWakeTime(_ddDate, '');
+  const inp = $('dd-wake-input'); if(inp) inp.value = '';
   const w = $('dd-wake'); if(w) w.textContent = '—';
-  renderDayDetailBody();
+  renderDDScheduleTasks(_ddDate);
   if(window.scheduleNotifySync) scheduleNotifySync();
 };
 window.ddSelectMode = async function(key){
