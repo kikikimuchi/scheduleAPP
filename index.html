@@ -262,7 +262,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v27</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v28</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -460,9 +460,13 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
     <div style="font-size:14px;font-weight:700;margin-bottom:10px;">体重</div>
     <div class="flex-row">
       <div><label class="fl">スタート (kg)</label><input class="fi no-spinner" type="number" id="s-start-weight" step="0.1"></div>
-      <div><label class="fl">目標 (kg)</label><input class="fi no-spinner" type="number" id="s-target-weight" step="0.1"></div>
+      <div><label class="fl">最終目標 (kg)</label><input class="fi no-spinner" type="number" id="s-target-weight" step="0.1"></div>
     </div>
-    
+    <div class="flex-row" style="margin-top:10px;">
+      <div><label class="fl">中間目標 (kg)</label><input class="fi no-spinner" type="number" id="s-interim-weight" step="0.1"></div>
+      <div><label class="fl">中間目標 期限</label><input class="fi" type="date" id="s-interim-date"></div>
+    </div>
+
     <div style="font-size:14px;font-weight:700;margin:14px 0 10px;">体脂肪率</div>
     <div class="flex-row">
       <div><label class="fl">スタート (%)</label><input class="fi no-spinner" type="number" id="s-start-bf" step="0.1"></div>
@@ -603,7 +607,7 @@ const COL = {
 
 // =================== CACHE ===================
 window.cache = {
-  settings: { startWeight:83, targetWeight:68, startBodyFat:25, targetBodyFat:18, youtubeLongTarget:15, youtubeShortTarget:30, vanBudget:400000, gymDays:['月','木'], wakeTime:'10:00', targetSleepHours:8, calendarEmbedUrl:'', notifyEnabled:false, notifyEmail:'', notifyLeadMin:5, priorityOrder:[] },
+  settings: { startWeight:83, targetWeight:68, interimWeight:70, interimDate:'2026-09-15', startBodyFat:25, targetBodyFat:18, youtubeLongTarget:15, youtubeShortTarget:30, vanBudget:400000, gymDays:['月','木'], wakeTime:'10:00', targetSleepHours:8, calendarEmbedUrl:'', notifyEnabled:false, notifyEmail:'', notifyLeadMin:5, priorityOrder:[] },
   weights: [],
   dayModes: {},  // {'2026-05-14': 'normal'}
   wakeTimes: {}, // {'2026-05-14': '11:00'}
@@ -654,6 +658,7 @@ window.MODE_KEYS = ['normal','cafe','gym','shoot','trip_work','trip_private','re
 window.MODE_TASKS = {
   normal:[
     { key:'wake', time:'10:00', label:'起床 + カーテンを開く', icon:'☀️' },
+    { key:'weigh', time:'10:05', label:'体重測定', icon:'⚖️' },
     { key:'hydrate_skin', time:'10:15', label:'水分補給・洗顔スキンケア', icon:'💧' },
     { key:'breakfast', time:'10:30', label:'朝食・水分補給', icon:'🥣' },
     { key:'work_morning', time:'11:00', label:'午前 仕事', icon:'✂️' },
@@ -663,6 +668,7 @@ window.MODE_TASKS = {
   ],
   cafe:[
     { key:'wake', time:'08:00', label:'起床 + カーテンを開く', icon:'☀️' },
+    { key:'weigh', time:'08:05', label:'体重測定', icon:'⚖️' },
     { key:'hydrate_skin', time:'08:15', label:'水分補給・洗顔スキンケア', icon:'💧' },
     { key:'gym', time:'09:00', label:'ジム (自主)', icon:'💪' },
     { key:'cafe_move', time:'10:30', label:'カフェ移動', icon:'☕' },
@@ -673,6 +679,7 @@ window.MODE_TASKS = {
   ],
   gym:[
     { key:'wake', time:'08:00', label:'起床 + カーテンを開く', icon:'☀️' },
+    { key:'weigh', time:'08:05', label:'体重測定', icon:'⚖️' },
     { key:'hydrate_skin', time:'08:15', label:'水分補給・洗顔スキンケア', icon:'💧' },
     { key:'gym', time:'09:00', label:'ジム (自主)', icon:'💪' },
     { key:'work_morning', time:'11:00', label:'午前 仕事', icon:'✂️' },
@@ -682,6 +689,7 @@ window.MODE_TASKS = {
   ],
   shoot:[
     { key:'wake', time:'06:00', label:'起床 + カーテンを開く', icon:'☀️' },
+    { key:'weigh', time:'06:05', label:'体重測定', icon:'⚖️' },
     { key:'hydrate_skin', time:'06:15', label:'水分補給・洗顔スキンケア', icon:'💧' },
     { key:'prep', time:'07:00', label:'機材準備・出発', icon:'📦' },
     { key:'shoot', time:'09:00', label:'撮影', icon:'🎥' },
@@ -691,6 +699,7 @@ window.MODE_TASKS = {
   ],
   trip_work:[
     { key:'wake', time:'07:00', label:'起床 + カーテンを開く', icon:'☀️' },
+    { key:'weigh', time:'07:05', label:'体重測定', icon:'⚖️' },
     { key:'hydrate_skin', time:'07:15', label:'水分補給・洗顔スキンケア', icon:'💧' },
     { key:'shoot', time:'09:00', label:'撮影', icon:'🎥' },
     { key:'shoot_pm', time:'14:00', label:'撮影 (午後)', icon:'🎬' },
@@ -698,6 +707,7 @@ window.MODE_TASKS = {
   ],
   trip_private:[
     { key:'wake', time:'09:00', label:'起床 + カーテンを開く', icon:'☀️' },
+    { key:'weigh', time:'09:05', label:'体重測定', icon:'⚖️' },
     { key:'hydrate_skin', time:'09:15', label:'水分補給・洗顔スキンケア', icon:'💧' },
     { key:'production_morning', time:'10:00', label:'自主制作 (午前)', icon:'🎬' },
     { key:'lunch', time:'13:00', label:'昼食', icon:'🍱' },
@@ -706,11 +716,13 @@ window.MODE_TASKS = {
   ],
   recovery:[
     { key:'wake_natural', time:'自然起床', label:'自然に起床 (無理しない)', icon:'😴' },
+    { key:'weigh', time:'自然起床', label:'体重測定', icon:'⚖️' },
     { key:'hydrate', time:'随時', label:'水分・タンパク質', icon:'💧' },
     { key:'rest_full', time:'終日', label:'完全休息', icon:'🛌' },
   ],
   rest:[
     { key:'wake', time:'自然起床', label:'自然に起床', icon:'☀️' },
+    { key:'weigh', time:'自然起床', label:'体重測定', icon:'⚖️' },
     { key:'enjoy', time:'随時', label:'好きなことをする', icon:'🌴' },
   ],
   custom:[],
@@ -1018,6 +1030,6 @@ if('serviceWorker' in navigator){
 </script>
 
 <!-- UI script -->
-<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=27"></script>
+<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=28"></script>
 </body>
 </html>

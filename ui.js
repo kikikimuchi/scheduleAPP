@@ -37,6 +37,21 @@ window.handleEnterAdd = function(event, el, cb){
 
 // ============= UI RENDER =============
 
+// 現在の到達目標（中間目標が未来かつ有効なら中間、無ければ最終=12月末）
+function activeGoal(){
+  const s = cache.settings || {};
+  const today = new Date(getTodayDateString()+'T00:00');
+  if(s.interimDate && s.interimWeight!=null){
+    const id = new Date(s.interimDate+'T00:00');
+    if(!isNaN(id.getTime()) && id > today){
+      return { weight: s.interimWeight, dateObj: id, label: `${id.getMonth()+1}/${id.getDate()}`, isInterim:true };
+    }
+  }
+  const ye = new Date((new Date()).getFullYear(), 11, 31);
+  return { weight: s.targetWeight, dateObj: ye, label: '12月末', isInterim:false };
+}
+window.activeGoal = activeGoal;
+
 function getShiftMin(date, mode){
   const wake = cache.wakeTimes[date];
   if(!wake) return 0;
@@ -263,16 +278,16 @@ window.renderToday = function(){
   $('w-kg').textContent = w.toFixed(1);
   $('w-bf').textContent = (latest && latest.bodyFat) ? `体脂肪 ${latest.bodyFat.toFixed(1)}%` : '体脂肪未記録';
   
-  const remaining = w - cache.settings.targetWeight;
-  const yearEnd = new Date(new Date().getFullYear(), 11, 31);
-  const daysLeft = Math.ceil((yearEnd - new Date())/(86400000));
+  const goal = activeGoal();
+  const remaining = w - goal.weight;
+  const daysLeft = Math.max(Math.ceil((goal.dateObj - new Date())/(86400000)), 1);
   const weeksLeft = Math.max(daysLeft / 7, 0.1);
   const weeklyPace = remaining / weeksLeft;
-  
+
   if(remaining <= 0){
-    $('w-rem').textContent = `目標達成 🎉 ▶ 記録`;
+    $('w-rem').textContent = `${goal.label}目標 達成 🎉 ▶ 記録`;
   } else {
-    $('w-rem').innerHTML = `目標まで ${remaining.toFixed(1)}kg<br>週 ${weeklyPace.toFixed(2)}kg ペース ▶ 記録`;
+    $('w-rem').innerHTML = `${goal.label}(${goal.weight}kg)まで ${remaining.toFixed(1)}kg<br>週 ${weeklyPace.toFixed(2)}kg ペース ▶ 記録`;
   }
   
   $('wake-input').value = cache.wakeTimes[today] || '';
@@ -1274,7 +1289,7 @@ window.renderCalendar = function(){
     cells += `<div class="${cls.join(' ')}" onclick="openDayDetail('${dateStr}')">
       <div>${d}</div>
       ${mode ? `<div class="cal-cell-icon">${mode.icon}</div>` : ''}
-      ${wt!==undefined ? `<div style="font-size:7px;font-weight:600;color:#5F9EA0;line-height:1;margin-top:1px;">${wt.toFixed(1)}</div>` : ''}
+      ${wt!==undefined ? `<div style="font-size:10px;font-weight:700;color:#3E8E8E;line-height:1;margin-top:2px;">${wt.toFixed(1)}</div>` : ''}
     </div>`;
   }
   $('cal-grid').innerHTML = cells;
@@ -1443,9 +1458,9 @@ function renderWeightTab(){
   const w = latest ? latest.weight : cache.settings.startWeight;
   const bf = latest && latest.bodyFat ? latest.bodyFat : null;
   const change = (w - cache.settings.startWeight).toFixed(1);
-  const remaining = (w - cache.settings.targetWeight);
-  const yearEnd = new Date(new Date().getFullYear(), 11, 31);
-  const daysLeft = Math.ceil((yearEnd - new Date())/(86400000));
+  const goal = activeGoal();
+  const remaining = (w - goal.weight);
+  const daysLeft = Math.max(Math.ceil((goal.dateObj - new Date())/(86400000)), 1);
   const weeksLeft = Math.max(daysLeft / 7, 0.1);
   const weeklyPace = remaining / weeksLeft;
   
@@ -1466,9 +1481,9 @@ function renderWeightTab(){
       </div>
       <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:8px;">
         <span>変化: ${change > 0 ? '+' : ''}${change}kg</span>
-        <span>残り: ${remaining.toFixed(1)}kg</span>
+        <span>残り(${goal.label}): ${remaining.toFixed(1)}kg</span>
       </div>
-      ${remaining > 0 ? `<div style="background:rgba(255,255,255,.2);border-radius:8px;padding:8px 12px;font-size:12px;text-align:center;">📅 12月末まで <span style="font-weight:700;">週 ${weeklyPace.toFixed(2)}kg</span> ペースで減量</div>` : ''}
+      ${remaining > 0 ? `<div style="background:rgba(255,255,255,.2);border-radius:8px;padding:8px 12px;font-size:12px;text-align:center;">📅 ${goal.label}までに <span style="font-weight:700;">${goal.weight}kg</span>（週 ${weeklyPace.toFixed(2)}kg・あと${daysLeft}日）</div>` : `<div style="background:rgba(255,255,255,.2);border-radius:8px;padding:8px 12px;font-size:12px;text-align:center;">${goal.label}の目標達成 🎉 次は最終 ${cache.settings.targetWeight}kg へ</div>`}
     </div>
     <div class="card">
       <div class="sec-h">記録する</div>
@@ -1773,6 +1788,8 @@ window.renderSettings = function(){
   const s = cache.settings;
   $('s-start-weight').value = s.startWeight;
   $('s-target-weight').value = s.targetWeight;
+  if($('s-interim-weight')) $('s-interim-weight').value = (s.interimWeight!=null ? s.interimWeight : '');
+  if($('s-interim-date')) $('s-interim-date').value = s.interimDate || '';
   $('s-start-bf').value = s.startBodyFat;
   $('s-target-bf').value = s.targetBodyFat;
   $('s-yt-long').value = s.youtubeLongTarget;
@@ -1795,6 +1812,8 @@ window.toggleGymDay = async function(d){
 window.saveSettings = async function(){
   cache.settings.startWeight = parseFloat($('s-start-weight').value);
   cache.settings.targetWeight = parseFloat($('s-target-weight').value);
+  if($('s-interim-weight')){ const iv = parseFloat($('s-interim-weight').value); cache.settings.interimWeight = isNaN(iv) ? null : iv; }
+  if($('s-interim-date')) cache.settings.interimDate = $('s-interim-date').value || '';
   cache.settings.startBodyFat = parseFloat($('s-start-bf').value);
   cache.settings.targetBodyFat = parseFloat($('s-target-bf').value);
   cache.settings.youtubeLongTarget = parseInt($('s-yt-long').value);
