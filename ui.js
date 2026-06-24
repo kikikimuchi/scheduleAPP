@@ -136,9 +136,9 @@ function computeDayTasks(date){
     .filter(t => !hidden.includes(t.key))
     .map(t => {
       const ov = overrides[t.key];
-      // 上書きがある場合は明示的な時刻として尊重（起床シフトは再適用しない）
-      // アイコンは保存値があれば優先、無ければ内容から自動推定（最後は元アイコン）
-      if(ov) return {...t, time: ov.time, label: ov.label, icon: ov.icon || guessIcon(ov.label, t.icon), edited:true};
+      // 上書きの時刻も基準(未シフト)値として保存しているので、表示時に起床シフトを適用
+      // （名称変更だけしても時間連動が維持される）。アイコンは保存値優先→内容推定→元
+      if(ov) return {...t, time: shiftTaskTime(ov.time, shiftMin), label: ov.label, icon: ov.icon || guessIcon(ov.label, t.icon), edited:true};
       return {...t, time: adjustTime(t.time, shiftMin)};
     });
   // 追加(カスタム)タスクも起床シフトに連動させる
@@ -154,7 +154,7 @@ function computeNightTasks(date){
     .filter(t => !hidden.includes(t.key))
     .map(t => {
       const ov = overrides[t.key];
-      if(ov) return {...t, time: ov.time, label: ov.label, icon: ov.icon || guessIcon(ov.label, t.icon), edited:true};
+      if(ov) return {...t, time: shiftTaskTime(ov.time, shiftMin), label: ov.label, icon: ov.icon || guessIcon(ov.label, t.icon), edited:true};
       return {...t, time: adjustTime(t.time, shiftMin)};
     }));
 }
@@ -444,11 +444,15 @@ window.openEditTask = function(date, key){
 };
 window.saveTaskEdit = async function(){
   const raw = $('te-key').value;
-  const time = resolveEditTime();
   const label = $('te-label').value.trim();
   if(!label) return alert('内容を入力してください');
   const icon = ($('te-icon').value || '').trim() || guessIcon(label, '⭐');
   const date = _editDate || getTodayDateString();
+  // モーダルは「表示中(シフト後)の時刻」で編集する。保存は基準(未シフト)値に戻す
+  // → これで名称変更だけしても起床シフト連動が維持される（二重シフトも防ぐ）
+  const modeKey = cache.dayModes[date] || 'normal';
+  const shiftMin = getShiftMin(date, modeKey);
+  const time = shiftTaskTime(resolveEditTime(), -shiftMin);
   if(raw.startsWith('night:')){
     const key = raw.slice('night:'.length);
     cache.nightOverrides[date] = {...(cache.nightOverrides[date]||{}), [key]:{time,label,icon}};
