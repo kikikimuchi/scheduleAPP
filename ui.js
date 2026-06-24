@@ -21,6 +21,20 @@ window.forceUpdate = async function(){
   location.replace(base + '?u=' + Date.now());
 };
 
+// 入力欄のEnterで追加する共通ハンドラ。IME変換確定のEnterは無視する（端末差を吸収）
+window.markCompose = function(el, on){
+  if(on){ el.dataset.composing = '1'; }
+  else { el.dataset.composing = ''; el.dataset.composeEnd = String(Date.now()); }
+};
+window.handleEnterAdd = function(event, el, cb){
+  if(event.key !== 'Enter') return;
+  // 変換中・IME処理中・確定直後(250ms)はEnterを無視
+  if(event.isComposing || event.keyCode === 229 || el.dataset.composing === '1') return;
+  if(el.dataset.composeEnd && (Date.now() - Number(el.dataset.composeEnd)) < 250) return;
+  event.preventDefault();
+  cb();
+};
+
 // ============= UI RENDER =============
 
 function getShiftMin(date, mode){
@@ -676,9 +690,9 @@ window.renderProjects = function(){
         }
         <div style="display:flex;gap:6px;margin-top:10px;">
           <input class="fi" type="text" id="ptask-input-${p.id}" placeholder="タスクを追加 (Enterで追加)"
-            oncompositionstart="this.dataset.composing='1'"
-            oncompositionend="this.dataset.composing=''"
-            onkeydown="if(event.key==='Enter'&&!this.dataset.composing){event.preventDefault();addProjTask('${p.id}')}">
+            oncompositionstart="markCompose(this,true)"
+            oncompositionend="markCompose(this,false)"
+            onkeydown="handleEnterAdd(event,this,()=>addProjTask('${p.id}'))">
           <button class="btn-sec" onclick="addProjTask('${p.id}')">＋</button>
         </div>
         <div style="display:flex;gap:6px;margin-top:10px;">
@@ -952,9 +966,9 @@ function renderProductionTab(){
       <div class="sec-h">タスク追加</div>
       <div style="display:flex;gap:8px;">
         <input class="fi" id="prod-input" placeholder="例: シーン1のラフカット完成 (Enterで追加)" style="flex:1;"
-          oncompositionstart="this.dataset.composing='1'"
-          oncompositionend="this.dataset.composing=''"
-          onkeydown="if(event.key==='Enter'&&!this.dataset.composing){event.preventDefault();addProductionTask()}">
+          oncompositionstart="markCompose(this,true)"
+          oncompositionend="markCompose(this,false)"
+          onkeydown="handleEnterAdd(event,this,()=>addProductionTask())">
         <button class="btn-pri" style="width:auto;padding:0 16px;" onclick="addProductionTask()">＋</button>
       </div>
     </div>
