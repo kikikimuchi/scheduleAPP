@@ -1354,6 +1354,13 @@ function renderDayDetailBody(){
     const done = dayTasks.filter(t=>cache.todayChecks[`${date}_${t.key}`]).length;
 
     $('dd-body').innerHTML = `
+      <div class="wake-input-row" style="margin-bottom:6px;">
+        <span style="font-size:14px;">☀️</span>
+        <span style="font-size:11px;color:var(--ink-soft);font-weight:600;">起床予定</span>
+        <input type="time" class="fi" id="dd-wake-input" value="${cache.wakeTimes[date]||''}" onchange="onDDWakeChange()">
+        ${cache.wakeTimes[date] ? `<button onclick="clearDDWake()" style="background:none;border:none;color:var(--ink-mute);font-size:11px;cursor:pointer;flex-shrink:0;padding:0 4px;">クリア</button>` : ''}
+      </div>
+      <div style="font-size:9px;color:var(--ink-mute);margin:0 0 10px 2px;">起床予定を決めると全タスクの時間が連動してずれます</div>
       <div style="font-size:10px;letter-spacing:.2em;color:var(--ink-mute);margin-bottom:8px;">— 昼のタイムライン — ${done}/${dayTasks.length}</div>
       ${dayTasks.length === 0
         ? '<div class="empty-state"><div class="em-ico">○</div><div style="font-size:11px;">タスクなし</div></div>'
@@ -1365,6 +1372,22 @@ function renderDayDetailBody(){
         : nightTasks.map(t=>taskRowHtml(date, t, 'night')).join('')}`;
   }
 }
+// 日別モーダルの起床予定（変更で全タスクが連動）
+window.onDDWakeChange = async function(){
+  if(!_ddDate) return;
+  const val = $('dd-wake-input').value;
+  await saveWakeTime(_ddDate, val);
+  const w = $('dd-wake'); if(w) w.textContent = val || '—';
+  renderDayDetailBody();
+  if(window.scheduleNotifySync) scheduleNotifySync();
+};
+window.clearDDWake = async function(){
+  if(!_ddDate) return;
+  await saveWakeTime(_ddDate, '');
+  const w = $('dd-wake'); if(w) w.textContent = '—';
+  renderDayDetailBody();
+  if(window.scheduleNotifySync) scheduleNotifySync();
+};
 window.ddSelectMode = async function(key){
   await saveDayMode(_ddDate, key);
   closeModal('ov-daydetail');
