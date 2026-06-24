@@ -1248,6 +1248,10 @@ window.renderCalendar = function(){
   const today = getTodayDateString();
   const todayDate = new Date(today + 'T00:00');
   
+  // 日付→体重 のマップ（カレンダーに小さく表示）
+  const wmap = {};
+  cache.weights.forEach(e=>{ wmap[e.date] = e.weight; });
+
   let cells = '';
   for(let i=0; i<firstDay; i++) cells += `<div class="cal-cell empty"></div>`;
   for(let d=1; d<=daysInMonth; d++){
@@ -1261,9 +1265,11 @@ window.renderCalendar = function(){
     if(isToday) cls.push('today');
     if(isPast && !mode) cls.push('past');
     if(mode) cls.push(mode.cls);
+    const wt = wmap[dateStr];
     cells += `<div class="${cls.join(' ')}" onclick="openDayDetail('${dateStr}')">
       <div>${d}</div>
       ${mode ? `<div class="cal-cell-icon">${mode.icon}</div>` : ''}
+      ${wt!==undefined ? `<div style="font-size:7px;font-weight:600;color:#5F9EA0;line-height:1;margin-top:1px;">${wt.toFixed(1)}</div>` : ''}
     </div>`;
   }
   $('cal-grid').innerHTML = cells;
@@ -1374,6 +1380,36 @@ window.renderIdeal = function(){
   renderInspiration();
 };
 
+// 体重推移の折れ線グラフ（SVG）。記録2件以上で描画
+function weightChartSvg(){
+  const data = cache.weights.slice().sort((a,b)=>a.date.localeCompare(b.date)).slice(-60);
+  if(data.length < 2) return '';
+  const W=320, H=110, padX=10, padTop=14, padBot=16;
+  const ws = data.map(d=>d.weight);
+  const target = cache.settings.targetWeight;
+  let min = Math.min(...ws, target), max = Math.max(...ws, target);
+  if(max - min < 0.5){ min -= 0.5; max += 0.5; }
+  const rng = max - min;
+  const X = i => padX + (W - 2*padX) * (i/(data.length-1));
+  const Y = v => padTop + (H - padTop - padBot) * (1 - (v - min)/rng);
+  const line = data.map((d,i)=>`${X(i).toFixed(1)},${Y(d.weight).toFixed(1)}`).join(' ');
+  const area = `${padX.toFixed(1)},${(H-padBot).toFixed(1)} ${line} ${(W-padX).toFixed(1)},${(H-padBot).toFixed(1)}`;
+  const tY = Y(target).toFixed(1);
+  const last = data[data.length-1];
+  const lx = X(data.length-1).toFixed(1), ly = Y(last.weight).toFixed(1);
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;margin-bottom:10px;overflow:visible;">
+    <defs><linearGradient id="wgrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E88FA1" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#E88FA1" stop-opacity="0"/>
+    </linearGradient></defs>
+    <line x1="${padX}" y1="${tY}" x2="${W-padX}" y2="${tY}" stroke="#b9bcc4" stroke-width="1" stroke-dasharray="3 3"/>
+    <text x="${W-padX}" y="${(Number(tY)-3).toFixed(1)}" text-anchor="end" font-size="8" fill="#9aa0a8">目標 ${target}kg</text>
+    <polygon points="${area}" fill="url(#wgrad)"/>
+    <polyline points="${line}" fill="none" stroke="#E88FA1" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${lx}" cy="${ly}" r="3" fill="#E88FA1"/>
+    <text x="${lx}" y="${(Number(ly)-6).toFixed(1)}" text-anchor="end" font-size="9" font-weight="700" fill="#E88FA1">${last.weight.toFixed(1)}</text>
+  </svg>`;
+}
 function renderWeightTab(){
   const latest = cache.weights.length>0 ? cache.weights[cache.weights.length-1] : null;
   const w = latest ? latest.weight : cache.settings.startWeight;
@@ -1416,6 +1452,7 @@ function renderWeightTab(){
     </div>
     <div class="card">
       <div class="sec-h">推移</div>
+      ${weightChartSvg()}
       ${cache.weights.length === 0 ? '<div class="empty-state"><div class="em-ico">📈</div><div>記録がありません</div></div>' :
         cache.weights.slice().reverse().slice(0,30).map(e=>`<div class="ptask-row">
           <div style="flex:1;font-size:12px;">${e.date}</div>
