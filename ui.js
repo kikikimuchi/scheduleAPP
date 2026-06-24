@@ -290,7 +290,9 @@ window.renderToday = function(){
     $('w-rem').innerHTML = `${goal.label}(${goal.weight}kg)まで ${remaining.toFixed(1)}kg<br>週 ${weeklyPace.toFixed(2)}kg ペース ▶ 記録`;
   }
   
-  $('wake-input').value = cache.wakeTimes[today] || '';
+  // 起床欄を編集中(フォーカス中)は値を書き戻さない（ピッカー操作の妨害＝中間値確定を防ぐ）
+  const wi = $('wake-input');
+  if(wi && document.activeElement !== wi) wi.value = cache.wakeTimes[today] || '';
 
   const dayTasks = computeDayTasks(today);
   $('task-list').innerHTML = dayTasks.length === 0
