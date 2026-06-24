@@ -262,7 +262,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v22</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v23</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -738,7 +738,7 @@ function getTodayDateString(){
 }
 window.getTodayDateString = getTodayDateString;
 function parseTime(s){ const m = (s||'').match(/^(\d{1,2}):(\d{2})/); if(!m) return null; return +m[1]*60 + +m[2]; }
-function fmtTime(mins){ const h = Math.floor(mins/60)%24; const m = mins%60; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`; }
+function fmtTime(mins){ let x = mins; while(x < 0) x += 1440; const h = Math.floor(x/60); const m = x%60; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`; }
 function adjustTime(orig, shiftMin){
   if(!shiftMin) return orig;
   if(!orig) return orig;
@@ -1018,6 +1018,6 @@ if('serviceWorker' in navigator){
 </script>
 
 <!-- UI script -->
-<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=22"></script>
+<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=23"></script>
 </body>
 </html>
