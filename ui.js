@@ -366,9 +366,14 @@ window.saveWeight = async function(){
 };
 // カスタムタスク追加（任意の日付・入力id指定）
 window.addCustomTaskInput = async function(date, timeId, labelId){
-  const time = $(timeId).value;
+  const entered = $(timeId).value;
   const label = $(labelId).value.trim();
   if(!label) return;
+  // 入力した時刻がそのまま表示になるよう、現在の起床シフト分だけ戻して基準で保存する
+  // （今起きた後に追加しても入力時刻のまま表示。起床を後で変えれば一緒に動く）
+  const modeKey = cache.dayModes[date] || 'normal';
+  const shiftMin = getShiftMin(date, modeKey);
+  const time = shiftTaskTime(entered, -shiftMin);
   const tasks = [...(cache.customTasks[date]||[])];
   tasks.push({ id:Date.now(), time, label });
   await saveCustomTasksFB(date, tasks);
