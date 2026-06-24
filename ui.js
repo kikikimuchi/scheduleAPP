@@ -121,6 +121,12 @@ function sortByTime(arr){
     return (av===null?Infinity:av) - (bv===null?Infinity:bv);
   });
 }
+// 起床シフトを適用（特殊表記・深夜24:00以上はそのまま）
+function shiftTaskTime(time, shiftMin){
+  const v = parseTime(time);
+  if(v === null || v >= 1440) return time; // 自然起床等/深夜タスクは固定
+  return adjustTime(time, shiftMin);
+}
 function computeDayTasks(date){
   const modeKey = cache.dayModes[date] || 'normal';
   const shiftMin = getShiftMin(date, modeKey);
@@ -135,7 +141,8 @@ function computeDayTasks(date){
       if(ov) return {...t, time: ov.time, label: ov.label, icon: ov.icon || guessIcon(ov.label, t.icon), edited:true};
       return {...t, time: adjustTime(t.time, shiftMin)};
     });
-  const customs = (cache.customTasks[date] || []).map(t => ({key:`custom_${t.id}`, time:t.time, label:t.label, icon: t.icon || guessIcon(t.label,'⭐'), custom:true, id:t.id}));
+  // 追加(カスタム)タスクも起床シフトに連動させる
+  const customs = (cache.customTasks[date] || []).map(t => ({key:`custom_${t.id}`, time: shiftTaskTime(t.time, shiftMin), label:t.label, icon: t.icon || guessIcon(t.label,'⭐'), custom:true, id:t.id}));
   return sortByTime([...modeTasks, ...customs]);
 }
 function computeNightTasks(date){
