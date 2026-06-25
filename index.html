@@ -262,7 +262,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v43</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v44</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -272,7 +272,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 
 <!-- PAGE: TODAY -->
 <div class="pg on" id="pg-today">
-  <div class="dash-grid">
+  <div class="dash-grid" style="grid-template-columns:1fr 1fr 1fr;">
     <button class="mode-card" id="mode-card" onclick="openModeSelector()">
       <div>
         <span class="mode-card-icon" id="mode-ico">🏠</span>
@@ -282,6 +282,10 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
         <div class="mode-card-name" id="mode-name">お家作業日</div>
         <div class="mode-card-desc" id="mode-desc">在宅編集・通常運転</div>
       </div>
+    </button>
+    <button class="mode-card" onclick="openMealLog()" style="align-items:center;justify-content:center;text-align:center;gap:6px;background:linear-gradient(135deg,var(--pink) 0%,var(--lav) 100%);border:none;color:#fff;box-shadow:0 4px 12px rgba(244,166,181,.3);">
+      <div style="font-size:26px;line-height:1;">🍽️</div>
+      <div style="font-size:12px;font-weight:700;line-height:1.3;letter-spacing:.04em;">食事を記録</div>
     </button>
     <button class="mode-card" onclick="openWeightInput()">
       <div>
@@ -294,8 +298,6 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
       </div>
     </button>
   </div>
-
-  <button onclick="openMealLog()" style="width:100%;margin-bottom:10px;padding:13px;border:none;border-radius:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;background:linear-gradient(135deg,var(--pink) 0%,var(--lav) 100%);box-shadow:0 4px 12px rgba(244,166,181,.3);letter-spacing:.04em;">🍽️ 食事を記録</button>
 
   <div class="card" id="today-schedule-card">
     <div class="sec-h" style="margin-bottom:6px;"><span class="sec-h-icon">🕐</span>タイムスケジュール</div>
@@ -318,6 +320,11 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
   <div class="night-card">
     <div class="sec-h"><span class="sec-h-icon">🌙</span>寝る前ルーティン <span style="margin-left:auto;font-size:10px;color:var(--ink-soft);" id="night-count">0/6</span></div>
     <div id="night-list"></div>
+    <div style="margin-top:8px;display:flex;gap:6px;">
+      <input type="time" class="fi" id="night-task-time" style="flex:0 0 100px;">
+      <input type="text" class="fi" id="night-task-label" placeholder="タスク追加" style="flex:1;">
+      <button class="btn-sec" onclick="addNightTask()">＋</button>
+    </div>
   </div>
 </div>
 
@@ -611,6 +618,7 @@ const COL = {
   todayChecks: collection(db, 'schedule_todayChecks'),
   nightChecks: collection(db, 'schedule_nightChecks'),
   customTasks: collection(db, 'schedule_customTasks'),
+  nightCustom: collection(db, 'schedule_nightCustom'),
   taskOverrides: collection(db, 'schedule_taskOverrides'),
   notify: collection(db, 'schedule_notify'),
   projects: collection(db, 'schedule_projects'),
@@ -637,6 +645,7 @@ window.cache = {
   todayChecks: {}, // {'2026-05-14_wake': true}
   nightChecks: {}, // {'2026-05-14_teeth': true}
   customTasks: {}, // {'2026-05-14': [{id,time,label}]}
+  nightCustom: {}, // {'2026-05-14': [{id,time,label}]} 寝る前ルーティンの追加タスク
   taskOverrides: {}, // {'2026-05-14': {taskKey:{time,label}}} モードタスクの日別上書き
   taskHidden: {}, // {'2026-05-14': [taskKey]} 削除したモードタスクの日別非表示
   nightOverrides: {}, // {'2026-05-14': {taskKey:{time,label}}} 夜ルーティンの日別上書き
@@ -865,6 +874,11 @@ async function loadAll(){
     })());
 
     tasks.push((async()=>{
+      const snap = await getDocs(COL.nightCustom);
+      snap.docs.forEach(d=>{ cache.nightCustom[d.id] = d.data().tasks || []; });
+    })());
+
+    tasks.push((async()=>{
       const snap = await getDocs(COL.taskOverrides);
       snap.docs.forEach(d=>{
         const data = d.data();
@@ -1011,6 +1025,10 @@ window.deleteProjectFB = async (id)=>{ await deleteDoc(doc(COL.projects, String(
 window.saveMilestoneFB = async (ms)=>{ await setDoc(doc(COL.milestones, ms.m), ms); };
 window.saveMotivationFB = async (m)=>{ await setDoc(doc(COL.motivations, String(m.id)), m); };
 window.deleteMotivationFB = async (id)=>{ await deleteDoc(doc(COL.motivations, String(id))); };
+window.saveNightCustomFB = async (date, tasks)=>{
+  if(tasks.length===0){ delete cache.nightCustom[date]; await deleteDoc(doc(COL.nightCustom,date)); }
+  else { cache.nightCustom[date] = tasks; await setDoc(doc(COL.nightCustom,date), {tasks}); }
+};
 window.saveCustomTasksFB = async (date, tasks)=>{
   if(tasks.length===0){ delete cache.customTasks[date]; await deleteDoc(doc(COL.customTasks,date)); }
   else { cache.customTasks[date] = tasks; await setDoc(doc(COL.customTasks,date), {tasks}); }
@@ -1096,6 +1114,6 @@ if(window.caches){ caches.keys().then(ks=>{ ks.forEach(k=>caches.delete(k)); }).
 </script>
 
 <!-- UI script -->
-<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=43"></script>
+<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=44"></script>
 </body>
 </html>
