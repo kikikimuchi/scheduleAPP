@@ -262,7 +262,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v38</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v39</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -433,10 +433,9 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 
 <!-- PAGE: IDEAL -->
 <div class="pg" id="pg-ideal">
-  <div class="subtab-wrap" style="grid-template-columns:repeat(3,1fr);">
+  <div class="subtab-wrap" style="grid-template-columns:repeat(2,1fr);">
     <button class="subtab on" onclick="setIdealTab('weight')" data-it="weight">⚖️ 体重</button>
     <button class="subtab" onclick="setIdealTab('food')" data-it="food">🍱 食事</button>
-    <button class="subtab" onclick="setIdealTab('wardrobe')" data-it="wardrobe">👕 服飾</button>
   </div>
   
   <div class="card" style="padding:0;overflow:hidden;">
@@ -552,9 +551,27 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div class="ov" id="ov-insp-add"><div class="modal"><div class="mhd"><div class="mttl">画像を追加</div><button class="mcl" onclick="closeModal('ov-insp-add')">×</button></div><div class="mbody"><div id="insp-upload-zone"></div><input class="fi" type="text" id="insp-credit" placeholder="クレジット (任意)" style="margin-top:12px;"><button class="btn-pri" id="insp-save-btn" disabled style="margin-top:12px;" onclick="saveInspiration()">追加</button></div></div></div>
 <div class="ov" id="ov-image-view" onclick="closeModal('ov-image-view')"><div style="position:relative;max-width:90vw;max-height:80vh;" onclick="event.stopPropagation()"><img id="img-view-src" style="max-width:100%;max-height:80vh;object-fit:contain;border-radius:12px;"><button class="mcl" style="position:absolute;top:10px;right:10px;background:rgba(255,255,255,.95);" onclick="closeModal('ov-image-view')">×</button></div></div>
 
-<div class="ov" id="ov-food-add"><div class="modal"><div class="mhd"><div class="mttl">食事メニューを追加</div><button class="mcl" onclick="closeModal('ov-food-add')">×</button></div><div class="mbody"><div id="food-upload-zone"></div><input class="fi" type="text" id="food-name" placeholder="名前 (例: 鯖の塩焼き)" style="margin-top:12px;"><button class="btn-pri" id="food-save-btn" style="margin-top:12px;" onclick="saveFoodItem()">追加</button></div></div></div>
+<div class="ov" id="ov-food-add"><div class="modal"><div class="mhd"><div class="mttl" id="food-modal-title">食材を追加</div><button class="mcl" onclick="closeModal('ov-food-add')">×</button></div><div class="mbody">
+  <label class="fl">ジャンル</label>
+  <select class="fi" id="food-cat"><option value="main">主食</option><option value="snack">間食</option><option value="drink">飲物</option></select>
+  <label class="fl" style="margin-top:10px;">名称</label>
+  <input class="fi" type="text" id="food-name" placeholder="例: 鯖の塩焼き">
+  <div style="display:flex;gap:8px;margin-top:10px;">
+    <div style="flex:1;"><label class="fl">カロリー</label><input class="fi no-spinner" type="number" inputmode="decimal" id="food-kcal" placeholder="kcal"></div>
+    <div style="flex:1;"><label class="fl">糖質(g)</label><input class="fi no-spinner" type="number" inputmode="decimal" id="food-carbs" placeholder="g"></div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:10px;">
+    <div style="flex:1;"><label class="fl">脂質(g)</label><input class="fi no-spinner" type="number" inputmode="decimal" id="food-fat" placeholder="g"></div>
+    <div style="flex:1;"><label class="fl">タンパク質(g)</label><input class="fi no-spinner" type="number" inputmode="decimal" id="food-protein" placeholder="g"></div>
+  </div>
+  <button class="btn-pri" id="food-save-btn" style="margin-top:14px;" onclick="saveFoodItem()">保存</button>
+</div></div></div>
+<div class="ov" id="ov-food-pick"><div class="modal"><div class="mhd"><div class="mttl" id="foodpick-title">食べたものを選ぶ</div><button class="mcl" onclick="closeModal('ov-food-pick')">×</button></div><div class="mbody">
+  <input class="fi" type="text" id="foodpick-search" placeholder="🔍 名称で検索" oninput="onFoodPickSearch(this.value)">
+  <div id="foodpick-list" style="margin-top:12px;max-height:50vh;overflow-y:auto;"></div>
+  <button class="btn-sec" style="margin-top:10px;width:100%;" onclick="openFoodAddFromPick()">＋ 新しい食材を登録</button>
+</div></div></div>
 
-<div class="ov" id="ov-wardrobe-add"><div class="modal"><div class="mhd"><div class="mttl">服飾を追加</div><button class="mcl" onclick="closeModal('ov-wardrobe-add')">×</button></div><div class="mbody"><div id="wd-upload-zone"></div><input class="fi" type="text" id="wd-name" placeholder="名前 (例: 黒のロンT)" style="margin-top:12px;"><input class="fi" type="text" id="wd-brand" placeholder="ブランド" style="margin-top:8px;"><button class="btn-pri" id="wd-save-btn" style="margin-top:12px;" onclick="saveWardrobeItem()">追加</button></div></div></div>
 
 <div class="ov" id="ov-insp-menu"><div class="modal" style="max-width:300px;"><div class="mhd"><div class="mttl">画像メニュー</div><button class="mcl" onclick="closeModal('ov-insp-menu')">×</button></div><div class="mbody" style="display:flex;flex-direction:column;gap:8px;"><button class="btn-sec" style="padding:14px;" onclick="changeInspirationImage()">📷 画像を変更</button><button class="btn-sec" style="padding:14px;color:#E88FA1;" onclick="deleteInspirationFromMenu()">🗑 削除</button></div></div></div>
 
@@ -603,12 +620,12 @@ const COL = {
   savings: collection(db, 'schedule_savings'),
   hairRemoval: collection(db, 'schedule_hairRemoval'),
   foodMenus: collection(db, 'schedule_foodMenus'),
-  wardrobe: collection(db, 'schedule_wardrobe'),
+  meals: collection(db, 'schedule_meals'),
 };
 
 // =================== CACHE ===================
 window.cache = {
-  settings: { startWeight:83, targetWeight:68, interimWeight:71.5, interimDate:'2026-09-15', startBodyFat:25, targetBodyFat:18, youtubeLongTarget:15, youtubeShortTarget:30, vanBudget:400000, gymDays:['月','木'], wakeTime:'10:00', targetSleepHours:8, calendarEmbedUrl:'', notifyEnabled:false, notifyEmail:'', notifyLeadMin:5, priorityOrder:[] },
+  settings: { startWeight:83, targetWeight:68, interimWeight:71.5, interimDate:'2026-09-15', startBodyFat:25, targetBodyFat:18, youtubeLongTarget:15, youtubeShortTarget:30, vanBudget:400000, gymDays:['月','木'], wakeTime:'10:00', targetSleepHours:8, calendarEmbedUrl:'', notifyEnabled:false, notifyEmail:'', notifyLeadMin:5, priorityOrder:[], targetCalories:1800, basalMetabolism:1600 },
   weights: [],
   dayModes: {},  // {'2026-05-14': 'normal'}
   wakeTimes: {}, // {'2026-05-14': '11:00'}
@@ -627,8 +644,8 @@ window.cache = {
   youtubeShort: [],
   savings: [],
   hairRemoval: { beard:0, fullBody:0 },
-  foodMenus: [], // {id, category:'main'|'snack'|'drink', name, imageData}
-  wardrobe: [], // {id, category:'outer'|'top'|'bottom'|'socks'|'accessory', name, brand, imageData}
+  foodMenus: [], // {id, category:'main'|'snack'|'drink', name, kcal, carbs, fat, protein}
+  meals: {}, // {'2026-06-25': [{id, meal:'breakfast'|'lunch'|'dinner'|'snack', foodId, name, kcal, carbs, fat, protein}]}
 };
 
 window.DEFAULT_MILESTONES = [
@@ -895,12 +912,13 @@ async function loadAll(){
       const snap = await getDocs(COL.foodMenus);
       cache.foodMenus = snap.docs.map(d=>({ id:d.id, ...d.data() }));
     })());
-    
+
     tasks.push((async()=>{
-      const snap = await getDocs(COL.wardrobe);
-      cache.wardrobe = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+      const snap = await getDocs(COL.meals);
+      cache.meals = {};
+      snap.docs.forEach(d=>{ cache.meals[d.id] = (d.data().entries) || []; });
     })());
-    
+
     await Promise.all(tasks);
   } catch(e){ console.error(e); alert('データ読み込みエラー: '+e.message); }
   showLoading(false);
@@ -917,6 +935,11 @@ window.saveAllSettings = async ()=>{
 // 通知バックエンド(GAS)が読む「今後の予定」を1ドキュメントに公開（JSON文字列）
 window.saveNotifyDoc = async (payload)=>{
   await setDoc(doc(COL.notify,'upcoming'), { data: JSON.stringify(payload) });
+};
+window.saveMealsFB = async (date)=>{
+  const entries = cache.meals[date] || [];
+  if(entries.length===0){ delete cache.meals[date]; await deleteDoc(doc(COL.meals,date)); }
+  else { cache.meals[date] = entries; await setDoc(doc(COL.meals,date), { date, entries }); }
 };
 window.saveDayMode = async (date, mode)=>{
   if(mode){ cache.dayModes[date] = mode; await setDoc(doc(COL.dayModes,date), {mode}); }
@@ -1033,6 +1056,6 @@ if(window.caches){ caches.keys().then(ks=>{ ks.forEach(k=>caches.delete(k)); }).
 </script>
 
 <!-- UI script -->
-<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=38"></script>
+<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=39"></script>
 </body>
 </html>

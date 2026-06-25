@@ -1450,7 +1450,6 @@ window.setIdealTab = function(t){
 window.renderIdeal = function(){
   if(_idealTab === 'weight') renderWeightTab();
   else if(_idealTab === 'food') renderFoodTab();
-  else if(_idealTab === 'wardrobe') renderWardrobeTab();
   renderInspiration();
 };
 
@@ -1594,147 +1593,234 @@ const FOOD_CATS = [
   { key:'snack', label:'間食', icon:'🍪' },
   { key:'drink', label:'飲物', icon:'🥤' },
 ];
+const MEALS = [
+  { key:'breakfast', label:'朝食', icon:'🌅' },
+  { key:'lunch', label:'昼食', icon:'🍴' },
+  { key:'dinner', label:'夕食', icon:'🌙' },
+  { key:'snack', label:'間食', icon:'🍪' },
+];
+let _foodView = 'log';   // 'log'（今日の記録） | 'master'（食材リスト）
 let _foodCat = 'main';
+let _foodSearch = '';
+let _pickMeal = 'breakfast';
+let _pickSearch = '';
+let _editFoodId = null;
+let _foodSeq = 0;
+function fnum(v){ const n=parseFloat(v); return isNaN(n)?0:n; }
+function todayMeals(){ return cache.meals[getTodayDateString()] || []; }
+
 function renderFoodTab(){
-  const items = cache.foodMenus.filter(i=>i.category===_foodCat);
   $('ideal-content').innerHTML = `
+    <div class="subtab-wrap" style="grid-template-columns:repeat(2,1fr);">
+      <button class="subtab ${_foodView==='log'?'on':''}" onclick="setFoodView('log')">🍽️ 今日の記録</button>
+      <button class="subtab ${_foodView==='master'?'on':''}" onclick="setFoodView('master')">📋 食材リスト</button>
+    </div>
+    ${_foodView==='log' ? foodLogHTML() : foodMasterHTML()}
+  `;
+}
+window.setFoodView = function(v){ _foodView=v; renderFoodTab(); };
+window.setFoodCat = function(c){ _foodCat=c; renderFoodTab(); };
+
+// ---- 今日の記録 ----
+function foodLogHTML(){
+  const entries = todayMeals();
+  const sum = (k)=> entries.reduce((a,e)=>a+fnum(e[k]),0);
+  const kcal = Math.round(sum('kcal'));
+  const carbs = sum('carbs'), fat = sum('fat'), protein = sum('protein');
+  const target = fnum(cache.settings.targetCalories);
+  const basal = fnum(cache.settings.basalMetabolism);
+  const remaining = target - kcal;
+  const deficit = basal - kcal;
+  const pct = target>0 ? Math.min(kcal/target*100, 100) : 0;
+  const over = target>0 && kcal>target;
+  let html = `
+  <div class="hero-card hero-blue">
+    <div style="font-size:16px;font-weight:700;margin-bottom:12px;">今日の摂取カロリー</div>
+    <div style="display:flex;align-items:baseline;gap:6px;">
+      <div style="font-size:34px;font-weight:700;line-height:1;">${kcal}</div>
+      <div style="font-size:13px;opacity:.9;">/ ${target||'—'} kcal</div>
+    </div>
+    <div style="height:10px;background:rgba(255,255,255,.25);border-radius:6px;overflow:hidden;margin:10px 0 8px;">
+      <div style="height:100%;width:${pct.toFixed(0)}%;background:${over?'#FFB4B4':'#fff'};border-radius:6px;"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;">
+      <span>${remaining>=0 ? `あと ${Math.round(remaining)} kcal` : `${Math.round(-remaining)} kcal オーバー`}</span>
+      <span style="opacity:.9;">目標 ${target||'—'}</span>
+    </div>
+    ${basal>0 ? `<div style="background:rgba(255,255,255,.2);border-radius:8px;padding:9px 12px;font-size:12.5px;text-align:center;margin-top:10px;">
+      ${deficit>=0 ? `🔥 基礎代謝(${basal})に対し <span style="font-weight:700;">−${Math.round(deficit)} kcal</span> の赤字` : `⚠️ 基礎代謝(${basal})を ${Math.round(-deficit)} kcal 超過`}
+    </div>` : ''}
+    <div style="display:flex;gap:6px;margin-top:10px;">
+      ${[['糖質',carbs],['脂質',fat],['タンパク質',protein]].map(([l,v])=>`
+        <div style="flex:1;background:rgba(255,255,255,.18);border-radius:8px;padding:6px;text-align:center;">
+          <div style="font-size:10px;opacity:.85;">${l}</div>
+          <div style="font-size:14px;font-weight:700;">${v.toFixed(1)}<span style="font-size:9px;">g</span></div>
+        </div>`).join('')}
+    </div>
+  </div>
+  <div class="card">
+    <div class="sec-h" style="font-size:13px;">🎯 目標・基礎代謝（編集可）</div>
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+      <div style="flex:1;"><label class="fl">目標摂取kcal</label><input class="fi no-spinner" type="number" inputmode="numeric" id="cal-target" placeholder="kcal" value="${cache.settings.targetCalories!=null?cache.settings.targetCalories:''}"></div>
+      <div style="flex:1;"><label class="fl">基礎代謝kcal</label><input class="fi no-spinner" type="number" inputmode="numeric" id="cal-basal" placeholder="kcal" value="${cache.settings.basalMetabolism!=null?cache.settings.basalMetabolism:''}"></div>
+      <button class="btn-sec" style="padding:0 14px;height:42px;" onclick="saveCalTargets()">保存</button>
+    </div>
+  </div>`;
+  html += MEALS.map(m=>{
+    const es = entries.filter(e=>e.meal===m.key);
+    const mk = Math.round(es.reduce((a,e)=>a+fnum(e.kcal),0));
+    return `<div class="card">
+      <div class="sec-h" style="display:flex;justify-content:space-between;align-items:center;">
+        <div><span class="sec-h-icon">${m.icon}</span>${m.label}${es.length? ` <span style="font-size:12px;color:var(--ink-soft);font-weight:600;">${mk} kcal</span>`:''}</div>
+        <button class="btn-sec" style="padding:6px 12px;" onclick="openFoodPick('${m.key}')">＋ 追加</button>
+      </div>
+      ${es.length===0 ? `<div style="font-size:12px;color:var(--ink-mute);padding:4px 0;">まだ記録がありません</div>` :
+        es.map(e=>`<div class="ptask-row" style="display:flex;align-items:center;gap:8px;">
+          <div style="flex:1;"><div style="font-size:13px;font-weight:600;">${e.name}</div>
+          <div style="font-size:10.5px;color:var(--ink-soft);">糖${fnum(e.carbs)}g 脂${fnum(e.fat)}g P${fnum(e.protein)}g</div></div>
+          <div style="font-size:12px;color:var(--ink-soft);white-space:nowrap;">${Math.round(fnum(e.kcal))}kcal</div>
+          <button onclick="removeMealEntry('${e.id}')" style="width:24px;height:24px;border:none;background:#f3f3f3;border-radius:50%;color:var(--ink-soft);cursor:pointer;flex:none;">×</button>
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+  return html;
+}
+window.saveCalTargets = async function(){
+  cache.settings.targetCalories = fnum($('cal-target').value);
+  await window.saveSetting('basalMetabolism', fnum($('cal-basal').value)); // 1回の書き込みで両方保存
+  renderFoodTab();
+};
+
+// ---- 食材リスト（マスタ） ----
+function foodMasterListHTML(){
+  const q = (_foodSearch||'').trim();
+  let items = cache.foodMenus.filter(i=>i.category===_foodCat);
+  if(q) items = items.filter(i=>(i.name||'').includes(q));
+  if(items.length===0) return `<div class="empty-state"><div class="em-ico">🍽️</div><div>${q?'該当する食材がありません':'まだ登録がありません'}</div></div>`;
+  return items.map(it=>`<div class="ptask-row" style="display:flex;align-items:center;gap:8px;">
+    <div style="flex:1;cursor:pointer;" onclick="openFoodEdit('${it.id}')">
+      <div style="font-size:14px;font-weight:600;">${it.name}</div>
+      <div style="font-size:11px;color:var(--ink-soft);">${Math.round(fnum(it.kcal))}kcal ・ 糖${fnum(it.carbs)}g 脂${fnum(it.fat)}g P${fnum(it.protein)}g</div>
+    </div>
+    <button onclick="deleteFood('${it.id}')" style="width:24px;height:24px;border:none;background:#f3f3f3;border-radius:50%;color:var(--ink-soft);cursor:pointer;">×</button>
+  </div>`).join('');
+}
+function renderFoodMasterList(){ const el=$('food-master-list'); if(el) el.innerHTML = foodMasterListHTML(); }
+window.onFoodSearch = function(v){ _foodSearch=v; renderFoodMasterList(); };
+function foodMasterHTML(){
+  const cat = FOOD_CATS.find(c=>c.key===_foodCat);
+  return `
     <div class="subtab-wrap" style="grid-template-columns:repeat(3,1fr);">
       ${FOOD_CATS.map(c=>`<button class="subtab ${_foodCat===c.key?'on':''}" onclick="setFoodCat('${c.key}')">${c.icon} ${c.label}</button>`).join('')}
     </div>
     <div class="card">
-      <div class="sec-h" style="display:flex;justify-content:space-between;">
-        <div><span class="sec-h-icon">${FOOD_CATS.find(c=>c.key===_foodCat).icon}</span>${FOOD_CATS.find(c=>c.key===_foodCat).label}</div>
+      <input class="fi" type="text" id="food-search" placeholder="🔍 名称で検索" value="${(_foodSearch||'').replace(/"/g,'&quot;')}" oninput="onFoodSearch(this.value)">
+      <div class="sec-h" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;">
+        <div><span class="sec-h-icon">${cat.icon}</span>${cat.label}</div>
         <button class="btn-sec" style="padding:6px 12px;" onclick="openFoodAdd()">＋ 追加</button>
       </div>
-      ${items.length===0 ? `<div class="empty-state"><div class="em-ico">📷</div><div>まだ登録がありません</div></div>` :
-        `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">${items.map(it=>`
-          <div style="border:1px solid var(--bdr);border-radius:10px;overflow:hidden;background:#fff;">
-            <div style="aspect-ratio:1;background:#f0f0f0;position:relative;cursor:pointer;" onclick="viewImg('${it.imageData||''}')">
-              ${it.imageData ? `<img src="${it.imageData}" style="width:100%;height:100%;object-fit:cover;">` : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--ink-mute);font-size:32px;">🍱</div>`}
-              <button onclick="event.stopPropagation();deleteFood('${it.id}')" style="position:absolute;top:4px;right:4px;width:22px;height:22px;background:rgba(255,255,255,.85);border:none;border-radius:50%;color:var(--ink-soft);font-size:11px;cursor:pointer;">×</button>
-            </div>
-            <div style="padding:8px;font-size:12px;font-weight:600;">${it.name}</div>
-          </div>
-        `).join('')}</div>`
-      }
-    </div>
-  `;
+      <div id="food-master-list">${foodMasterListHTML()}</div>
+    </div>`;
 }
-window.setFoodCat = function(c){ _foodCat=c; renderFoodTab(); };
 
-let _newFoodData = null;
 window.openFoodAdd = function(){
-  _newFoodData = null;
-  $('food-name').value = '';
-  $('food-save-btn').disabled = false;
-  $('food-upload-zone').innerHTML = `<label class="upload-box"><input type="file" accept="image/*" onchange="onFoodFile(event)"><div style="font-size:24px;margin-bottom:8px;">📷</div><div style="font-size:11px;">写真を選ぶ (任意)</div></label>`;
+  _editFoodId = null;
+  $('food-modal-title').textContent = '食材を追加';
+  $('food-cat').value = (_foodView==='master') ? _foodCat : 'main';
+  $('food-name').value=''; $('food-kcal').value=''; $('food-carbs').value=''; $('food-fat').value=''; $('food-protein').value='';
   openModal('ov-food-add');
 };
-window.onFoodFile = async function(e){
-  const f = e.target.files && e.target.files[0];
-  if(!f) return;
-  $('food-upload-zone').innerHTML = `<div class="empty-state" style="padding:60px 20px;"><div class="em-ico">○</div><div>変換中…</div></div>`;
-  try{
-    _newFoodData = await compressImage(f, 1200, 0.8);
-    $('food-upload-zone').innerHTML = `<div class="upload-preview"><img src="${_newFoodData}"><button class="del" onclick="resetFoodUpload()">×</button></div>`;
-  } catch(err){ alert('画像処理失敗: '+err.message); }
-};
-window.resetFoodUpload = function(){
-  _newFoodData = null;
-  $('food-upload-zone').innerHTML = `<label class="upload-box"><input type="file" accept="image/*" onchange="onFoodFile(event)"><div style="font-size:24px;margin-bottom:8px;">📷</div><div style="font-size:11px;">写真を選ぶ (任意)</div></label>`;
+window.openFoodEdit = function(id){
+  const it = cache.foodMenus.find(x=>String(x.id)===String(id));
+  if(!it) return;
+  _editFoodId = it.id;
+  $('food-modal-title').textContent = '食材を編集';
+  $('food-cat').value = it.category || 'main';
+  $('food-name').value = it.name || '';
+  $('food-kcal').value = it.kcal!=null ? it.kcal : '';
+  $('food-carbs').value = it.carbs!=null ? it.carbs : '';
+  $('food-fat').value = it.fat!=null ? it.fat : '';
+  $('food-protein').value = it.protein!=null ? it.protein : '';
+  openModal('ov-food-add');
 };
 window.saveFoodItem = async function(){
   const name = $('food-name').value.trim();
-  if(!name) return alert('名前を入力');
-  const item = { id:Date.now(), category:_foodCat, name, imageData:_newFoodData || '' };
-  cache.foodMenus.push(item);
-  await window.setDocImport('foodMenus', item);
+  if(!name) return alert('名称を入力してください');
+  const data = {
+    category: $('food-cat').value,
+    name,
+    kcal: fnum($('food-kcal').value),
+    carbs: fnum($('food-carbs').value),
+    fat: fnum($('food-fat').value),
+    protein: fnum($('food-protein').value),
+  };
+  if(_editFoodId!=null){
+    data.id = _editFoodId;
+    const idx = cache.foodMenus.findIndex(x=>String(x.id)===String(_editFoodId));
+    if(idx>=0) cache.foodMenus[idx] = { ...cache.foodMenus[idx], ...data };
+  } else {
+    data.id = Date.now();
+    cache.foodMenus.push(data);
+  }
+  await window.setDocImport('foodMenus', data);
   closeModal('ov-food-add');
+  if($('ov-food-pick') && $('ov-food-pick').classList.contains('on')) renderFoodPickList();
   renderFoodTab();
 };
 window.deleteFood = async function(id){
-  if(!confirm('削除しますか?')) return;
+  if(!confirm('この食材を削除しますか？')) return;
   cache.foodMenus = cache.foodMenus.filter(x=>String(x.id)!==String(id));
   await window.deleteDocImport('foodMenus', id);
   renderFoodTab();
 };
 
-// ============= WARDROBE =============
-const WD_CATS = [
-  { key:'outer', label:'アウター', icon:'🧥' },
-  { key:'top', label:'上着', icon:'👕' },
-  { key:'bottom', label:'ズボン', icon:'👖' },
-  { key:'socks', label:'靴下', icon:'🧦' },
-  { key:'accessory', label:'服飾', icon:'👜' },
-];
-let _wdCat = 'outer';
-function renderWardrobeTab(){
-  const items = cache.wardrobe.filter(i=>i.category===_wdCat);
-  $('ideal-content').innerHTML = `
-    <div class="subtab-wrap" style="grid-template-columns:repeat(5,1fr);">
-      ${WD_CATS.map(c=>`<button class="subtab ${_wdCat===c.key?'on':''}" onclick="setWdCat('${c.key}')" style="font-size:10px;padding:8px 2px;line-height:1.3;">${c.icon}<br>${c.label}</button>`).join('')}
-    </div>
-    <div class="card">
-      <div class="sec-h" style="display:flex;justify-content:space-between;">
-        <div><span class="sec-h-icon">${WD_CATS.find(c=>c.key===_wdCat).icon}</span>${WD_CATS.find(c=>c.key===_wdCat).label}</div>
-        <button class="btn-sec" style="padding:6px 12px;" onclick="openWdAdd()">＋ 追加</button>
-      </div>
-      ${items.length===0 ? `<div class="empty-state"><div class="em-ico">📷</div><div>まだ登録がありません</div></div>` :
-        `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">${items.map(it=>`
-          <div style="border:1px solid var(--bdr);border-radius:10px;overflow:hidden;background:#fff;">
-            <div style="aspect-ratio:1;background:#f0f0f0;position:relative;cursor:pointer;" onclick="viewImg('${it.imageData||''}')">
-              ${it.imageData ? `<img src="${it.imageData}" style="width:100%;height:100%;object-fit:cover;">` : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--ink-mute);font-size:32px;">👕</div>`}
-              <button onclick="event.stopPropagation();deleteWd('${it.id}')" style="position:absolute;top:4px;right:4px;width:22px;height:22px;background:rgba(255,255,255,.85);border:none;border-radius:50%;color:var(--ink-soft);font-size:11px;cursor:pointer;">×</button>
-            </div>
-            <div style="padding:8px;">
-              <div style="font-size:12px;font-weight:600;">${it.name}</div>
-              ${it.brand ? `<div style="font-size:10px;color:var(--ink-mute);margin-top:2px;">${it.brand}</div>` : ''}
-            </div>
-          </div>
-        `).join('')}</div>`
-      }
-    </div>
-  `;
+// ---- 食べたものを記録（ピッカー） ----
+window.openFoodPick = function(mealKey){
+  _pickMeal = mealKey; _pickSearch = '';
+  const m = MEALS.find(x=>x.key===mealKey);
+  $('foodpick-title').textContent = `${m.icon} ${m.label}に追加`;
+  $('foodpick-search').value = '';
+  renderFoodPickList();
+  openModal('ov-food-pick');
+};
+window.onFoodPickSearch = function(v){ _pickSearch=v; renderFoodPickList(); };
+function renderFoodPickList(){
+  const q = (_pickSearch||'').trim();
+  let items = cache.foodMenus.slice();
+  if(q) items = items.filter(i=>(i.name||'').includes(q));
+  const html = FOOD_CATS.map(c=>{
+    const list = items.filter(i=>i.category===c.key);
+    if(list.length===0) return '';
+    return `<div style="font-size:11px;font-weight:700;color:var(--ink-soft);margin:10px 0 4px;">${c.icon} ${c.label}</div>`+
+      list.map(it=>`<div class="ptask-row" style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="addMealEntry('${it.id}')">
+        <div style="flex:1;"><div style="font-size:13px;font-weight:600;">${it.name}</div>
+        <div style="font-size:11px;color:var(--ink-soft);">${Math.round(fnum(it.kcal))}kcal ・ 糖${fnum(it.carbs)}g 脂${fnum(it.fat)}g</div></div>
+        <div style="font-size:20px;color:var(--pink);font-weight:700;line-height:1;">＋</div>
+      </div>`).join('');
+  }).join('');
+  const el = $('foodpick-list');
+  if(el) el.innerHTML = html || `<div class="empty-state"><div class="em-ico">🔍</div><div>該当する食材がありません</div><div style="font-size:11px;margin-top:4px;color:var(--ink-mute);">下のボタンから新規登録できます</div></div>`;
 }
-window.setWdCat = function(c){ _wdCat=c; renderWardrobeTab(); };
+window.addMealEntry = async function(foodId){
+  const it = cache.foodMenus.find(x=>String(x.id)===String(foodId));
+  if(!it) return;
+  const date = getTodayDateString();
+  if(!cache.meals[date]) cache.meals[date] = [];
+  cache.meals[date].push({ id:'m'+Date.now()+'_'+(_foodSeq++), meal:_pickMeal, foodId:it.id, name:it.name, kcal:fnum(it.kcal), carbs:fnum(it.carbs), fat:fnum(it.fat), protein:fnum(it.protein) });
+  await window.saveMealsFB(date);
+  renderFoodTab(); // 背面の合計を更新（モーダルは開いたまま）
+};
+window.removeMealEntry = async function(id){
+  const date = getTodayDateString();
+  cache.meals[date] = (cache.meals[date]||[]).filter(e=>String(e.id)!==String(id));
+  await window.saveMealsFB(date);
+  renderFoodTab();
+};
+window.openFoodAddFromPick = function(){
+  closeModal('ov-food-pick');
+  openFoodAdd();
+};
 
-let _newWdData = null;
-window.openWdAdd = function(){
-  _newWdData = null;
-  $('wd-name').value = '';
-  $('wd-brand').value = '';
-  $('wd-save-btn').disabled = false;
-  $('wd-upload-zone').innerHTML = `<label class="upload-box"><input type="file" accept="image/*" onchange="onWdFile(event)"><div style="font-size:24px;margin-bottom:8px;">📷</div><div style="font-size:11px;">写真を選ぶ (任意)</div></label>`;
-  openModal('ov-wardrobe-add');
-};
-window.onWdFile = async function(e){
-  const f = e.target.files && e.target.files[0];
-  if(!f) return;
-  $('wd-upload-zone').innerHTML = `<div class="empty-state" style="padding:60px 20px;"><div class="em-ico">○</div><div>変換中…</div></div>`;
-  try{
-    _newWdData = await compressImage(f, 1200, 0.8);
-    $('wd-upload-zone').innerHTML = `<div class="upload-preview"><img src="${_newWdData}"><button class="del" onclick="resetWdUpload()">×</button></div>`;
-  } catch(err){ alert('画像処理失敗: '+err.message); }
-};
-window.resetWdUpload = function(){
-  _newWdData = null;
-  $('wd-upload-zone').innerHTML = `<label class="upload-box"><input type="file" accept="image/*" onchange="onWdFile(event)"><div style="font-size:24px;margin-bottom:8px;">📷</div><div style="font-size:11px;">写真を選ぶ (任意)</div></label>`;
-};
-window.saveWardrobeItem = async function(){
-  const name = $('wd-name').value.trim();
-  if(!name) return alert('名前を入力');
-  const item = { id:Date.now(), category:_wdCat, name, brand:$('wd-brand').value.trim(), imageData:_newWdData || '' };
-  cache.wardrobe.push(item);
-  await window.setDocImport('wardrobe', item);
-  closeModal('ov-wardrobe-add');
-  renderWardrobeTab();
-};
-window.deleteWd = async function(id){
-  if(!confirm('削除しますか?')) return;
-  cache.wardrobe = cache.wardrobe.filter(x=>String(x.id)!==String(id));
-  await window.deleteDocImport('wardrobe', id);
-  renderWardrobeTab();
-};
 window.viewImg = function(src){
   if(!src) return;
   $('img-view-src').src = src;
