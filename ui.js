@@ -1615,8 +1615,18 @@ let _pickSearch = '';
 let _editFoodId = null;
 let _foodSeq = 0;
 let _goalEdit = false;
+let _foodDate = null; // 表示中の日付（前日に戻って追記できる）
 function fnum(v){ const n=parseFloat(v); return isNaN(n)?0:n; }
-function todayMeals(){ return cache.meals[getTodayDateString()] || []; }
+function foodDate(){ if(!_foodDate) _foodDate = getTodayDateString(); return _foodDate; }
+function shiftYmd(dateStr, n){ const d=new Date(dateStr+'T00:00'); d.setDate(d.getDate()+n); return ymd(d); }
+function dateLabelJP(dateStr){ const d=new Date(dateStr+'T00:00'); const w=['日','月','火','水','木','金','土'][d.getDay()]; return `${d.getMonth()+1}/${d.getDate()}(${w})`; }
+function todayMeals(){ return cache.meals[foodDate()] || []; }
+window.shiftFoodDate = function(n){
+  const next = shiftYmd(foodDate(), n);
+  if(n>0 && next > getTodayDateString()) return; // 今日より先へは行かない
+  _foodDate = next; renderFoodTab();
+};
+window.goFoodToday = function(){ _foodDate = getTodayDateString(); renderFoodTab(); };
 
 function renderFoodTab(){
   $('ideal-content').innerHTML = `
@@ -1632,6 +1642,7 @@ window.setFoodCat = function(c){ _foodCat=c; renderFoodTab(); };
 // ホームから「食事を記録」→ 理想ページの食事タブ（今日の記録）へ
 window.openMealLog = function(){
   _foodView = 'log';
+  _foodDate = getTodayDateString(); // 常に今日から開く
   if(window.setTab) setTab('ideal');
   setIdealTab('food');
 };
@@ -1647,25 +1658,34 @@ function foodLogHTML(){
   const tp = fnum(cache.settings.targetProtein);
   const proteinMet = tp>0 && protein>=tp;
   const remaining = target - kcal;
-  const today = getTodayDateString();
-  const actBonus = activityBonus(today);   // 運動による消費＋
-  const burn = basal + actBonus;            // 今日の総消費
+  const date = foodDate();
+  const isToday = date === getTodayDateString();
+  const actBonus = activityBonus(date);    // 運動による消費＋
+  const burn = basal + actBonus;            // その日の総消費
   const deficit = burn - kcal;              // 赤字 = 総消費 − 摂取
   const targetBurn = fnum(cache.settings.targetBurn) || 2700;   // 目標消費
   const targetDeficit = Math.max(targetBurn - target, 0);       // 理想の赤字(=2700-1700=1000)
   const defPct = targetDeficit>0 ? Math.max(0, Math.min(deficit/targetDeficit*100, 100)) : 0;
   const pct = target>0 ? Math.min(kcal/target*100, 100) : 0;
   const over = target>0 && kcal>target;
-  const acts = activeActs(today);
-  const ml = fnum(cache.water[today]);
+  const acts = activeActs(date);
+  const ml = fnum(cache.water[date]);
   const wMin = fnum(cache.settings.waterMinMl)||2500, wMax = fnum(cache.settings.waterMaxMl)||3000;
   const wpct = wMax>0 ? Math.min(ml/wMax*100, 100) : 0;
   const wMet = ml>=wMin;
-  const wc = weekWorkoutCount(), wpw = fnum(cache.settings.workoutPerWeek)||2;
-  const doneToday = !!cache.workouts[today];
+  const ws = weekStats(date);
+  const wpw = fnum(cache.settings.workoutPerWeek)||2;
+  const rpw = fnum(cache.settings.runningPerWeek)||4;
+  const restTarget = fnum(cache.settings.restPerWeek)||3;
+  const doneToday = !!cache.workouts[date];
   let html = `
+  <div class="card" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;">
+    <button class="btn-sec" style="padding:8px 12px;" onclick="shiftFoodDate(-1)">← 前日</button>
+    <div style="text-align:center;font-size:14px;font-weight:700;">${dateLabelJP(date)}${isToday?' <span style="font-size:11px;color:var(--pink);">今日</span>':`<button class="btn-sec" style="padding:3px 8px;font-size:10px;margin-left:6px;" onclick="goFoodToday()">今日へ</button>`}</div>
+    <button class="btn-sec" style="padding:8px 12px;${isToday?'opacity:.35;':''}" onclick="shiftFoodDate(1)">翌日 →</button>
+  </div>
   <div class="hero-card hero-blue">
-    <div style="font-size:16px;font-weight:700;margin-bottom:12px;">今日の摂取カロリー</div>
+    <div style="font-size:16px;font-weight:700;margin-bottom:12px;">${isToday?'今日':dateLabelJP(date)}の摂取カロリー</div>
     <div style="display:flex;align-items:baseline;gap:6px;">
       <div style="font-size:34px;font-weight:700;line-height:1;">${kcal}</div>
       <div style="font-size:13px;opacity:.9;">/ ${target||'—'} kcal</div>
@@ -1677,15 +1697,15 @@ function foodLogHTML(){
       <span>${remaining>=0 ? `あと ${Math.round(remaining)} kcal` : `${Math.round(-remaining)} kcal オーバー`}</span>
       <span style="opacity:.9;">目標 ${target||'—'}</span>
     </div>
-    ${basal>0 ? `<div style="background:rgba(255,255,255,.2);border-radius:8px;padding:10px 12px;margin-top:10px;">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;font-weight:600;margin-bottom:6px;">
-        <span>🔥 今日の赤字</span>
-        <span><span style="font-weight:700;font-size:15px;">${Math.round(deficit)}</span> / 目標 ${targetDeficit} kcal</span>
+    ${basal>0 ? `<div style="background:#fff;border:2px solid #FF5A5A;border-radius:10px;padding:10px 12px;margin-top:10px;color:var(--ink);">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;font-weight:700;margin-bottom:6px;">
+        <span style="color:#E53935;">🔻 今日の赤字</span>
+        <span style="color:#9aa0a8;"><span style="font-weight:800;font-size:18px;color:#E53935;">${deficit>=0?'−':'+'}${Math.abs(Math.round(deficit))}</span> / 目標 −${targetDeficit} kcal</span>
       </div>
-      <div style="height:8px;background:rgba(255,255,255,.3);border-radius:5px;overflow:hidden;margin-bottom:6px;">
-        <div style="height:100%;width:${defPct.toFixed(0)}%;background:${deficit>=targetDeficit?'#7CE0A0':'#FFD27A'};border-radius:5px;transition:width .2s;"></div>
+      <div style="height:9px;background:#f1d6d6;border-radius:5px;overflow:hidden;margin-bottom:6px;">
+        <div style="height:100%;width:${defPct.toFixed(0)}%;background:${deficit>=targetDeficit?'#E53935':'#FF8A80'};border-radius:5px;transition:width .2s;"></div>
       </div>
-      <div style="font-size:11px;opacity:.92;text-align:center;line-height:1.5;">消費 ${burn}（基礎${basal}${actBonus?`+運動${actBonus}`:''}）− 摂取 ${kcal}<br>${burn<targetBurn ? `目標消費 ${targetBurn} まで運動であと <b>${targetBurn-burn}</b> kcal` : `目標消費 ${targetBurn} 達成 🎉`}${deficit>=targetDeficit?' ・ 赤字目標クリア✓':''}</div>
+      <div style="font-size:11px;color:var(--ink-soft);text-align:center;line-height:1.5;">消費 ${burn}（基礎${basal}${actBonus?`+運動${actBonus}`:''}）− 摂取 ${kcal}<br>${burn<targetBurn ? `目標消費 ${targetBurn} まで運動であと <b style="color:#E53935;">${targetBurn-burn}</b> kcal` : `目標消費 ${targetBurn} 達成 🎉`}${deficit>=targetDeficit?' ・ <b style="color:#E53935;">赤字目標クリア✓</b>':''}</div>
     </div>` : ''}
     <div style="display:flex;gap:6px;margin-top:10px;">
       <div style="flex:1;background:rgba(255,255,255,.18);border-radius:8px;padding:6px;text-align:center;">
@@ -1719,16 +1739,21 @@ function foodLogHTML(){
         <button class="btn-sec" style="padding:9px 14px;" onclick="addWater(-200)">−</button>
       </div>
     </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;${_goalEdit?'margin-bottom:14px;':''}">
-      <div style="font-size:13px;font-weight:600;">🏋️ 筋トレ <span style="color:var(--ink-soft);font-weight:600;">今週 ${wc}/${wpw}回</span>${wc>=wpw?' <span style="color:#37a76a;">✓</span>':''}</div>
-      <button class="btn-sec" style="padding:9px 16px;${doneToday?'background:var(--pink);color:#fff;':''}" onclick="toggleWorkout()">${doneToday?'✓ 今日やった':'今日やった？'}</button>
-    </div>
     <div style="border-top:1px solid var(--bdr);padding-top:12px;margin-top:14px;${_goalEdit?'margin-bottom:14px;':''}">
-      <div style="font-size:13px;font-weight:600;margin-bottom:8px;">🔥 今日の運動${actBonus?` <span style="color:#FF7043;">消費＋${actBonus}kcal</span>`:''}</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <div style="display:flex;justify-content:space-around;text-align:center;margin-bottom:14px;">
+        <div><div style="font-size:10px;color:var(--ink-soft);">🏃 ランニング</div><div style="font-size:16px;font-weight:700;${ws.run>=rpw?'color:#37a76a;':''}">${ws.run}<span style="font-size:10px;color:var(--ink-soft);font-weight:600;">/${rpw}回</span></div></div>
+        <div><div style="font-size:10px;color:var(--ink-soft);">🏋️ 筋トレ</div><div style="font-size:16px;font-weight:700;${ws.wo>=wpw?'color:#37a76a;':''}">${ws.wo}<span style="font-size:10px;color:var(--ink-soft);font-weight:600;">/${wpw}回</span></div></div>
+        <div><div style="font-size:10px;color:var(--ink-soft);">😴 休養</div><div style="font-size:16px;font-weight:700;">${ws.rest}<span style="font-size:10px;color:var(--ink-soft);font-weight:600;">/${restTarget}日</span></div></div>
+      </div>
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px;">🔥 今日の消費＋（運動・撮影）${actBonus?` <span style="color:#FF7043;">＋${actBonus}kcal</span>`:''}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
         ${ACTIVITIES.map(a=>{ const on=acts.includes(a.key);
-          return `<button class="btn-sec" style="flex:1;min-width:88px;padding:9px 4px;font-size:12px;${on?'background:#FF8A65;color:#fff;':''}" onclick="toggleActivity('${a.key}')">${on?'✓ ':''}${a.icon}${a.label}<br>+${a.kcal}</button>`;
+          return `<button class="btn-sec" style="flex:1;min-width:84px;padding:9px 4px;font-size:12px;${on?'background:#FF8A65;color:#fff;':''}" onclick="toggleActivity('${a.key}')">${on?'✓ ':''}${a.icon}${a.label}<br>+${a.kcal}</button>`;
         }).join('')}
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-size:12px;color:var(--ink-soft);">🏋️ 筋トレ（記録のみ・消費に加算なし）</div>
+        <button class="btn-sec" style="padding:8px 14px;${doneToday?'background:var(--pink);color:#fff;':''}" onclick="toggleWorkout()">${doneToday?'✓ 今日やった':'今日やった？'}</button>
       </div>
     </div>
     ${_goalEdit ? `
@@ -1773,28 +1798,37 @@ window.saveCalTargets = async function(){
 };
 window.toggleGoalEdit = function(){ _goalEdit = !_goalEdit; renderFoodTab(); };
 function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-function weekWorkoutCount(){
-  const t = new Date(getTodayDateString()+'T00:00');
+// 今週(月〜日)の運動集計：ランニング日数・筋トレ日数・休養日数（休養は経過日のみ）
+function weekStats(refDate){
+  const t = new Date((refDate||getTodayDateString())+'T00:00');
   const dow = (t.getDay()+6)%7; // 月曜=0
   const mon = new Date(t); mon.setDate(t.getDate()-dow);
-  let c=0;
-  for(let i=0;i<7;i++){ const d=new Date(mon); d.setDate(mon.getDate()+i); if(cache.workouts[ymd(d)]) c++; }
-  return c;
+  const elapsed = dow+1; // 月曜〜今日(含む)
+  let run=0, wo=0, active=0;
+  for(let i=0;i<7;i++){
+    const d=new Date(mon); d.setDate(mon.getDate()+i); const k=ymd(d);
+    const hasRun = (cache.activities[k]||[]).some(a=>a==='run30'||a==='run60');
+    const hasWo = !!cache.workouts[k];
+    if(hasRun) run++;
+    if(hasWo) wo++;
+    if(i<elapsed && (hasRun||hasWo)) active++;
+  }
+  return { run, wo, rest: Math.max(0, elapsed - active) };
 }
 window.addWater = async function(ml){
-  const date = getTodayDateString();
+  const date = foodDate();
   cache.water[date] = Math.max(0, (cache.water[date]||0) + ml);
   await window.saveWaterFB(date);
   renderFoodTab();
 };
 window.toggleWorkout = async function(){
-  const date = getTodayDateString();
+  const date = foodDate();
   if(cache.workouts[date]) delete cache.workouts[date]; else cache.workouts[date] = true;
   await window.toggleWorkoutFB(date);
   renderFoodTab();
 };
 window.toggleActivity = async function(key){
-  const date = getTodayDateString();
+  const date = foodDate();
   let a = cache.activities[date] || [];
   a = a.includes(key) ? a.filter(k=>k!==key) : [...a, key];
   cache.activities[date] = a;
@@ -1915,14 +1949,14 @@ function renderFoodPickList(){
 window.addMealEntry = async function(foodId){
   const it = cache.foodMenus.find(x=>String(x.id)===String(foodId));
   if(!it) return;
-  const date = getTodayDateString();
+  const date = foodDate();
   if(!cache.meals[date]) cache.meals[date] = [];
   cache.meals[date].push({ id:'m'+Date.now()+'_'+(_foodSeq++), meal:_pickMeal, foodId:it.id, name:it.name, kcal:fnum(it.kcal), carbs:fnum(it.carbs), fat:fnum(it.fat), protein:fnum(it.protein) });
   await window.saveMealsFB(date);
   renderFoodTab(); // 背面の合計を更新（モーダルは開いたまま）
 };
 window.removeMealEntry = async function(id){
-  const date = getTodayDateString();
+  const date = foodDate();
   cache.meals[date] = (cache.meals[date]||[]).filter(e=>String(e.id)!==String(id));
   await window.saveMealsFB(date);
   renderFoodTab();
