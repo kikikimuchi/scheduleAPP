@@ -1455,33 +1455,66 @@ window.renderIdeal = function(){
 };
 
 // 体重推移の折れ線グラフ（SVG）。記録2件以上で描画
+// 週1kgペースの理想体重ライン（9/15を中間目標71.5kgとする）
+const GOAL_PACE = [
+  ['2026-07-02', 82.2],
+  ['2026-07-09', 81.2],
+  ['2026-07-16', 80.2],
+  ['2026-07-23', 79.2],
+  ['2026-07-30', 78.2],
+  ['2026-08-06', 77.2],
+  ['2026-08-13', 76.2],
+  ['2026-08-20', 75.2],
+  ['2026-08-27', 74.2],
+  ['2026-09-03', 73.2],
+  ['2026-09-10', 72.2],
+  ['2026-09-15', 71.5],
+];
 function weightChartSvg(){
   const data = cache.weights.slice().sort((a,b)=>a.date.localeCompare(b.date)).slice(-60);
   if(data.length < 2) return '';
   const W=320, H=110, padX=10, padTop=14, padBot=16;
-  const ws = data.map(d=>d.weight);
+  const dnum = s => new Date(s+'T00:00').getTime()/86400000; // 日単位の数値
+  const actPts = data.map(d=>({x:dnum(d.date), w:d.weight}));
+  const goalPts = GOAL_PACE.map(([d,w])=>({x:dnum(d), w}));
   const target = cache.settings.targetWeight;
-  let min = Math.min(...ws, target), max = Math.max(...ws, target);
+  // Y軸レンジ（実測・理想ペース・最終目標を内包）
+  const allW = [...actPts.map(p=>p.w), ...goalPts.map(p=>p.w), target];
+  let min = Math.min(...allW), max = Math.max(...allW);
   if(max - min < 0.5){ min -= 0.5; max += 0.5; }
   const rng = max - min;
-  const X = i => padX + (W - 2*padX) * (i/(data.length-1));
+  // X軸レンジ（実測と理想ペースの全期間を日付で内包）
+  const allX = [...actPts.map(p=>p.x), ...goalPts.map(p=>p.x)];
+  const xmin = Math.min(...allX), xmax = Math.max(...allX);
+  const xrng = (xmax - xmin) || 1;
+  const X = x => padX + (W - 2*padX) * ((x - xmin)/xrng);
   const Y = v => padTop + (H - padTop - padBot) * (1 - (v - min)/rng);
-  const line = data.map((d,i)=>`${X(i).toFixed(1)},${Y(d.weight).toFixed(1)}`).join(' ');
-  const area = `${padX.toFixed(1)},${(H-padBot).toFixed(1)} ${line} ${(W-padX).toFixed(1)},${(H-padBot).toFixed(1)}`;
+  const actLine = actPts.map(p=>`${X(p.x).toFixed(1)},${Y(p.w).toFixed(1)}`).join(' ');
+  const x0 = X(actPts[0].x).toFixed(1), xN = X(actPts[actPts.length-1].x).toFixed(1);
+  const area = `${x0},${(H-padBot).toFixed(1)} ${actLine} ${xN},${(H-padBot).toFixed(1)}`;
+  const goalLine = goalPts.map(p=>`${X(p.x).toFixed(1)},${Y(p.w).toFixed(1)}`).join(' ');
   const tY = Y(target).toFixed(1);
-  const last = data[data.length-1];
-  const lx = X(data.length-1).toFixed(1), ly = Y(last.weight).toFixed(1);
+  const last = actPts[actPts.length-1];
+  const lx = X(last.x).toFixed(1), ly = Y(last.w).toFixed(1);
+  const g0 = goalPts[0], gN = goalPts[goalPts.length-1];
+  const g0x = X(g0.x).toFixed(1), g0y = Y(g0.w).toFixed(1);
+  const gNx = X(gN.x).toFixed(1), gNy = Y(gN.w).toFixed(1);
   return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;margin-bottom:10px;overflow:visible;">
     <defs><linearGradient id="wgrad" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#E88FA1" stop-opacity="0.28"/>
       <stop offset="100%" stop-color="#E88FA1" stop-opacity="0"/>
     </linearGradient></defs>
     <line x1="${padX}" y1="${tY}" x2="${W-padX}" y2="${tY}" stroke="#b9bcc4" stroke-width="1" stroke-dasharray="3 3"/>
-    <text x="${W-padX}" y="${(Number(tY)-3).toFixed(1)}" text-anchor="end" font-size="8" fill="#9aa0a8">目標 ${target}kg</text>
+    <text x="${W-padX}" y="${(Number(tY)-3).toFixed(1)}" text-anchor="end" font-size="8" fill="#9aa0a8">最終目標 ${target}kg</text>
+    <polyline points="${goalLine}" fill="none" stroke="#7AA7E0" stroke-width="1.6" stroke-dasharray="4 3" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${g0x}" cy="${g0y}" r="2.4" fill="#7AA7E0"/>
+    <circle cx="${gNx}" cy="${gNy}" r="3" fill="#7AA7E0"/>
+    <text x="${gNx}" y="${(Number(gNy)+11).toFixed(1)}" text-anchor="end" font-size="8" font-weight="700" fill="#5B86C4">9/15 ${gN.w}kg</text>
+    <text x="${g0x}" y="${(Number(g0y)-4).toFixed(1)}" text-anchor="start" font-size="8" fill="#7AA7E0">理想ペース(週1kg)</text>
     <polygon points="${area}" fill="url(#wgrad)"/>
-    <polyline points="${line}" fill="none" stroke="#E88FA1" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <polyline points="${actLine}" fill="none" stroke="#E88FA1" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
     <circle cx="${lx}" cy="${ly}" r="3" fill="#E88FA1"/>
-    <text x="${lx}" y="${(Number(ly)-6).toFixed(1)}" text-anchor="end" font-size="9" font-weight="700" fill="#E88FA1">${last.weight.toFixed(1)}</text>
+    <text x="${lx}" y="${(Number(ly)-6).toFixed(1)}" text-anchor="end" font-size="9" font-weight="700" fill="#E88FA1">${last.w.toFixed(1)}</text>
   </svg>`;
 }
 function renderWeightTab(){
