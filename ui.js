@@ -275,24 +275,6 @@ window.renderToday = function(){
   $('mode-name').textContent = mode.label;
   $('mode-desc').textContent = mode.desc;
   
-  // 体重 + ペース計算
-  const latest = cache.weights.length>0 ? cache.weights[cache.weights.length-1] : null;
-  const w = latest ? latest.weight : cache.settings.startWeight;
-  $('w-kg').textContent = w.toFixed(1);
-  $('w-bf').textContent = (latest && latest.bodyFat) ? `体脂肪 ${latest.bodyFat.toFixed(1)}%` : '体脂肪未記録';
-  
-  const goal = activeGoal();
-  const remaining = w - goal.weight;
-  const daysLeft = Math.max(Math.ceil((goal.dateObj - new Date())/(86400000)), 1);
-  const weeksLeft = Math.max(daysLeft / 7, 0.1);
-  const weeklyPace = remaining / weeksLeft;
-
-  if(remaining <= 0){
-    $('w-rem').textContent = `${goal.label}目標 達成 🎉 ▶ 記録`;
-  } else {
-    $('w-rem').innerHTML = `${goal.label}(${goal.weight}kg)まで ${remaining.toFixed(1)}kg<br>週 ${weeklyPace.toFixed(2)}kg ペース ▶ 記録`;
-  }
-  
   // 起床欄を編集中(フォーカス中)は値を書き戻さない（ピッカー操作の妨害＝中間値確定を防ぐ）
   const wi = $('wake-input');
   if(wi && document.activeElement !== wi) wi.value = cache.wakeTimes[today] || '';
@@ -1681,6 +1663,12 @@ window.openMealLog = function(){
   _foodDate = getTodayDateString(); // 常に今日から開く
   if(window.setTab) setTab('ideal');
   setIdealTab('food');
+};
+// ホームの朝食/昼食/夕食/間食ボタン → その食事のピッカーをワンタッチで開く（今日に記録）
+window.quickMeal = function(mealKey){
+  _foodView = 'log';
+  _foodDate = getTodayDateString();
+  openFoodPick(mealKey);
 };
 
 // ---- 今日の記録 ----
