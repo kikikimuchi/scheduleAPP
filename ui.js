@@ -1649,8 +1649,11 @@ function foodLogHTML(){
   const remaining = target - kcal;
   const today = getTodayDateString();
   const actBonus = activityBonus(today);   // 運動による消費＋
-  const burn = basal + actBonus;            // 1日の総消費
+  const burn = basal + actBonus;            // 今日の総消費
   const deficit = burn - kcal;              // 赤字 = 総消費 − 摂取
+  const targetBurn = fnum(cache.settings.targetBurn) || 2700;   // 目標消費
+  const targetDeficit = Math.max(targetBurn - target, 0);       // 理想の赤字(=2700-1700=1000)
+  const defPct = targetDeficit>0 ? Math.max(0, Math.min(deficit/targetDeficit*100, 100)) : 0;
   const pct = target>0 ? Math.min(kcal/target*100, 100) : 0;
   const over = target>0 && kcal>target;
   const acts = activeActs(today);
@@ -1674,8 +1677,15 @@ function foodLogHTML(){
       <span>${remaining>=0 ? `あと ${Math.round(remaining)} kcal` : `${Math.round(-remaining)} kcal オーバー`}</span>
       <span style="opacity:.9;">目標 ${target||'—'}</span>
     </div>
-    ${basal>0 ? `<div style="background:rgba(255,255,255,.2);border-radius:8px;padding:9px 12px;font-size:12.5px;text-align:center;margin-top:10px;">
-      ${deficit>=0 ? `🔥 消費 ${burn}kcal${actBonus?`(基礎${basal}+運動${actBonus})`:`(基礎代謝)`} に対し <span style="font-weight:700;">−${Math.round(deficit)} kcal</span> の赤字` : `⚠️ 消費 ${burn}kcal を ${Math.round(-deficit)} kcal 超過`}
+    ${basal>0 ? `<div style="background:rgba(255,255,255,.2);border-radius:8px;padding:10px 12px;margin-top:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;font-weight:600;margin-bottom:6px;">
+        <span>🔥 今日の赤字</span>
+        <span><span style="font-weight:700;font-size:15px;">${Math.round(deficit)}</span> / 目標 ${targetDeficit} kcal</span>
+      </div>
+      <div style="height:8px;background:rgba(255,255,255,.3);border-radius:5px;overflow:hidden;margin-bottom:6px;">
+        <div style="height:100%;width:${defPct.toFixed(0)}%;background:${deficit>=targetDeficit?'#7CE0A0':'#FFD27A'};border-radius:5px;transition:width .2s;"></div>
+      </div>
+      <div style="font-size:11px;opacity:.92;text-align:center;line-height:1.5;">消費 ${burn}（基礎${basal}${actBonus?`+運動${actBonus}`:''}）− 摂取 ${kcal}<br>${burn<targetBurn ? `目標消費 ${targetBurn} まで運動であと <b>${targetBurn-burn}</b> kcal` : `目標消費 ${targetBurn} 達成 🎉`}${deficit>=targetDeficit?' ・ 赤字目標クリア✓':''}</div>
     </div>` : ''}
     <div style="display:flex;gap:6px;margin-top:10px;">
       <div style="flex:1;background:rgba(255,255,255,.18);border-radius:8px;padding:6px;text-align:center;">
@@ -1722,11 +1732,16 @@ function foodLogHTML(){
       </div>
     </div>
     ${_goalEdit ? `
-    <div style="display:flex;gap:8px;align-items:flex-end;border-top:1px solid var(--bdr);padding-top:12px;">
-      <div style="flex:1;"><label class="fl">目標kcal</label><input class="fi no-spinner" type="number" inputmode="numeric" id="cal-target" placeholder="kcal" value="${cache.settings.targetCalories!=null?cache.settings.targetCalories:''}"></div>
-      <div style="flex:1;"><label class="fl">基礎代謝</label><input class="fi no-spinner" type="number" inputmode="numeric" id="cal-basal" placeholder="kcal" value="${cache.settings.basalMetabolism!=null?cache.settings.basalMetabolism:''}"></div>
-      <div style="flex:1;"><label class="fl">P目標(g)</label><input class="fi no-spinner" type="number" inputmode="numeric" id="cal-protein" placeholder="g" value="${cache.settings.targetProtein!=null?cache.settings.targetProtein:''}"></div>
-      <button class="btn-sec" style="padding:0 14px;height:42px;" onclick="saveCalTargets()">保存</button>
+    <div style="border-top:1px solid var(--bdr);padding-top:12px;">
+      <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:8px;">
+        <div style="flex:1;"><label class="fl">目標摂取kcal</label><input class="fi no-spinner" type="number" inputmode="numeric" id="cal-target" placeholder="kcal" value="${cache.settings.targetCalories!=null?cache.settings.targetCalories:''}"></div>
+        <div style="flex:1;"><label class="fl">目標消費kcal</label><input class="fi no-spinner" type="number" inputmode="numeric" id="cal-burn" placeholder="kcal" value="${cache.settings.targetBurn!=null?cache.settings.targetBurn:''}"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-end;">
+        <div style="flex:1;"><label class="fl">基礎代謝kcal</label><input class="fi no-spinner" type="number" inputmode="numeric" id="cal-basal" placeholder="kcal" value="${cache.settings.basalMetabolism!=null?cache.settings.basalMetabolism:''}"></div>
+        <div style="flex:1;"><label class="fl">P目標(g)</label><input class="fi no-spinner" type="number" inputmode="numeric" id="cal-protein" placeholder="g" value="${cache.settings.targetProtein!=null?cache.settings.targetProtein:''}"></div>
+        <button class="btn-sec" style="padding:0 14px;height:42px;" onclick="saveCalTargets()">保存</button>
+      </div>
     </div>` : ''}
   </div>`;
   html += MEALS.map(m=>{
@@ -1750,6 +1765,7 @@ function foodLogHTML(){
 }
 window.saveCalTargets = async function(){
   cache.settings.targetCalories = fnum($('cal-target').value);
+  if($('cal-burn')) cache.settings.targetBurn = fnum($('cal-burn').value);
   cache.settings.targetProtein = fnum($('cal-protein').value);
   await window.saveSetting('basalMetabolism', fnum($('cal-basal').value)); // 1回の書き込みでまとめて保存
   _goalEdit = false;
@@ -1854,7 +1870,7 @@ window.saveFoodItem = async function(){
     const idx = cache.foodMenus.findIndex(x=>String(x.id)===String(_editFoodId));
     if(idx>=0) cache.foodMenus[idx] = { ...cache.foodMenus[idx], ...data };
   } else {
-    data.id = Date.now();
+    data.id = Date.now()*1000 + (_foodSeq++ % 1000); // 連続追加でもID衝突しないように
     cache.foodMenus.push(data);
   }
   await window.setDocImport('foodMenus', data);
