@@ -1606,6 +1606,7 @@ let _pickMeal = 'breakfast';
 let _pickSearch = '';
 let _editFoodId = null;
 let _foodSeq = 0;
+let _goalEdit = false;
 function fnum(v){ const n=parseFloat(v); return isNaN(n)?0:n; }
 function todayMeals(){ return cache.meals[getTodayDateString()] || []; }
 
@@ -1620,6 +1621,12 @@ function renderFoodTab(){
 }
 window.setFoodView = function(v){ _foodView=v; renderFoodTab(); };
 window.setFoodCat = function(c){ _foodCat=c; renderFoodTab(); };
+// ホームから「食事を記録」→ 理想ページの食事タブ（今日の記録）へ
+window.openMealLog = function(){
+  _foodView = 'log';
+  if(window.setTab) setTab('ideal');
+  setIdealTab('food');
+};
 
 // ---- 今日の記録 ----
 function foodLogHTML(){
@@ -1629,10 +1636,20 @@ function foodLogHTML(){
   const carbs = sum('carbs'), fat = sum('fat'), protein = sum('protein');
   const target = fnum(cache.settings.targetCalories);
   const basal = fnum(cache.settings.basalMetabolism);
+  const tp = fnum(cache.settings.targetProtein);
+  const proteinMet = tp>0 && protein>=tp;
   const remaining = target - kcal;
   const deficit = basal - kcal;
   const pct = target>0 ? Math.min(kcal/target*100, 100) : 0;
   const over = target>0 && kcal>target;
+  // 今日の目標（水分・筋トレ）
+  const today = getTodayDateString();
+  const ml = fnum(cache.water[today]);
+  const wMin = fnum(cache.settings.waterMinMl)||2500, wMax = fnum(cache.settings.waterMaxMl)||3000;
+  const wpct = wMax>0 ? Math.min(ml/wMax*100, 100) : 0;
+  const wMet = ml>=wMin;
+  const wc = weekWorkoutCount(), wpw = fnum(cache.settings.workoutPerWeek)||2;
+  const doneToday = !!cache.workouts[today];
   let html = `
   <div class="hero-card hero-blue">
     <div style="font-size:16px;font-weight:700;margin-bottom:12px;">今日の摂取カロリー</div>
@@ -1651,20 +1668,48 @@ function foodLogHTML(){
       ${deficit>=0 ? `🔥 基礎代謝(${basal})に対し <span style="font-weight:700;">−${Math.round(deficit)} kcal</span> の赤字` : `⚠️ 基礎代謝(${basal})を ${Math.round(-deficit)} kcal 超過`}
     </div>` : ''}
     <div style="display:flex;gap:6px;margin-top:10px;">
-      ${[['糖質',carbs],['脂質',fat],['タンパク質',protein]].map(([l,v])=>`
-        <div style="flex:1;background:rgba(255,255,255,.18);border-radius:8px;padding:6px;text-align:center;">
-          <div style="font-size:10px;opacity:.85;">${l}</div>
-          <div style="font-size:14px;font-weight:700;">${v.toFixed(1)}<span style="font-size:9px;">g</span></div>
-        </div>`).join('')}
+      <div style="flex:1;background:rgba(255,255,255,.18);border-radius:8px;padding:6px;text-align:center;">
+        <div style="font-size:10px;opacity:.85;">糖質</div>
+        <div style="font-size:14px;font-weight:700;">${carbs.toFixed(1)}<span style="font-size:9px;">g</span></div>
+      </div>
+      <div style="flex:1;background:rgba(255,255,255,.18);border-radius:8px;padding:6px;text-align:center;">
+        <div style="font-size:10px;opacity:.85;">脂質</div>
+        <div style="font-size:14px;font-weight:700;">${fat.toFixed(1)}<span style="font-size:9px;">g</span></div>
+      </div>
+      <div style="flex:1;background:${proteinMet?'rgba(130,235,170,.4)':'rgba(255,255,255,.18)'};border-radius:8px;padding:6px;text-align:center;">
+        <div style="font-size:10px;opacity:.85;">タンパク質${proteinMet?' ✓':''}</div>
+        <div style="font-size:14px;font-weight:700;">${protein.toFixed(0)}<span style="font-size:9px;">/${tp||'—'}g</span></div>
+      </div>
     </div>
   </div>
   <div class="card">
-    <div class="sec-h" style="font-size:13px;">🎯 目標・基礎代謝（編集可）</div>
-    <div style="display:flex;gap:8px;align-items:flex-end;">
-      <div style="flex:1;"><label class="fl">目標摂取kcal</label><input class="fi no-spinner" type="number" inputmode="numeric" id="cal-target" placeholder="kcal" value="${cache.settings.targetCalories!=null?cache.settings.targetCalories:''}"></div>
-      <div style="flex:1;"><label class="fl">基礎代謝kcal</label><input class="fi no-spinner" type="number" inputmode="numeric" id="cal-basal" placeholder="kcal" value="${cache.settings.basalMetabolism!=null?cache.settings.basalMetabolism:''}"></div>
-      <button class="btn-sec" style="padding:0 14px;height:42px;" onclick="saveCalTargets()">保存</button>
+    <div class="sec-h" style="display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-size:13px;">📌 今日の目標</div>
+      <button class="btn-sec" style="padding:6px 12px;font-size:12px;" onclick="toggleGoalEdit()">${_goalEdit?'閉じる':'⚙️ 編集'}</button>
     </div>
+    <div style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:6px;">
+        <span>💧 水分 ${wMet?'<span style="color:#3FA7D6;">✓</span>':''}</span>
+        <span>${(ml/1000).toFixed(2)} / ${(wMin/1000).toFixed(1)}〜${(wMax/1000).toFixed(1)}L</span>
+      </div>
+      <div style="height:8px;background:#eef1f3;border-radius:5px;overflow:hidden;margin-bottom:8px;"><div style="height:100%;width:${wpct.toFixed(0)}%;background:#5BB7E8;border-radius:5px;transition:width .2s;"></div></div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn-sec" style="flex:1;padding:9px;" onclick="addWater(200)">＋コップ 200</button>
+        <button class="btn-sec" style="flex:1;padding:9px;" onclick="addWater(500)">＋ボトル 500</button>
+        <button class="btn-sec" style="padding:9px 14px;" onclick="addWater(-200)">−</button>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;${_goalEdit?'margin-bottom:14px;':''}">
+      <div style="font-size:13px;font-weight:600;">🏋️ 筋トレ <span style="color:var(--ink-soft);font-weight:600;">今週 ${wc}/${wpw}回</span>${wc>=wpw?' <span style="color:#37a76a;">✓</span>':''}</div>
+      <button class="btn-sec" style="padding:9px 16px;${doneToday?'background:var(--pink);color:#fff;':''}" onclick="toggleWorkout()">${doneToday?'✓ 今日やった':'今日やった？'}</button>
+    </div>
+    ${_goalEdit ? `
+    <div style="display:flex;gap:8px;align-items:flex-end;border-top:1px solid var(--bdr);padding-top:12px;">
+      <div style="flex:1;"><label class="fl">目標kcal</label><input class="fi no-spinner" type="number" inputmode="numeric" id="cal-target" placeholder="kcal" value="${cache.settings.targetCalories!=null?cache.settings.targetCalories:''}"></div>
+      <div style="flex:1;"><label class="fl">基礎代謝</label><input class="fi no-spinner" type="number" inputmode="numeric" id="cal-basal" placeholder="kcal" value="${cache.settings.basalMetabolism!=null?cache.settings.basalMetabolism:''}"></div>
+      <div style="flex:1;"><label class="fl">P目標(g)</label><input class="fi no-spinner" type="number" inputmode="numeric" id="cal-protein" placeholder="g" value="${cache.settings.targetProtein!=null?cache.settings.targetProtein:''}"></div>
+      <button class="btn-sec" style="padding:0 14px;height:42px;" onclick="saveCalTargets()">保存</button>
+    </div>` : ''}
   </div>`;
   html += MEALS.map(m=>{
     const es = entries.filter(e=>e.meal===m.key);
@@ -1687,7 +1732,31 @@ function foodLogHTML(){
 }
 window.saveCalTargets = async function(){
   cache.settings.targetCalories = fnum($('cal-target').value);
-  await window.saveSetting('basalMetabolism', fnum($('cal-basal').value)); // 1回の書き込みで両方保存
+  cache.settings.targetProtein = fnum($('cal-protein').value);
+  await window.saveSetting('basalMetabolism', fnum($('cal-basal').value)); // 1回の書き込みでまとめて保存
+  _goalEdit = false;
+  renderFoodTab();
+};
+window.toggleGoalEdit = function(){ _goalEdit = !_goalEdit; renderFoodTab(); };
+function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function weekWorkoutCount(){
+  const t = new Date(getTodayDateString()+'T00:00');
+  const dow = (t.getDay()+6)%7; // 月曜=0
+  const mon = new Date(t); mon.setDate(t.getDate()-dow);
+  let c=0;
+  for(let i=0;i<7;i++){ const d=new Date(mon); d.setDate(mon.getDate()+i); if(cache.workouts[ymd(d)]) c++; }
+  return c;
+}
+window.addWater = async function(ml){
+  const date = getTodayDateString();
+  cache.water[date] = Math.max(0, (cache.water[date]||0) + ml);
+  await window.saveWaterFB(date);
+  renderFoodTab();
+};
+window.toggleWorkout = async function(){
+  const date = getTodayDateString();
+  if(cache.workouts[date]) delete cache.workouts[date]; else cache.workouts[date] = true;
+  await window.toggleWorkoutFB(date);
   renderFoodTab();
 };
 

@@ -262,7 +262,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v39</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v40</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -294,6 +294,8 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
       </div>
     </button>
   </div>
+
+  <button onclick="openMealLog()" style="width:100%;margin-bottom:10px;padding:13px;border:none;border-radius:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;background:linear-gradient(135deg,var(--pink) 0%,var(--lav) 100%);box-shadow:0 4px 12px rgba(244,166,181,.3);letter-spacing:.04em;">🍽️ 食事を記録</button>
 
   <div class="card" id="today-schedule-card">
     <div class="sec-h" style="margin-bottom:6px;"><span class="sec-h-icon">🕐</span>タイムスケジュール</div>
@@ -621,11 +623,13 @@ const COL = {
   hairRemoval: collection(db, 'schedule_hairRemoval'),
   foodMenus: collection(db, 'schedule_foodMenus'),
   meals: collection(db, 'schedule_meals'),
+  water: collection(db, 'schedule_water'),
+  workouts: collection(db, 'schedule_workouts'),
 };
 
 // =================== CACHE ===================
 window.cache = {
-  settings: { startWeight:83, targetWeight:68, interimWeight:71.5, interimDate:'2026-09-15', startBodyFat:25, targetBodyFat:18, youtubeLongTarget:15, youtubeShortTarget:30, vanBudget:400000, gymDays:['月','木'], wakeTime:'10:00', targetSleepHours:8, calendarEmbedUrl:'', notifyEnabled:false, notifyEmail:'', notifyLeadMin:5, priorityOrder:[], targetCalories:1800, basalMetabolism:1600 },
+  settings: { startWeight:83, targetWeight:68, interimWeight:71.5, interimDate:'2026-09-15', startBodyFat:25, targetBodyFat:18, youtubeLongTarget:15, youtubeShortTarget:30, vanBudget:400000, gymDays:['月','木'], wakeTime:'10:00', targetSleepHours:8, calendarEmbedUrl:'', notifyEnabled:false, notifyEmail:'', notifyLeadMin:5, priorityOrder:[], targetCalories:1700, basalMetabolism:1600, targetProtein:160, waterMinMl:2500, waterMaxMl:3000, workoutPerWeek:2 },
   weights: [],
   dayModes: {},  // {'2026-05-14': 'normal'}
   wakeTimes: {}, // {'2026-05-14': '11:00'}
@@ -646,6 +650,8 @@ window.cache = {
   hairRemoval: { beard:0, fullBody:0 },
   foodMenus: [], // {id, category:'main'|'snack'|'drink', name, kcal, carbs, fat, protein}
   meals: {}, // {'2026-06-25': [{id, meal:'breakfast'|'lunch'|'dinner'|'snack', foodId, name, kcal, carbs, fat, protein}]}
+  water: {}, // {'2026-06-25': 2000}  ml
+  workouts: {}, // {'2026-06-25': true} 筋トレ実施日
 };
 
 window.DEFAULT_MILESTONES = [
@@ -919,6 +925,18 @@ async function loadAll(){
       snap.docs.forEach(d=>{ cache.meals[d.id] = (d.data().entries) || []; });
     })());
 
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.water);
+      cache.water = {};
+      snap.docs.forEach(d=>{ cache.water[d.id] = (d.data().ml) || 0; });
+    })());
+
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.workouts);
+      cache.workouts = {};
+      snap.docs.forEach(d=>{ cache.workouts[d.id] = true; });
+    })());
+
     await Promise.all(tasks);
   } catch(e){ console.error(e); alert('データ読み込みエラー: '+e.message); }
   showLoading(false);
@@ -940,6 +958,15 @@ window.saveMealsFB = async (date)=>{
   const entries = cache.meals[date] || [];
   if(entries.length===0){ delete cache.meals[date]; await deleteDoc(doc(COL.meals,date)); }
   else { cache.meals[date] = entries; await setDoc(doc(COL.meals,date), { date, entries }); }
+};
+window.saveWaterFB = async (date)=>{
+  const ml = cache.water[date] || 0;
+  if(ml<=0){ delete cache.water[date]; await deleteDoc(doc(COL.water,date)); }
+  else { cache.water[date] = ml; await setDoc(doc(COL.water,date), { date, ml }); }
+};
+window.toggleWorkoutFB = async (date)=>{
+  if(cache.workouts[date]){ await setDoc(doc(COL.workouts,date), { date, v:true }); }
+  else { await deleteDoc(doc(COL.workouts,date)); }
 };
 window.saveDayMode = async (date, mode)=>{
   if(mode){ cache.dayModes[date] = mode; await setDoc(doc(COL.dayModes,date), {mode}); }
@@ -1056,6 +1083,6 @@ if(window.caches){ caches.keys().then(ks=>{ ks.forEach(k=>caches.delete(k)); }).
 </script>
 
 <!-- UI script -->
-<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=39"></script>
+<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=40"></script>
 </body>
 </html>
