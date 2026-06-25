@@ -1306,10 +1306,10 @@ window.renderCalendar = function(){
     const lifted = !!cache.workouts[dateStr];
     const exEmoji = (ran?'🏃':'') + (lifted?'🏋️':'');
     cells += `<div class="${cls.join(' ')}" onclick="openDayDetail('${dateStr}')">
-      <div>${d}</div>
+      <div class="cal-cell-day">${d}</div>
       ${mode ? `<div class="cal-cell-icon">${mode.icon}</div>` : ''}
-      ${exEmoji ? `<div style="font-size:9px;line-height:1;margin-top:1px;">${exEmoji}</div>` : ''}
-      ${wt!==undefined ? `<div style="font-size:10px;font-weight:700;color:#3E8E8E;line-height:1;margin-top:2px;">${wt.toFixed(1)}</div>` : ''}
+      ${exEmoji ? `<div class="cal-cell-ex">${exEmoji}</div>` : ''}
+      ${wt!==undefined ? `<div class="cal-cell-wt">${wt.toFixed(1)}</div>` : ''}
     </div>`;
   }
   $('cal-grid').innerHTML = cells;
