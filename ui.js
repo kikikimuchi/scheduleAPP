@@ -1374,7 +1374,8 @@ function renderDayDetailBody(){
         <input type="time" class="fi" id="dd-wake-input" value="${cache.wakeTimes[date]||''}" onchange="onDDWakeChange()">
         <button onclick="clearDDWake()" style="background:none;border:none;color:var(--ink-mute);font-size:11px;cursor:pointer;flex-shrink:0;padding:0 4px;">クリア</button>
       </div>
-      <div style="font-size:9px;color:var(--ink-mute);margin:0 0 10px 2px;">起床予定を決めると全タスクの時間が連動してずれます</div>
+      <div style="font-size:9px;color:var(--ink-mute);margin:0 0 8px 2px;">起床予定を決めると全タスクの時間が連動してずれます</div>
+      <button class="btn-sec" style="width:100%;font-size:11px;color:var(--ink-mute);margin-bottom:10px;" onclick="resetDayEdits('${date}')">↺ 時間の編集をリセット（起床に合わせ直す）</button>
       <div id="dd-sch-tasks"></div>`;
     renderDDScheduleTasks(date);
   }
@@ -1414,6 +1415,16 @@ window.clearDDWake = async function(){
   renderDDScheduleTasks(_ddDate);
   if(window.scheduleNotifySync) scheduleNotifySync();
 };
+// その日の時間・内容の編集(上書き)をリセット→テンプレ＋起床シフトに戻す（追加/削除は残す）
+window.resetDayEdits = function(date){
+  confirmDialog('この日のフォーマットタスクの「時間・内容の編集」をリセットして、テンプレート＋起床予定に戻しますか？\n（追加したタスク・削除した項目はそのまま残ります）', ()=> doResetDayEdits(date));
+};
+async function doResetDayEdits(date){
+  delete cache.taskOverrides[date];
+  delete cache.nightOverrides[date];
+  await saveOverridesFB(date);
+  afterScheduleChange();
+}
 window.ddSelectMode = async function(key){
   await saveDayMode(_ddDate, key);
   closeModal('ov-daydetail');
