@@ -268,11 +268,12 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v50</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v51</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
     <div><span class="hd-left-num" id="hd-days">231</span><span class="hd-left-unit">日</span></div>
+    <div id="hd-photo" style="font-size:10px;color:var(--pink);font-weight:700;margin-top:3px;white-space:nowrap;">📷 9/19まで —日</div>
   </div>
 </div>
 
@@ -1070,7 +1071,11 @@ async function init(){
   $('hd-day').textContent = ['日','月','火','水','木','金','土'][now.getDay()];
   const ye = new Date(y, 11, 31);
   $('hd-days').textContent = Math.ceil((ye - now)/(1000*60*60*24));
-  
+  // 写真展(9/19)までのカウントダウン
+  const photo = new Date(y, 8, 19); // 9月=index8, 19日
+  const pdays = Math.ceil((photo - now)/(1000*60*60*24));
+  if($('hd-photo')) $('hd-photo').textContent = pdays>=0 ? `📷 9/19まで あと${pdays}日` : `📷 写真展おつかれ！`;
+
   await loadAll();
   
   // 初回マイルストーン保存
@@ -1111,6 +1116,6 @@ if(window.caches){ caches.keys().then(ks=>{ ks.forEach(k=>caches.delete(k)); }).
 </script>
 
 <!-- UI script -->
-<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=50"></script>
+<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=51"></script>
 </body>
 </html>
