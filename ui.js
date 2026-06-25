@@ -1301,9 +1301,13 @@ window.renderCalendar = function(){
     if(isPast && !mode) cls.push('past');
     if(mode) cls.push(mode.cls);
     const wt = wmap[dateStr];
+    const ran = (cache.activities[dateStr]||[]).some(a=>a==='run30'||a==='run60');
+    const lifted = !!cache.workouts[dateStr];
+    const exEmoji = (ran?'🏃':'') + (lifted?'🏋️':'');
     cells += `<div class="${cls.join(' ')}" onclick="openDayDetail('${dateStr}')">
       <div>${d}</div>
       ${mode ? `<div class="cal-cell-icon">${mode.icon}</div>` : ''}
+      ${exEmoji ? `<div style="font-size:9px;line-height:1;margin-top:1px;">${exEmoji}</div>` : ''}
       ${wt!==undefined ? `<div style="font-size:10px;font-weight:700;color:#3E8E8E;line-height:1;margin-top:2px;">${wt.toFixed(1)}</div>` : ''}
     </div>`;
   }
