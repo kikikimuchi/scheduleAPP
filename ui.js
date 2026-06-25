@@ -1415,13 +1415,22 @@ window.clearDDWake = async function(){
   renderDDScheduleTasks(_ddDate);
   if(window.scheduleNotifySync) scheduleNotifySync();
 };
-// その日の時間・内容の編集(上書き)をリセット→テンプレ＋起床シフトに戻す（追加/削除は残す）
+// その日の上書きの「時刻」だけテンプレに戻し、起床予定に合わせ直す（名前/アイコンの変更は維持）
 window.resetDayEdits = function(date){
-  confirmDialog('この日のフォーマットタスクの「時間・内容の編集」をリセットして、テンプレート＋起床予定に戻しますか？\n（追加したタスク・削除した項目はそのまま残ります）', ()=> doResetDayEdits(date));
+  confirmDialog('フォーマットタスクの「時刻」を起床予定に合わせ直しますか？\n（名前やアイコンの変更・追加タスク・削除はそのまま残ります）', ()=> doResetDayEdits(date));
 };
 async function doResetDayEdits(date){
-  delete cache.taskOverrides[date];
-  delete cache.nightOverrides[date];
+  const modeKey = cache.dayModes[date] || 'normal';
+  const fix = (ovs, tmpl)=>{
+    if(!ovs) return;
+    for(const k of Object.keys(ovs)){
+      const t = tmpl.find(x=>x.key===k);
+      if(t) ovs[k] = {...ovs[k], time: t.time}; // 時刻だけテンプレ基準に戻す（名称/アイコン維持）
+      else delete ovs[k];
+    }
+  };
+  fix(cache.taskOverrides[date], MODE_TASKS[modeKey] || []);
+  fix(cache.nightOverrides[date], nightRawFor(modeKey));
   await saveOverridesFB(date);
   afterScheduleChange();
 }
