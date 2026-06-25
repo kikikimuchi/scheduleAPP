@@ -1273,8 +1273,8 @@ window.renderCalendar = function(){
   $('cal-year').textContent = `— ${_calYear} —`;
   $('cal-mtxt').textContent = `${_calMonth+1}月`;
   
-  const wd = ['日','月','火','水','木','金','土'];
-  $('cal-week').innerHTML = wd.map((d,i)=>`<div class="cal-wd ${i===0?'sun':''} ${i===6?'sat':''}">${d}</div>`).join('');
+  const wd = ['月','火','水','木','金','土','日']; // 月曜始まり
+  $('cal-week').innerHTML = wd.map((d,i)=>`<div class="cal-wd ${i===6?'sun':''} ${i===5?'sat':''}">${d}</div>`).join('');
   
   const first = new Date(_calYear, _calMonth, 1);
   const last = new Date(_calYear, _calMonth+1, 0);
@@ -1288,7 +1288,8 @@ window.renderCalendar = function(){
   cache.weights.forEach(e=>{ wmap[e.date] = e.weight; });
 
   let cells = '';
-  for(let i=0; i<firstDay; i++) cells += `<div class="cal-cell empty"></div>`;
+  const lead = (firstDay + 6) % 7; // 月曜始まりの先頭空セル数（日曜=6個）
+  for(let i=0; i<lead; i++) cells += `<div class="cal-cell empty"></div>`;
   for(let d=1; d<=daysInMonth; d++){
     const dateStr = `${_calYear}-${String(_calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const modeKey = cache.dayModes[dateStr];
