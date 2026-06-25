@@ -268,7 +268,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v52</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v53</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -563,6 +563,8 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
   <select class="fi" id="food-cat"><option value="main">主食</option><option value="snack">間食</option><option value="drink">飲物</option></select>
   <label class="fl" style="margin-top:10px;">名称</label>
   <input class="fi" type="text" id="food-name" placeholder="例: 鯖の塩焼き">
+  <label class="fl" style="margin-top:10px;">よみがな（任意・検索用）</label>
+  <input class="fi" type="text" id="food-yomi" placeholder="例: げんまい（ひらがなで検索できる）">
   <div style="display:flex;gap:8px;margin-top:10px;">
     <div style="flex:1;"><label class="fl">カロリー</label><input class="fi no-spinner" type="number" inputmode="decimal" id="food-kcal" placeholder="kcal"></div>
     <div style="flex:1;"><label class="fl">糖質(g)</label><input class="fi no-spinner" type="number" inputmode="decimal" id="food-carbs" placeholder="g"></div>
@@ -1116,6 +1118,6 @@ if(window.caches){ caches.keys().then(ks=>{ ks.forEach(k=>caches.delete(k)); }).
 </script>
 
 <!-- UI script -->
-<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=52"></script>
+<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=53"></script>
 </body>
 </html>

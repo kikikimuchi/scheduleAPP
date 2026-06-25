@@ -1640,6 +1640,10 @@ let _foodSeq = 0;
 let _goalEdit = false;
 let _foodDate = null; // 表示中の日付（前日に戻って追記できる）
 function fnum(v){ const n=parseFloat(v); return isNaN(n)?0:n; }
+// 検索正規化：小文字化＋カタカナ→ひらがな（バナナ⇄ばなな等を吸収）
+function kana(s){ return (s||'').toLowerCase().replace(/[ァ-ヶ]/g, c=>String.fromCharCode(c.charCodeAt(0)-0x60)); }
+// 名前＋よみがなのどちらかに語が含まれればヒット
+function foodMatch(it, q){ if(!q) return true; return kana((it.name||'')+' '+(it.yomi||'')).includes(kana(q)); }
 function foodDate(){ if(!_foodDate) _foodDate = getTodayDateString(); return _foodDate; }
 function shiftYmd(dateStr, n){ const d=new Date(dateStr+'T00:00'); d.setDate(d.getDate()+n); return ymd(d); }
 function dateLabelJP(dateStr){ const d=new Date(dateStr+'T00:00'); const w=['日','月','火','水','木','金','土'][d.getDay()]; return `${d.getMonth()+1}/${d.getDate()}(${w})`; }
@@ -1868,12 +1872,13 @@ window.toggleActivity = async function(key){
 // ---- 食材リスト（マスタ） ----
 function foodMasterListHTML(){
   const q = (_foodSearch||'').trim();
-  let items = cache.foodMenus.filter(i=>i.category===_foodCat);
-  if(q) items = items.filter(i=>(i.name||'').includes(q));
+  // 検索中は全ジャンル横断、未検索時は選択中ジャンルのみ
+  let items = q ? cache.foodMenus.filter(i=>foodMatch(i,q)) : cache.foodMenus.filter(i=>i.category===_foodCat);
   if(items.length===0) return `<div class="empty-state"><div class="em-ico">🍽️</div><div>${q?'該当する食材がありません':'まだ登録がありません'}</div></div>`;
+  const catIcon = (k)=> (FOOD_CATS.find(c=>c.key===k)||{}).icon || '';
   return items.map(it=>`<div class="ptask-row" style="display:flex;align-items:center;gap:8px;">
     <div style="flex:1;cursor:pointer;" onclick="openFoodEdit('${it.id}')">
-      <div style="font-size:14px;font-weight:600;">${it.name}</div>
+      <div style="font-size:14px;font-weight:600;">${q?`<span style="font-size:12px;">${catIcon(it.category)}</span> `:''}${it.name}</div>
       <div style="font-size:11px;color:var(--ink-soft);">${Math.round(fnum(it.kcal))}kcal ・ 糖${fnum(it.carbs)}g 脂${fnum(it.fat)}g P${fnum(it.protein)}g</div>
     </div>
     <button onclick="deleteFood('${it.id}')" style="width:24px;height:24px;border:none;background:#f3f3f3;border-radius:50%;color:var(--ink-soft);cursor:pointer;">×</button>
@@ -1901,7 +1906,7 @@ window.openFoodAdd = function(){
   _editFoodId = null;
   $('food-modal-title').textContent = '食材を追加';
   $('food-cat').value = (_foodView==='master') ? _foodCat : 'main';
-  $('food-name').value=''; $('food-kcal').value=''; $('food-carbs').value=''; $('food-fat').value=''; $('food-protein').value='';
+  $('food-name').value=''; $('food-yomi').value=''; $('food-kcal').value=''; $('food-carbs').value=''; $('food-fat').value=''; $('food-protein').value='';
   openModal('ov-food-add');
 };
 window.openFoodEdit = function(id){
@@ -1911,6 +1916,7 @@ window.openFoodEdit = function(id){
   $('food-modal-title').textContent = '食材を編集';
   $('food-cat').value = it.category || 'main';
   $('food-name').value = it.name || '';
+  $('food-yomi').value = it.yomi || '';
   $('food-kcal').value = it.kcal!=null ? it.kcal : '';
   $('food-carbs').value = it.carbs!=null ? it.carbs : '';
   $('food-fat').value = it.fat!=null ? it.fat : '';
@@ -1923,6 +1929,7 @@ window.saveFoodItem = async function(){
   const data = {
     category: $('food-cat').value,
     name,
+    yomi: ($('food-yomi').value || '').trim(),
     kcal: fnum($('food-kcal').value),
     carbs: fnum($('food-carbs').value),
     fat: fnum($('food-fat').value),
@@ -1975,8 +1982,7 @@ function renderFoodPickList(){
         <button onclick="removeMealEntry('${e.id}')" style="width:20px;height:20px;border:none;background:#fff;border-radius:50%;color:var(--ink-soft);cursor:pointer;font-size:11px;line-height:1;">×</button>
       </div>`).join('')}
     </div>` : '';
-  let items = cache.foodMenus.slice();
-  if(q) items = items.filter(i=>(i.name||'').includes(q));
+  let items = cache.foodMenus.filter(i=>foodMatch(i,q));
   const listHtml = FOOD_CATS.map(c=>{
     const list = items.filter(i=>i.category===c.key);
     if(list.length===0) return '';
