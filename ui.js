@@ -1568,14 +1568,6 @@ function renderWeightTab(){
       ${remaining > 0 ? `<div style="background:rgba(255,255,255,.2);border-radius:8px;padding:8px 12px;font-size:12px;text-align:center;">📅 ${goal.label}までに <span style="font-weight:700;">${goal.weight}kg</span>（週 ${weeklyPace.toFixed(2)}kg・あと${daysLeft}日）</div>` : `<div style="background:rgba(255,255,255,.2);border-radius:8px;padding:8px 12px;font-size:12px;text-align:center;">${goal.label}の目標達成 🎉 次は最終 ${cache.settings.targetWeight}kg へ</div>`}
     </div>
     <div class="card">
-      <div class="sec-h">記録する</div>
-      <div style="display:flex;gap:8px;">
-        <input class="fi no-spinner" type="number" step="0.1" id="iw-kg" placeholder="体重 (kg)" inputmode="decimal" style="flex:1;">
-        <input class="fi no-spinner" type="number" step="0.1" id="iw-bf" placeholder="体脂肪 %" inputmode="decimal" style="flex:1;">
-        <button class="btn-pri" style="width:auto;padding:0 16px;" onclick="saveWeightFromIdeal()">記録</button>
-      </div>
-    </div>
-    <div class="card">
       <div class="sec-h">推移</div>
       ${weightChartSvg()}
       ${cache.weights.length === 0 ? '<div class="empty-state"><div class="em-ico">📈</div><div>記録がありません</div></div>' :
