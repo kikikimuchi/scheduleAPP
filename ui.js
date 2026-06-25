@@ -1955,21 +1955,40 @@ window.openFoodPick = function(mealKey){
 window.onFoodPickSearch = function(v){ _pickSearch=v; renderFoodPickList(); };
 function renderFoodPickList(){
   const q = (_pickSearch||'').trim();
+  const date = foodDate();
+  // この食事に追加済みのもの
+  const mine = (cache.meals[date]||[]).filter(e=>e.meal===_pickMeal);
+  const mineKcal = Math.round(mine.reduce((a,e)=>a+fnum(e.kcal),0));
+  const countOf = (id)=> mine.filter(e=>String(e.foodId)===String(id)).length;
+  const m = MEALS.find(x=>x.key===_pickMeal) || {label:''};
+  const addedHtml = mine.length ? `
+    <div style="background:#FFF4F6;border:1px solid #F3C9D2;border-radius:10px;padding:9px 11px;margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:#C2566B;margin-bottom:5px;">✓ ${m.label}に追加済み ${mine.length}件　計 ${mineKcal}kcal</div>
+      ${mine.map(e=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
+        <div style="flex:1;font-size:12px;font-weight:600;">${e.name}</div>
+        <div style="font-size:11px;color:var(--ink-soft);">${Math.round(fnum(e.kcal))}kcal</div>
+        <button onclick="removeMealEntry('${e.id}')" style="width:20px;height:20px;border:none;background:#fff;border-radius:50%;color:var(--ink-soft);cursor:pointer;font-size:11px;line-height:1;">×</button>
+      </div>`).join('')}
+    </div>` : '';
   let items = cache.foodMenus.slice();
   if(q) items = items.filter(i=>(i.name||'').includes(q));
-  const html = FOOD_CATS.map(c=>{
+  const listHtml = FOOD_CATS.map(c=>{
     const list = items.filter(i=>i.category===c.key);
     if(list.length===0) return '';
     return `<div style="font-size:11px;font-weight:700;color:var(--ink-soft);margin:10px 0 4px;">${c.icon} ${c.label}</div>`+
-      list.map(it=>`<div class="ptask-row" style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="addMealEntry('${it.id}')">
+      list.map(it=>{ const n=countOf(it.id);
+        return `<div class="ptask-row" style="display:flex;align-items:center;gap:8px;cursor:pointer;${n>0?'background:rgba(244,166,181,.08);':''}" onclick="addMealEntry('${it.id}')">
         <div style="flex:1;"><div style="font-size:13px;font-weight:600;">${it.name}</div>
         <div style="font-size:11px;color:var(--ink-soft);">${Math.round(fnum(it.kcal))}kcal ・ 糖${fnum(it.carbs)}g 脂${fnum(it.fat)}g</div></div>
+        ${n>0?`<div style="font-size:11px;font-weight:700;color:#fff;background:var(--pink);border-radius:10px;padding:2px 8px;">×${n}</div>`:''}
         <div style="font-size:20px;color:var(--pink);font-weight:700;line-height:1;">＋</div>
-      </div>`).join('');
+      </div>`;
+      }).join('');
   }).join('');
   const el = $('foodpick-list');
-  if(el) el.innerHTML = html || `<div class="empty-state"><div class="em-ico">🔍</div><div>該当する食材がありません</div><div style="font-size:11px;margin-top:4px;color:var(--ink-mute);">下のボタンから新規登録できます</div></div>`;
+  if(el) el.innerHTML = addedHtml + (listHtml || `<div class="empty-state"><div class="em-ico">🔍</div><div>該当する食材がありません</div><div style="font-size:11px;margin-top:4px;color:var(--ink-mute);">下のボタンから新規登録できます</div></div>`);
 }
+function refreshPickIfOpen(){ const m=$('ov-food-pick'); if(m && m.classList && m.classList.contains('on')) renderFoodPickList(); }
 window.addMealEntry = async function(foodId){
   const it = cache.foodMenus.find(x=>String(x.id)===String(foodId));
   if(!it) return;
@@ -1977,12 +1996,14 @@ window.addMealEntry = async function(foodId){
   if(!cache.meals[date]) cache.meals[date] = [];
   cache.meals[date].push({ id:'m'+Date.now()+'_'+(_foodSeq++), meal:_pickMeal, foodId:it.id, name:it.name, kcal:fnum(it.kcal), carbs:fnum(it.carbs), fat:fnum(it.fat), protein:fnum(it.protein) });
   await window.saveMealsFB(date);
-  renderFoodTab(); // 背面の合計を更新（モーダルは開いたまま）
+  refreshPickIfOpen();  // ピッカー内の「追加済み」と回数バッジを即更新
+  renderFoodTab();      // 背面の合計も更新（モーダルは開いたまま）
 };
 window.removeMealEntry = async function(id){
   const date = foodDate();
   cache.meals[date] = (cache.meals[date]||[]).filter(e=>String(e.id)!==String(id));
   await window.saveMealsFB(date);
+  refreshPickIfOpen();
   renderFoodTab();
 };
 window.openFoodAddFromPick = function(){
