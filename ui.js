@@ -1613,7 +1613,7 @@ window.saveWeightFromIdeal = async function(){
 // ============= FOOD MENU =============
 const FOOD_CATS = [
   { key:'main', label:'主食', icon:'🍱' },
-  { key:'snack', label:'間食', icon:'🍪' },
+  { key:'snack', label:'間食', icon:'🥚' },
   { key:'drink', label:'飲物', icon:'🥤' },
 ];
 const MEALS = [
