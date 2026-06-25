@@ -1599,6 +1599,14 @@ const MEALS = [
   { key:'dinner', label:'夕食', icon:'🌙' },
   { key:'snack', label:'間食', icon:'🍪' },
 ];
+// 運動による消費カロリー＋（タップで加算）
+const ACTIVITIES = [
+  { key:'run30', label:'30分ラン', kcal:250, icon:'🏃' },
+  { key:'run60', label:'60分ラン', kcal:500, icon:'🏃‍♂️' },
+  { key:'shoot', label:'撮影日', kcal:300, icon:'🎬' },
+];
+function activeActs(date){ return cache.activities[date] || []; }
+function activityBonus(date){ const a=activeActs(date); return ACTIVITIES.reduce((s,x)=>s+(a.includes(x.key)?x.kcal:0),0); }
 let _foodView = 'log';   // 'log'（今日の記録） | 'master'（食材リスト）
 let _foodCat = 'main';
 let _foodSearch = '';
@@ -1639,11 +1647,13 @@ function foodLogHTML(){
   const tp = fnum(cache.settings.targetProtein);
   const proteinMet = tp>0 && protein>=tp;
   const remaining = target - kcal;
-  const deficit = basal - kcal;
+  const today = getTodayDateString();
+  const actBonus = activityBonus(today);   // 運動による消費＋
+  const burn = basal + actBonus;            // 1日の総消費
+  const deficit = burn - kcal;              // 赤字 = 総消費 − 摂取
   const pct = target>0 ? Math.min(kcal/target*100, 100) : 0;
   const over = target>0 && kcal>target;
-  // 今日の目標（水分・筋トレ）
-  const today = getTodayDateString();
+  const acts = activeActs(today);
   const ml = fnum(cache.water[today]);
   const wMin = fnum(cache.settings.waterMinMl)||2500, wMax = fnum(cache.settings.waterMaxMl)||3000;
   const wpct = wMax>0 ? Math.min(ml/wMax*100, 100) : 0;
@@ -1665,7 +1675,7 @@ function foodLogHTML(){
       <span style="opacity:.9;">目標 ${target||'—'}</span>
     </div>
     ${basal>0 ? `<div style="background:rgba(255,255,255,.2);border-radius:8px;padding:9px 12px;font-size:12.5px;text-align:center;margin-top:10px;">
-      ${deficit>=0 ? `🔥 基礎代謝(${basal})に対し <span style="font-weight:700;">−${Math.round(deficit)} kcal</span> の赤字` : `⚠️ 基礎代謝(${basal})を ${Math.round(-deficit)} kcal 超過`}
+      ${deficit>=0 ? `🔥 消費 ${burn}kcal${actBonus?`(基礎${basal}+運動${actBonus})`:`(基礎代謝)`} に対し <span style="font-weight:700;">−${Math.round(deficit)} kcal</span> の赤字` : `⚠️ 消費 ${burn}kcal を ${Math.round(-deficit)} kcal 超過`}
     </div>` : ''}
     <div style="display:flex;gap:6px;margin-top:10px;">
       <div style="flex:1;background:rgba(255,255,255,.18);border-radius:8px;padding:6px;text-align:center;">
@@ -1702,6 +1712,14 @@ function foodLogHTML(){
     <div style="display:flex;justify-content:space-between;align-items:center;${_goalEdit?'margin-bottom:14px;':''}">
       <div style="font-size:13px;font-weight:600;">🏋️ 筋トレ <span style="color:var(--ink-soft);font-weight:600;">今週 ${wc}/${wpw}回</span>${wc>=wpw?' <span style="color:#37a76a;">✓</span>':''}</div>
       <button class="btn-sec" style="padding:9px 16px;${doneToday?'background:var(--pink);color:#fff;':''}" onclick="toggleWorkout()">${doneToday?'✓ 今日やった':'今日やった？'}</button>
+    </div>
+    <div style="border-top:1px solid var(--bdr);padding-top:12px;margin-top:14px;${_goalEdit?'margin-bottom:14px;':''}">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;">🔥 今日の運動${actBonus?` <span style="color:#FF7043;">消費＋${actBonus}kcal</span>`:''}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        ${ACTIVITIES.map(a=>{ const on=acts.includes(a.key);
+          return `<button class="btn-sec" style="flex:1;min-width:88px;padding:9px 4px;font-size:12px;${on?'background:#FF8A65;color:#fff;':''}" onclick="toggleActivity('${a.key}')">${on?'✓ ':''}${a.icon}${a.label}<br>+${a.kcal}</button>`;
+        }).join('')}
+      </div>
     </div>
     ${_goalEdit ? `
     <div style="display:flex;gap:8px;align-items:flex-end;border-top:1px solid var(--bdr);padding-top:12px;">
@@ -1757,6 +1775,14 @@ window.toggleWorkout = async function(){
   const date = getTodayDateString();
   if(cache.workouts[date]) delete cache.workouts[date]; else cache.workouts[date] = true;
   await window.toggleWorkoutFB(date);
+  renderFoodTab();
+};
+window.toggleActivity = async function(key){
+  const date = getTodayDateString();
+  let a = cache.activities[date] || [];
+  a = a.includes(key) ? a.filter(k=>k!==key) : [...a, key];
+  cache.activities[date] = a;
+  await window.saveActivitiesFB(date);
   renderFoodTab();
 };
 

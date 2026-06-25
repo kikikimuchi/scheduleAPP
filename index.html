@@ -262,7 +262,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v40</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v41</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -625,11 +625,12 @@ const COL = {
   meals: collection(db, 'schedule_meals'),
   water: collection(db, 'schedule_water'),
   workouts: collection(db, 'schedule_workouts'),
+  activities: collection(db, 'schedule_activities'),
 };
 
 // =================== CACHE ===================
 window.cache = {
-  settings: { startWeight:83, targetWeight:68, interimWeight:71.5, interimDate:'2026-09-15', startBodyFat:25, targetBodyFat:18, youtubeLongTarget:15, youtubeShortTarget:30, vanBudget:400000, gymDays:['月','木'], wakeTime:'10:00', targetSleepHours:8, calendarEmbedUrl:'', notifyEnabled:false, notifyEmail:'', notifyLeadMin:5, priorityOrder:[], targetCalories:1700, basalMetabolism:1600, targetProtein:160, waterMinMl:2500, waterMaxMl:3000, workoutPerWeek:2 },
+  settings: { startWeight:83, targetWeight:68, interimWeight:71.5, interimDate:'2026-09-15', startBodyFat:25, targetBodyFat:18, youtubeLongTarget:15, youtubeShortTarget:30, vanBudget:400000, gymDays:['月','木'], wakeTime:'10:00', targetSleepHours:8, calendarEmbedUrl:'', notifyEnabled:false, notifyEmail:'', notifyLeadMin:5, priorityOrder:[], targetCalories:1700, basalMetabolism:2200, targetProtein:160, waterMinMl:2500, waterMaxMl:3000, workoutPerWeek:2 },
   weights: [],
   dayModes: {},  // {'2026-05-14': 'normal'}
   wakeTimes: {}, // {'2026-05-14': '11:00'}
@@ -652,6 +653,7 @@ window.cache = {
   meals: {}, // {'2026-06-25': [{id, meal:'breakfast'|'lunch'|'dinner'|'snack', foodId, name, kcal, carbs, fat, protein}]}
   water: {}, // {'2026-06-25': 2000}  ml
   workouts: {}, // {'2026-06-25': true} 筋トレ実施日
+  activities: {}, // {'2026-06-25': ['run30','shoot']} 運動による消費＋
 };
 
 window.DEFAULT_MILESTONES = [
@@ -937,6 +939,12 @@ async function loadAll(){
       snap.docs.forEach(d=>{ cache.workouts[d.id] = true; });
     })());
 
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.activities);
+      cache.activities = {};
+      snap.docs.forEach(d=>{ cache.activities[d.id] = (d.data().active) || []; });
+    })());
+
     await Promise.all(tasks);
   } catch(e){ console.error(e); alert('データ読み込みエラー: '+e.message); }
   showLoading(false);
@@ -967,6 +975,11 @@ window.saveWaterFB = async (date)=>{
 window.toggleWorkoutFB = async (date)=>{
   if(cache.workouts[date]){ await setDoc(doc(COL.workouts,date), { date, v:true }); }
   else { await deleteDoc(doc(COL.workouts,date)); }
+};
+window.saveActivitiesFB = async (date)=>{
+  const active = cache.activities[date] || [];
+  if(active.length===0){ delete cache.activities[date]; await deleteDoc(doc(COL.activities,date)); }
+  else { cache.activities[date] = active; await setDoc(doc(COL.activities,date), { date, active }); }
 };
 window.saveDayMode = async (date, mode)=>{
   if(mode){ cache.dayModes[date] = mode; await setDoc(doc(COL.dayModes,date), {mode}); }
@@ -1083,6 +1096,6 @@ if(window.caches){ caches.keys().then(ks=>{ ks.forEach(k=>caches.delete(k)); }).
 </script>
 
 <!-- UI script -->
-<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=40"></script>
+<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=41"></script>
 </body>
 </html>
