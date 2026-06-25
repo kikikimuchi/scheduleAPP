@@ -1619,7 +1619,7 @@ const MEALS = [
   { key:'breakfast', label:'朝食', icon:'🌅' },
   { key:'lunch', label:'昼食', icon:'🍴' },
   { key:'dinner', label:'夕食', icon:'🌙' },
-  { key:'snack', label:'間食', icon:'🍪' },
+  { key:'snack', label:'間食', icon:'🥚' },
 ];
 // 運動による消費カロリー＋（タップで加算）
 const ACTIVITIES = [
