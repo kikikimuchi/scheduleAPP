@@ -190,14 +190,29 @@ function computeNightTasks(date){
   const customs = ((cache.nightCustom||{})[date] || []).map(t => ({key:`custom_${t.id}`, time: shiftTaskTime(t.time, shiftMin), label:t.label, icon: t.icon || guessIcon(t.label,'🌙'), custom:true, id:t.id}));
   return sortByTime([...nightTasks, ...customs]);
 }
+// 今この瞬間に進行中のタスクのkeyを返す（最後に始まったタスク＝次が始まるまで進行中）
+function activeTaskKey(tasks){
+  const now = new Date();
+  const nowMin = now.getHours()*60 + now.getMinutes();
+  const starts = tasks.map(t=>{ const s=parseTime(t.time); return (s==null)?null:s; });
+  const valid = starts.filter(s=>s!=null);
+  if(valid.length===0) return null;
+  const firstStart = Math.min(...valid);
+  // 早朝(初回タスク前)は深夜タスク(25:00等)の続きとみなして+24h
+  const N = nowMin >= firstStart ? nowMin : nowMin + 1440;
+  let key = null;
+  for(let i=0;i<tasks.length;i++){ if(starts[i]!=null && starts[i] <= N) key = tasks[i].key; }
+  return key;
+}
 // 1行のHTML（section: 'day' | 'night'）。date を各操作に引き渡す
-function taskRowHtml(date, t, section){
+function taskRowHtml(date, t, section, activeKey){
   const checkMap = section==='night' ? cache.nightChecks : cache.todayChecks;
   const checked = checkMap[`${date}_${t.key}`];
   const editFn  = section==='night' ? 'openEditNightTask' : 'openEditTask';
   const delFn   = section==='night' ? 'deleteNightTask'   : 'deleteTask';
   const checkFn = section==='night' ? 'onNightCheckClick'  : 'onTodayCheckClick';
-  const rowCls  = 'task-row' + (section==='night' ? ' night-row'+(checked?' on':'') : '');
+  const isNow   = activeKey!=null && t.key===activeKey && !checked; // 完了済みは強調しない
+  const rowCls  = 'task-row' + (section==='night' ? ' night-row'+(checked?' on':'') : '') + (isNow?' now':'');
   return `<div class="${rowCls}">
     <div class="task-main" onclick="${editFn}('${date}','${t.key}')">
       <div class="task-time">${t.time||'—'}</div>
@@ -280,12 +295,13 @@ window.renderToday = function(){
   if(wi && document.activeElement !== wi) wi.value = cache.wakeTimes[today] || '';
 
   const dayTasks = computeDayTasks(today);
+  const nightTasks = computeNightTasks(today);
+  const nowKey = activeTaskKey([...dayTasks, ...nightTasks]); // 昼夜まとめて「いま」を1つ特定
   $('task-list').innerHTML = dayTasks.length === 0
     ? '<div class="empty-state"><div class="em-ico">○</div><div style="font-size:11px;">タスクが設定されていません</div></div>'
-    : dayTasks.map(t => taskRowHtml(today, t, 'day')).join('');
+    : dayTasks.map(t => taskRowHtml(today, t, 'day', nowKey)).join('');
 
-  const nightTasks = computeNightTasks(today);
-  $('night-list').innerHTML = nightTasks.map(t => taskRowHtml(today, t, 'night')).join('');
+  $('night-list').innerHTML = nightTasks.map(t => taskRowHtml(today, t, 'night', nowKey)).join('');
   const nightDone = nightTasks.filter(t=>cache.nightChecks[`${today}_${t.key}`]).length;
   $('night-count').textContent = `${nightDone}/${nightTasks.length}`;
 
@@ -2220,4 +2236,12 @@ if(typeof document !== 'undefined' && document.addEventListener){
       t.classList.remove('on');
     }
   });
+  // 「いま進行中」の強調を1分ごとに更新（今日ページ表示中・入力中でないとき）
+  setInterval(function(){
+    const pg = document.getElementById('pg-today');
+    if(!(pg && pg.classList && pg.classList.contains('on') && window.renderToday)) return;
+    const ae = document.activeElement;
+    if(ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT')) return;
+    renderToday();
+  }, 60000);
 }

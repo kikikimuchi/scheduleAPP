@@ -94,6 +94,11 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 /* TASKS */
 .task-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bdr);}
 .task-row:last-child{border-bottom:none;}
+/* いま進行中のタスクを強調 */
+.task-row.now,.night-row.now{background:linear-gradient(90deg,rgba(244,166,181,.22),rgba(244,166,181,.06));border-radius:10px;padding:7px 8px;margin:1px -6px;border-bottom:none;box-shadow:0 0 0 1.5px rgba(244,166,181,.55) inset;}
+.task-row.now .task-label,.night-row.now .task-label{font-weight:800;}
+.task-row.now .task-time,.night-row.now .task-time{color:var(--pink);font-weight:700;}
+.task-row.now::after,.night-row.now::after{content:'NOW';font-size:8px;font-weight:800;color:#fff;background:var(--pink);border-radius:6px;padding:2px 5px;letter-spacing:.06em;flex-shrink:0;}
 .task-main{flex:1;display:flex;align-items:center;gap:8px;min-width:0;cursor:pointer;}
 .task-time{font-size:10px;color:var(--ink-mute);width:54px;letter-spacing:.04em;flex-shrink:0;}
 .task-icon{font-size:14px;flex-shrink:0;}
@@ -267,7 +272,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v56</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v57</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -1117,6 +1122,6 @@ if(window.caches){ caches.keys().then(ks=>{ ks.forEach(k=>caches.delete(k)); }).
 </script>
 
 <!-- UI script -->
-<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=56"></script>
+<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=57"></script>
 </body>
 </html>
