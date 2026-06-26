@@ -1732,6 +1732,8 @@ function foodLogHTML(){
     <div style="text-align:center;font-size:14px;font-weight:700;">${dateLabelJP(date)}${isToday?' <span style="font-size:11px;color:var(--pink);">今日</span>':`<button class="btn-sec" style="padding:3px 8px;font-size:10px;margin-left:6px;" onclick="goFoodToday()">今日へ</button>`}</div>
     <button class="btn-sec" style="padding:8px 12px;${isToday?'opacity:.35;':''}" onclick="shiftFoodDate(1)">翌日 →</button>
   </div>
+  <button class="btn-sec" id="food-shot-btn" style="width:100%;margin-bottom:10px;" onclick="downloadFoodShot(this)">📷 この記録を画像で保存</button>
+  <div id="food-capture" style="background:var(--bg);padding:1px 0;">
   <div class="hero-card hero-blue">
     <div style="font-size:16px;font-weight:700;margin-bottom:12px;">${isToday?'今日':dateLabelJP(date)}の摂取カロリー</div>
     <div style="display:flex;align-items:baseline;gap:6px;">
@@ -1834,8 +1836,39 @@ function foodLogHTML(){
         </div>`).join('')}
     </div>`;
   }).join('');
+  html += `</div>`; // #food-capture を閉じる
   return html;
 }
+// 食事記録(サマリー〜各食事)を1枚の画像にして保存／共有
+window.downloadFoodShot = async function(btn){
+  const el = document.getElementById('food-capture');
+  if(!el) return;
+  const label = btn ? btn.textContent : '';
+  if(btn){ btn.textContent = '画像を生成中…'; btn.disabled = true; }
+  try{
+    if(!window.html2canvas){
+      await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'; s.onload=res; s.onerror=()=>rej(new Error('読み込み失敗')); document.head.appendChild(s); });
+    }
+    const canvas = await window.html2canvas(el, { backgroundColor:getComputedStyle(document.body).backgroundColor||'#ffffff', scale:2, useCORS:true, logging:false });
+    const fname = `食事記録_${foodDate()}.png`;
+    const blob = await new Promise(r=>canvas.toBlob(r,'image/png'));
+    if(!blob) throw new Error('画像化失敗');
+    const file = new File([blob], fname, {type:'image/png'});
+    // iOS等：共有シートから「画像を保存」できる
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file], title:'食事記録'}); return; }
+      catch(e){ if(e && e.name==='AbortError') return; /* 共有不可なら下のDLへ */ }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download=fname;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  } catch(err){
+    alert('画像の保存に失敗しました: ' + (err && err.message || err));
+  } finally {
+    if(btn){ btn.textContent = label; btn.disabled = false; }
+  }
+};
 window.saveCalTargets = async function(){
   cache.settings.targetCalories = fnum($('cal-target').value);
   if($('cal-burn')) cache.settings.targetBurn = fnum($('cal-burn').value);
