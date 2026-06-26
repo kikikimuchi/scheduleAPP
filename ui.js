@@ -1304,11 +1304,10 @@ window.renderCalendar = function(){
     const wt = wmap[dateStr];
     const ran = (cache.activities[dateStr]||[]).some(a=>a==='run30'||a==='run60');
     const lifted = !!cache.workouts[dateStr];
-    const exEmoji = (ran?'🏃':'') + (lifted?'🏋️':'');
+    const icons = (mode?mode.icon:'') + (ran?'🏃':'') + (lifted?'🏋️':''); // モード＋運動を1行に
     cells += `<div class="${cls.join(' ')}" onclick="openDayDetail('${dateStr}')">
       <div class="cal-cell-day">${d}</div>
-      ${mode ? `<div class="cal-cell-icon">${mode.icon}</div>` : ''}
-      ${exEmoji ? `<div class="cal-cell-ex">${exEmoji}</div>` : ''}
+      ${icons ? `<div class="cal-cell-icons">${icons}</div>` : ''}
       ${wt!==undefined ? `<div class="cal-cell-wt">${wt.toFixed(1)}</div>` : ''}
     </div>`;
   }
