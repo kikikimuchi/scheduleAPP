@@ -1772,7 +1772,7 @@ function foodLogHTML(){
       </div>
     </div>
   </div>
-  <div class="card">
+  <div class="card" data-html2canvas-ignore="true">
     <div class="sec-h" style="display:flex;justify-content:space-between;align-items:center;">
       <div style="font-size:13px;">📌 今日の目標</div>
       <button class="btn-sec" style="padding:6px 12px;font-size:12px;" onclick="toggleGoalEdit()">${_goalEdit?'閉じる':'⚙️ 編集'}</button>
