@@ -267,7 +267,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v54</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v55</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -576,7 +576,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 </div></div></div>
 <div class="ov" id="ov-food-pick"><div class="modal"><div class="mhd"><div class="mttl" id="foodpick-title">食べたものを選ぶ</div><button class="mcl" onclick="closeModal('ov-food-pick')">×</button></div><div class="mbody">
   <input class="fi" type="text" id="foodpick-search" placeholder="🔍 名称で検索" oninput="onFoodPickSearch(this.value)">
-  <div id="foodpick-list" style="margin-top:12px;max-height:50vh;overflow-y:auto;"></div>
+  <div id="foodpick-list" style="margin-top:12px;height:50vh;overflow-y:auto;"></div>
   <button class="btn-sec" style="margin-top:10px;width:100%;" onclick="openFoodAddFromPick()">＋ 新しい食材を登録</button>
 </div></div></div>
 
@@ -1117,6 +1117,6 @@ if(window.caches){ caches.keys().then(ks=>{ ks.forEach(k=>caches.delete(k)); }).
 </script>
 
 <!-- UI script -->
-<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=54"></script>
+<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=55"></script>
 </body>
 </html>
