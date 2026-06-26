@@ -1722,6 +1722,8 @@ function foodLogHTML(){
   const wpct = wMax>0 ? Math.min(ml/wMax*100, 100) : 0;
   const wMet = ml>=wMin;
   const ws = weekStats(date);
+  const wkd = weekDeficitStats(date);
+  const wkdPct = wkd.target>0 ? Math.max(0, Math.min(wkd.achieved/wkd.target*100, 100)) : 0;
   const wpw = fnum(cache.settings.workoutPerWeek)||2;
   const rpw = fnum(cache.settings.runningPerWeek)||4;
   const restTarget = fnum(cache.settings.restPerWeek)||3;
@@ -1771,6 +1773,20 @@ function foodLogHTML(){
         <div style="font-size:14px;font-weight:700;">${protein.toFixed(0)}<span style="font-size:9px;">/${tp||'—'}g</span></div>
       </div>
     </div>
+  </div>
+  <div class="card">
+    <div class="sec-h" style="display:flex;justify-content:space-between;align-items:baseline;">
+      <div style="font-size:13px;">📅 今週の赤字</div>
+      <div style="font-size:11px;color:var(--ink-soft);">目標 ${wkd.target.toLocaleString()} kcal（${wkd.effDays}日分）</div>
+    </div>
+    <div style="display:flex;align-items:baseline;gap:6px;margin:2px 0 8px;">
+      <div style="font-size:26px;font-weight:800;color:#D67E8E;line-height:1;">${wkd.achieved.toLocaleString()}</div>
+      <div style="font-size:12px;color:var(--ink-soft);">kcal ・ 脂肪 約${(wkd.achieved/7700).toFixed(2)}kg相当</div>
+    </div>
+    <div style="height:11px;background:#F3E6EA;border-radius:6px;overflow:hidden;margin-bottom:6px;">
+      <div style="height:100%;width:${wkdPct.toFixed(0)}%;background:${wkd.achieved>=wkd.target?'#D98A9A':'#E9B8C2'};border-radius:6px;transition:width .2s;"></div>
+    </div>
+    <div style="font-size:11px;color:var(--ink-soft);text-align:center;">${wkd.achieved>=wkd.target ? `今週の目標 ${wkd.target.toLocaleString()}kcal 達成 🎉 美味しいもの食べてOK` : `あと <b style="color:#D67E8E;">${(wkd.target-wkd.achieved).toLocaleString()}</b> kcal で今週の目標`}</div>
   </div>
   <div class="card" data-html2canvas-ignore="true">
     <div class="sec-h" style="display:flex;justify-content:space-between;align-items:center;">
@@ -1895,6 +1911,27 @@ function weekStats(refDate){
     if(i<elapsed && (hasRun||hasWo)) active++;
   }
   return { run, wo, rest: Math.max(0, elapsed - active) };
+}
+// 今週(月〜日)の赤字積み上げ。記録のある日だけ (消費−摂取) を合計。目標は記録開始日以降の日数×1日分
+function weekDeficitStats(refDate){
+  const t = new Date((refDate||getTodayDateString())+'T00:00');
+  const dow = (t.getDay()+6)%7; // 月=0
+  const mon = new Date(t); mon.setDate(t.getDate()-dow);
+  const basal = fnum(cache.settings.basalMetabolism)||2200;
+  const weekly = fnum(cache.settings.targetWeeklyDeficit)||7700;
+  const dailyTarget = weekly/7;
+  const trackStart = cache.settings.trackStartDate || '2026-06-25';
+  let achieved = 0, effDays = 0;
+  for(let i=0;i<7;i++){
+    const d = new Date(mon); d.setDate(mon.getDate()+i); const k = ymd(d);
+    if(k >= trackStart) effDays++;                 // 目標にカウントする日（記録開始日以降）
+    const meals = cache.meals[k];
+    if(meals && meals.length){                      // 記録のある日だけ赤字を加算
+      const consumed = meals.reduce((a,e)=>a+fnum(e.kcal),0);
+      achieved += (basal + activityBonus(k)) - consumed;
+    }
+  }
+  return { achieved: Math.round(achieved), target: Math.round(effDays*dailyTarget), effDays };
 }
 window.addWater = async function(ml){
   const date = foodDate();
