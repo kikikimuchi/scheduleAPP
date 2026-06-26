@@ -1745,15 +1745,15 @@ function foodLogHTML(){
       <span>${remaining>=0 ? `あと ${Math.round(remaining)} kcal` : `${Math.round(-remaining)} kcal オーバー`}</span>
       <span style="opacity:.9;">目標 ${target||'—'}</span>
     </div>
-    ${basal>0 ? `<div style="background:#fff;border:2px solid #FF5A5A;border-radius:10px;padding:10px 12px;margin-top:10px;color:var(--ink);">
+    ${basal>0 ? `<div style="background:#FFF7F9;border:1.5px solid #ECC2CC;border-radius:10px;padding:10px 12px;margin-top:10px;color:var(--ink);">
       <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;font-weight:700;margin-bottom:6px;">
-        <span style="color:#E53935;">🔻 今日の赤字</span>
-        <span style="color:#9aa0a8;"><span style="font-weight:800;font-size:18px;color:#E53935;">${deficit>=0?'−':'+'}${Math.abs(Math.round(deficit))}</span> / 目標 −${targetDeficit} kcal</span>
+        <span style="color:#D67E8E;">🔻 今日の赤字</span>
+        <span style="color:#A99AA0;"><span style="font-weight:800;font-size:18px;color:#D67E8E;">${deficit>=0?'−':'+'}${Math.abs(Math.round(deficit))}</span> / 目標 −${targetDeficit} kcal</span>
       </div>
-      <div style="height:9px;background:#f1d6d6;border-radius:5px;overflow:hidden;margin-bottom:6px;">
-        <div style="height:100%;width:${defPct.toFixed(0)}%;background:${deficit>=targetDeficit?'#E53935':'#FF8A80'};border-radius:5px;transition:width .2s;"></div>
+      <div style="height:9px;background:#F3E6EA;border-radius:5px;overflow:hidden;margin-bottom:6px;">
+        <div style="height:100%;width:${defPct.toFixed(0)}%;background:${deficit>=targetDeficit?'#D98A9A':'#E9B8C2'};border-radius:5px;transition:width .2s;"></div>
       </div>
-      <div style="font-size:11px;color:var(--ink-soft);text-align:center;line-height:1.5;">消費 ${burn}（基礎${basal}${actBonus?`+運動${actBonus}`:''}）− 摂取 ${kcal}<br>${burn<targetBurn ? `目標消費 ${targetBurn} まで運動であと <b style="color:#E53935;">${targetBurn-burn}</b> kcal` : `目標消費 ${targetBurn} 達成 🎉`}${deficit>=targetDeficit?' ・ <b style="color:#E53935;">赤字目標クリア✓</b>':''}</div>
+      <div style="font-size:11px;color:var(--ink-soft);text-align:center;line-height:1.5;">消費 ${burn}（基礎${basal}${actBonus?`+運動${actBonus}`:''}）− 摂取 ${kcal}<br>${burn<targetBurn ? `目標消費 ${targetBurn} まで運動であと <b style="color:#D67E8E;">${targetBurn-burn}</b> kcal` : `目標消費 ${targetBurn} 達成 🎉`}${deficit>=targetDeficit?' ・ <b style="color:#D67E8E;">赤字目標クリア✓</b>':''}</div>
     </div>` : ''}
     <div style="display:flex;gap:6px;margin-top:10px;">
       <div style="flex:1;background:rgba(255,255,255,.18);border-radius:8px;padding:6px;text-align:center;">
