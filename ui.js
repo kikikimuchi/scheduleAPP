@@ -2211,3 +2211,13 @@ window.saveSettings = async function(){
   
   renderAll();
 };
+
+// ポップアップ（オーバーレイ）の外側＝背景部分をタップしたら閉じる（×ボタン以外でも閉じられる）
+if(typeof document !== 'undefined' && document.addEventListener){
+  document.addEventListener('click', function(e){
+    const t = e.target;
+    if(t && t.classList && t.classList.contains('ov') && t.classList.contains('on')){
+      t.classList.remove('on');
+    }
+  });
+}
