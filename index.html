@@ -275,7 +275,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v62</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v63</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -447,16 +447,16 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 
 <!-- PAGE: IDEAL -->
 <div class="pg" id="pg-ideal">
+  <div class="subtab-wrap" style="grid-template-columns:repeat(2,1fr);">
+    <button class="subtab on" onclick="setIdealTab('food')" data-it="food">🍱 食事</button>
+    <button class="subtab" onclick="setIdealTab('weight')" data-it="weight">⚖️ 体重</button>
+  </div>
+
   <div class="card" style="padding:0;overflow:hidden;">
     <div style="padding:6px 12px;display:flex;justify-content:flex-end;align-items:center;">
       <button class="btn-sec" style="padding:4px 10px;font-size:14px;" onclick="openInspirationAdd()">＋</button>
     </div>
     <div id="inspiration-content"></div>
-  </div>
-
-  <div class="subtab-wrap" style="grid-template-columns:repeat(2,1fr);">
-    <button class="subtab on" onclick="setIdealTab('food')" data-it="food">🍱 食事</button>
-    <button class="subtab" onclick="setIdealTab('weight')" data-it="weight">⚖️ 体重</button>
   </div>
 
   <div id="ideal-content"></div>
@@ -1142,6 +1142,6 @@ if(window.caches){ caches.keys().then(ks=>{ ks.forEach(k=>caches.delete(k)); }).
 </script>
 
 <!-- UI script -->
-<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=62"></script>
+<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=63"></script>
 </body>
 </html>
