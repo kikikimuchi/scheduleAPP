@@ -16,6 +16,12 @@ window.forceUpdate = async function(){
       await Promise.all(keys.map(k=>caches.delete(k)));
     }
   } catch(e){}
+  // 更新後に同じ画面へ戻れるよう現在のタブ等を保存
+  try {
+    const on = document.querySelector('.tb.on');
+    const tab = on ? on.getAttribute('data-tb') : 'today';
+    localStorage.setItem('restoreView', JSON.stringify({ tab, idealTab: _idealTab, foodView: _foodView }));
+  } catch(e){}
   // 一意なクエリでHTTPキャッシュを確実に回避して読み込み直す
   const base = location.href.split('#')[0].split('?')[0];
   location.replace(base + '?u=' + Date.now());
@@ -1479,7 +1485,7 @@ window.ddSelectMode = async function(key){
 };
 
 // ============= IDEAL PAGE =============
-let _idealTab = 'weight';
+let _idealTab = 'food';
 window.setIdealTab = function(t){
   _idealTab = t;
   document.querySelectorAll('[data-it]').forEach(b=>b.classList.toggle('on', b.dataset.it===t));
@@ -1705,6 +1711,8 @@ function foodLogHTML(){
   const basal = fnum(cache.settings.basalMetabolism);
   const tp = fnum(cache.settings.targetProtein);
   const proteinMet = tp>0 && protein>=tp;
+  const limitCarbs = fnum(cache.settings.limitCarbs)||145, limitFat = fnum(cache.settings.limitFat)||50;
+  const carbsOver = carbs>limitCarbs, fatOver = fat>limitFat;
   const remaining = target - kcal;
   const date = foodDate();
   const isToday = date === getTodayDateString();
@@ -1745,28 +1753,19 @@ function foodLogHTML(){
     <div style="height:10px;background:rgba(255,255,255,.25);border-radius:6px;overflow:hidden;margin:10px 0 8px;">
       <div style="height:100%;width:${pct.toFixed(0)}%;background:${over?'#FFB4B4':'#fff'};border-radius:6px;"></div>
     </div>
-    <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;">
+    <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;">
       <span>${remaining>=0 ? `あと ${Math.round(remaining)} kcal` : `${Math.round(-remaining)} kcal オーバー`}</span>
-      <span style="opacity:.9;">目標 ${target||'—'}</span>
+      ${basal>0 ? `<span>🔻 赤字 ${deficit>=0?'−':'+'}${Math.abs(Math.round(deficit))} kcal</span>` : `<span style="opacity:.9;">目標 ${target||'—'}</span>`}
     </div>
-    ${basal>0 ? `<div style="background:#FFF7F9;border:1.5px solid #ECC2CC;border-radius:10px;padding:10px 12px;margin-top:10px;color:var(--ink);">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;font-weight:700;margin-bottom:6px;">
-        <span style="color:#D67E8E;">🔻 今日の赤字</span>
-        <span style="color:#A99AA0;"><span style="font-weight:800;font-size:18px;color:#D67E8E;">${deficit>=0?'−':'+'}${Math.abs(Math.round(deficit))}</span> / 目標 −${targetDeficit} kcal</span>
-      </div>
-      <div style="height:9px;background:#F3E6EA;border-radius:5px;overflow:hidden;margin-bottom:6px;">
-        <div style="height:100%;width:${defPct.toFixed(0)}%;background:${deficit>=targetDeficit?'#D98A9A':'#E9B8C2'};border-radius:5px;transition:width .2s;"></div>
-      </div>
-      <div style="font-size:11px;color:var(--ink-soft);text-align:center;line-height:1.5;">消費 ${burn}（基礎${basal}${actBonus?`+運動${actBonus}`:''}）− 摂取 ${kcal}<br>${burn<targetBurn ? `目標消費 ${targetBurn} まで運動であと <b style="color:#D67E8E;">${targetBurn-burn}</b> kcal` : `目標消費 ${targetBurn} 達成 🎉`}${deficit>=targetDeficit?' ・ <b style="color:#D67E8E;">赤字目標クリア✓</b>':''}</div>
-    </div>` : ''}
+    ${basal>0 ? `<div style="font-size:10.5px;opacity:.85;margin-top:4px;">消費 ${burn}（基礎${basal}${actBonus?`+運動${actBonus}`:''}）− 摂取 ${kcal}${burn<targetBurn?` ／ 目標消費まで運動であと ${targetBurn-burn}`:` ／ 目標消費 ${targetBurn} 達成🎉`}</div>` : ''}
     <div style="display:flex;gap:6px;margin-top:10px;">
-      <div style="flex:1;background:rgba(255,255,255,.18);border-radius:8px;padding:6px;text-align:center;">
-        <div style="font-size:10px;opacity:.85;">糖質</div>
-        <div style="font-size:14px;font-weight:700;">${carbs.toFixed(1)}<span style="font-size:9px;">g</span></div>
+      <div style="flex:1;background:${carbsOver?'rgba(255,150,150,.35)':'rgba(255,255,255,.18)'};border-radius:8px;padding:6px;text-align:center;">
+        <div style="font-size:10px;opacity:.85;">糖質${carbsOver?' ⚠️':''}</div>
+        <div style="font-size:14px;font-weight:700;">${carbs.toFixed(1)}<span style="font-size:9px;">/${limitCarbs}g</span></div>
       </div>
-      <div style="flex:1;background:rgba(255,255,255,.18);border-radius:8px;padding:6px;text-align:center;">
-        <div style="font-size:10px;opacity:.85;">脂質</div>
-        <div style="font-size:14px;font-weight:700;">${fat.toFixed(1)}<span style="font-size:9px;">g</span></div>
+      <div style="flex:1;background:${fatOver?'rgba(255,150,150,.35)':'rgba(255,255,255,.18)'};border-radius:8px;padding:6px;text-align:center;">
+        <div style="font-size:10px;opacity:.85;">脂質${fatOver?' ⚠️':''}</div>
+        <div style="font-size:14px;font-weight:700;">${fat.toFixed(1)}<span style="font-size:9px;">/${limitFat}g</span></div>
       </div>
       <div style="flex:1;background:${proteinMet?'rgba(130,235,170,.4)':'rgba(255,255,255,.18)'};border-radius:8px;padding:6px;text-align:center;">
         <div style="font-size:10px;opacity:.85;">タンパク質${proteinMet?' ✓':''}</div>
@@ -1793,19 +1792,7 @@ function foodLogHTML(){
       <div style="font-size:13px;">📌 今日の目標</div>
       <button class="btn-sec" style="padding:6px 12px;font-size:12px;" onclick="toggleGoalEdit()">${_goalEdit?'閉じる':'⚙️ 編集'}</button>
     </div>
-    <div style="margin-bottom:14px;">
-      <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:6px;">
-        <span>💧 水分 ${wMet?'<span style="color:#3FA7D6;">✓</span>':''}</span>
-        <span>${(ml/1000).toFixed(2)} / ${(wMin/1000).toFixed(1)}〜${(wMax/1000).toFixed(1)}L</span>
-      </div>
-      <div style="height:8px;background:#eef1f3;border-radius:5px;overflow:hidden;margin-bottom:8px;"><div style="height:100%;width:${wpct.toFixed(0)}%;background:#5BB7E8;border-radius:5px;transition:width .2s;"></div></div>
-      <div style="display:flex;gap:6px;">
-        <button class="btn-sec" style="flex:1;padding:9px;" onclick="addWater(200)">＋コップ 200</button>
-        <button class="btn-sec" style="flex:1;padding:9px;" onclick="addWater(500)">＋ボトル 500</button>
-        <button class="btn-sec" style="padding:9px 14px;" onclick="addWater(-200)">−</button>
-      </div>
-    </div>
-    <div style="border-top:1px solid var(--bdr);padding-top:12px;margin-top:14px;${_goalEdit?'margin-bottom:14px;':''}">
+    <div style="${_goalEdit?'margin-bottom:14px;':''}">
       <div style="display:flex;justify-content:space-around;text-align:center;margin-bottom:14px;">
         <div><div style="font-size:10px;color:var(--ink-soft);">🏃 ランニング</div><div style="font-size:16px;font-weight:700;${ws.run>=rpw?'color:#37a76a;':''}">${ws.run}<span style="font-size:10px;color:var(--ink-soft);font-weight:600;">/${rpw}回</span></div></div>
         <div><div style="font-size:10px;color:var(--ink-soft);">🏋️ 筋トレ</div><div style="font-size:16px;font-weight:700;${ws.wo>=wpw?'color:#37a76a;':''}">${ws.wo}<span style="font-size:10px;color:var(--ink-soft);font-weight:600;">/${wpw}回</span></div></div>

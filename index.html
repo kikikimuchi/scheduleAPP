@@ -30,6 +30,9 @@ input,textarea,select{font-size:16px!important;}
 
 /* HEADER */
 #header{position:sticky;top:0;left:0;right:0;background:rgba(250,250,250,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--bdr);padding:14px 20px;z-index:100;display:flex;align-items:center;justify-content:space-between;}
+/* 理想ページではヘッダ（日付・版数・残り日数）を隠す */
+body.hide-header #header{display:none;}
+body.hide-header #pg-ideal{padding-top:calc(14px + env(safe-area-inset-top,12px));}
 .hd-year{font-size:10px;letter-spacing:.22em;color:var(--ink-mute);margin-bottom:2px;}
 .hd-date{font-size:20px;font-weight:700;letter-spacing:.08em;}
 .hd-day{font-size:12px;color:var(--ink-soft);margin-left:6px;}
@@ -272,7 +275,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v61</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v62</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -444,18 +447,18 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 
 <!-- PAGE: IDEAL -->
 <div class="pg" id="pg-ideal">
-  <div class="subtab-wrap" style="grid-template-columns:repeat(2,1fr);">
-    <button class="subtab on" onclick="setIdealTab('weight')" data-it="weight">⚖️ 体重</button>
-    <button class="subtab" onclick="setIdealTab('food')" data-it="food">🍱 食事</button>
-  </div>
-  
   <div class="card" style="padding:0;overflow:hidden;">
     <div style="padding:6px 12px;display:flex;justify-content:flex-end;align-items:center;">
       <button class="btn-sec" style="padding:4px 10px;font-size:14px;" onclick="openInspirationAdd()">＋</button>
     </div>
     <div id="inspiration-content"></div>
   </div>
-  
+
+  <div class="subtab-wrap" style="grid-template-columns:repeat(2,1fr);">
+    <button class="subtab on" onclick="setIdealTab('food')" data-it="food">🍱 食事</button>
+    <button class="subtab" onclick="setIdealTab('weight')" data-it="weight">⚖️ 体重</button>
+  </div>
+
   <div id="ideal-content"></div>
 </div>
 
@@ -526,13 +529,13 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l-2.34 4.74L4 8.86l4.17 4.06L7.18 18.91 12 16.27l4.82 2.64-.99-5.99L20 8.86l-5.66-1.12L12 3z"/></svg>
     今日
   </button>
-  <button class="tb" data-tb="projects" onclick="setTab('projects')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>
-    案件
-  </button>
   <button class="tb" data-tb="ideal" onclick="setTab('ideal')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/></svg>
     理想
+  </button>
+  <button class="tb" data-tb="projects" onclick="setTab('projects')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>
+    案件
   </button>
   <button class="tb" data-tb="calendar" onclick="setTab('calendar')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
@@ -642,7 +645,7 @@ const COL = {
 
 // =================== CACHE ===================
 window.cache = {
-  settings: { startWeight:83, targetWeight:68, interimWeight:71.5, interimDate:'2026-09-15', startBodyFat:25, targetBodyFat:18, youtubeLongTarget:15, youtubeShortTarget:30, vanBudget:400000, gymDays:['月','木'], wakeTime:'10:00', targetSleepHours:8, calendarEmbedUrl:'', notifyEnabled:false, notifyEmail:'', notifyLeadMin:5, priorityOrder:[], targetCalories:1700, basalMetabolism:2200, targetBurn:2700, targetProtein:160, waterMinMl:2500, waterMaxMl:3000, workoutPerWeek:2, runningPerWeek:4, restPerWeek:3, targetWeeklyDeficit:7700, trackStartDate:'2026-06-25' },
+  settings: { startWeight:83, targetWeight:68, interimWeight:71.5, interimDate:'2026-09-15', startBodyFat:25, targetBodyFat:18, youtubeLongTarget:15, youtubeShortTarget:30, vanBudget:400000, gymDays:['月','木'], wakeTime:'10:00', targetSleepHours:8, calendarEmbedUrl:'', notifyEnabled:false, notifyEmail:'', notifyLeadMin:5, priorityOrder:[], targetCalories:1700, basalMetabolism:2200, targetBurn:2700, targetProtein:160, waterMinMl:2500, waterMaxMl:3000, workoutPerWeek:2, runningPerWeek:4, restPerWeek:3, targetWeeklyDeficit:7700, trackStartDate:'2026-06-25', limitCarbs:145, limitFat:50 },
   weights: [],
   dayModes: {},  // {'2026-05-14': 'normal'}
   wakeTimes: {}, // {'2026-05-14': '11:00'}
@@ -1108,10 +1111,27 @@ window.setTab = function(tab){
   $('pg-'+tab).classList.add('on');
   document.querySelectorAll('.tb').forEach(t=>t.classList.remove('on'));
   document.querySelector(`.tb[data-tb="${tab}"]`).classList.add('on');
+  document.body.classList.toggle('hide-header', tab==='ideal'); // 理想ページのみヘッダ非表示
   window.scrollTo(0, 0);
 };
 
-init();
+init().then(()=>{
+  // 更新ボタンからのリロード時は元の画面へ戻す
+  try {
+    const rv = localStorage.getItem('restoreView');
+    if(rv){
+      localStorage.removeItem('restoreView');
+      const v = JSON.parse(rv);
+      if(v && v.tab && document.getElementById('pg-'+v.tab)){
+        setTab(v.tab);
+        if(v.tab==='ideal'){
+          if(window.setIdealTab) setIdealTab(v.idealTab || 'food');
+          if(v.foodView && window.setFoodView) setFoodView(v.foodView);
+        }
+      }
+    }
+  } catch(e){}
+});
 
 // Service Worker は更新不具合の原因だったため廃止。
 // 既存のSW登録とキャッシュを毎回除去する（自己修復：一度開けば古いSWが消える）
@@ -1122,6 +1142,6 @@ if(window.caches){ caches.keys().then(ks=>{ ks.forEach(k=>caches.delete(k)); }).
 </script>
 
 <!-- UI script -->
-<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=61"></script>
+<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=62"></script>
 </body>
 </html>
