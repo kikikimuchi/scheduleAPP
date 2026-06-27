@@ -499,6 +499,7 @@ window.openEditTask = function(date, key){
   $('te-icon').value = t.icon || '';
   // モードタスクで上書き済みのものだけ「デフォルトに戻す」を表示
   $('te-reset-btn').style.display = (!t.custom && t.edited) ? 'block' : 'none';
+  if($('te-shift-after')) $('te-shift-after').checked = false; // 既定はチェックなし
   openModal('ov-task-edit');
 };
 window.saveTaskEdit = async function(){
@@ -511,7 +512,12 @@ window.saveTaskEdit = async function(){
   // → これで名称変更だけしても起床シフト連動が維持される（二重シフトも防ぐ）
   const modeKey = cache.dayModes[date] || 'normal';
   const shiftMin = getShiftMin(date, modeKey);
-  const time = shiftTaskTime(resolveEditTime(), -shiftMin);
+  const newDisplay = resolveEditTime();
+  const time = shiftTaskTime(newDisplay, -shiftMin);
+  // 「以降のタスクも連動」用に、表示時刻の変化量(delta)を捕捉
+  const shiftAfter = $('te-shift-after') && $('te-shift-after').checked;
+  const origMin = parseTime(_origTime), newMin = parseTime(newDisplay);
+  const delta = (origMin!=null && newMin!=null) ? (newMin - origMin) : 0;
   if(raw.startsWith('night:')){
     const key = raw.slice('night:'.length);
     if(key.startsWith('custom_')){
@@ -530,9 +536,46 @@ window.saveTaskEdit = async function(){
     cache.taskOverrides[date] = {...(cache.taskOverrides[date]||{}), [raw]:{time,label,icon}};
     await saveOverridesFB(date);
   }
+  // チェック時：このタスクより後ろの同じ区分のタスクを同じだけ後ろ倒し/前倒し
+  if(shiftAfter && delta!==0 && origMin!=null){
+    const section = raw.startsWith('night:') ? 'night' : 'day';
+    const editedKey = raw.startsWith('night:') ? raw.slice('night:'.length) : raw;
+    await shiftSubsequentTasks(date, section, origMin, delta, editedKey);
+  }
   closeModal('ov-task-edit');
   afterScheduleChange();
 };
+// 指定区分(day/night)で、afterMin より後ろのタスクを delta 分だけ時刻シフト（基準時刻に加算して保存）
+async function shiftSubsequentTasks(date, section, afterMin, delta, excludeKey){
+  const shiftMin = getShiftMin(date, cache.dayModes[date]||'normal');
+  const tasks = section==='night' ? computeNightTasks(date) : computeDayTasks(date);
+  let touchOv=false, touchCustom=false, touchNightCustom=false;
+  tasks.forEach(t=>{
+    if(t.key===excludeKey) return;
+    const v = parseTime(t.time);
+    if(v===null || v>=1440) return;   // 特殊表記/深夜固定は動かさない
+    if(v <= afterMin) return;          // 編集タスクより前は対象外
+    const newBase = adjustTime(shiftTaskTime(t.time, -shiftMin), delta); // 基準時刻に delta 加算
+    if(section==='night'){
+      if(t.key.startsWith('custom_')){
+        const id = Number(t.key.slice('custom_'.length));
+        cache.nightCustom[date] = (cache.nightCustom[date]||[]).map(x=>x.id===id?{...x,time:newBase}:x); touchNightCustom=true;
+      } else {
+        cache.nightOverrides[date] = {...(cache.nightOverrides[date]||{}), [t.key]:{time:newBase,label:t.label,icon:t.icon}}; touchOv=true;
+      }
+    } else {
+      if(t.key.startsWith('custom_')){
+        const id = Number(t.key.slice('custom_'.length));
+        cache.customTasks[date] = (cache.customTasks[date]||[]).map(x=>x.id===id?{...x,time:newBase}:x); touchCustom=true;
+      } else {
+        cache.taskOverrides[date] = {...(cache.taskOverrides[date]||{}), [t.key]:{time:newBase,label:t.label,icon:t.icon}}; touchOv=true;
+      }
+    }
+  });
+  if(touchOv) await saveOverridesFB(date);
+  if(touchCustom) await saveCustomTasksFB(date, cache.customTasks[date]||[]);
+  if(touchNightCustom) await saveNightCustomFB(date, cache.nightCustom[date]||[]);
+}
 window.resetTaskEdit = async function(){
   const raw = $('te-key').value;
   const date = _editDate || getTodayDateString();
@@ -578,6 +621,7 @@ window.openEditNightTask = function(date, key){
   $('te-label').value = t.label || '';
   $('te-icon').value = t.icon || '';
   $('te-reset-btn').style.display = (!t.custom && t.edited) ? 'block' : 'none';
+  if($('te-shift-after')) $('te-shift-after').checked = false;
   openModal('ov-task-edit');
 };
 window.deleteNightTask = function(date, key){
