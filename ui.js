@@ -1727,7 +1727,7 @@ function renderWeightTab(){
         const daysTo = Math.round((photo - today)/86400000);
         const kgPerDay = av.days>0 ? av.avg/7700 : (td.dayNum>0 ? td.fatKg/td.dayNum : 0);
         const proj = latest - kgPerDay*Math.max(daysTo,0);
-        return `<div style="font-size:11px;font-weight:700;color:#D67E8E;text-align:center;background:#FFF4F6;border:1px solid #F0D2D9;border-radius:8px;padding:7px 8px;margin-bottom:8px;line-height:1.6;">🔥 ダイエット${td.dayNum}日目<br>累計赤字 <span style="font-size:13px;">${td.total.toLocaleString()}</span> kcal ・ 脂肪 約 <span style="font-size:13px;">${td.fatKg.toFixed(2)}</span> kg分<br>前日までの赤字平均 ${av.days>0 ? `<span style="font-size:13px;">${Math.round(av.avg).toLocaleString()}</span> kcal/日（${av.days}日分）` : '集計中'}${daysTo>0 ? `<br>📷 このペースなら 9/19に <span style="font-size:14px;">約${proj.toFixed(1)}</span> kg！` : ''}</div>`; })()}
+        return `<div style="font-size:11px;font-weight:700;color:#D67E8E;text-align:center;background:#FFF4F6;border:1px solid #F0D2D9;border-radius:8px;padding:7px 8px;margin-bottom:8px;line-height:1.6;">🔥 ダイエット${td.dayNum}日目<br>累計赤字（前日まで） <span style="font-size:13px;">${td.total.toLocaleString()}</span> kcal ・ 脂肪 約 <span style="font-size:13px;">${td.fatKg.toFixed(2)}</span> kg分<br>前日までの赤字平均 ${av.days>0 ? `<span style="font-size:13px;">${Math.round(av.avg).toLocaleString()}</span> kcal/日（${av.days}日分）` : '集計中'}${daysTo>0 ? `<br>📷 このペースなら 9/19に <span style="font-size:14px;">約${proj.toFixed(1)}</span> kg！` : ''}</div>`; })()}
       <div onclick="openWeekWeightChart()" style="cursor:pointer;">${weightChartSvg()}</div>
       ${cache.weights.length === 0 ? '<div class="empty-state"><div class="em-ico">📈</div><div>記録がありません</div></div>' :
         cache.weights.slice().reverse().slice(0,30).map(e=>`<div class="ptask-row">
@@ -1891,7 +1891,7 @@ function foodLogHTML(){
   </div>
   <div class="card">
     <div class="sec-h" style="display:flex;justify-content:space-between;align-items:baseline;">
-      <div style="font-size:13px;">📅 今週の赤字</div>
+      <div style="font-size:13px;">📅 今週の赤字<span style="font-size:10px;color:var(--ink-soft);font-weight:600;">（前日まで）</span></div>
       <div style="font-size:11px;color:var(--ink-soft);">目標 ${wkd.target.toLocaleString()} kcal（${wkd.effDays}日分）</div>
     </div>
     <div style="display:flex;align-items:baseline;gap:6px;margin:2px 0 8px;">
@@ -2024,12 +2024,13 @@ function weekDeficitStats(refDate){
   const weekly = fnum(cache.settings.targetWeeklyDeficit)||7700;
   const dailyTarget = weekly/7;
   const trackStart = cache.settings.trackStartDate || '2026-06-25';
+  const today = getTodayDateString();
   let achieved = 0, effDays = 0;
   for(let i=0;i<7;i++){
     const d = new Date(mon); d.setDate(mon.getDate()+i); const k = ymd(d);
     if(k >= trackStart) effDays++;                 // 目標にカウントする日（記録開始日以降）
     const meals = cache.meals[k];
-    if(meals && meals.length){                      // 記録のある日だけ赤字を加算
+    if(meals && meals.length && k>=trackStart && k < today){ // 開始日以降かつ前日までの記録のみ加算（今日は途中なので除外）
       const consumed = meals.reduce((a,e)=>a+fnum(e.kcal),0);
       achieved += (basal + activityBonus(k)) - consumed;
     }
@@ -2044,7 +2045,7 @@ function totalDeficitStats(){
   const dayNum = Math.max(1, Math.floor((new Date(today+'T00:00') - new Date(start+'T00:00'))/86400000) + 1);
   let total = 0, loggedDays = 0;
   Object.keys(cache.meals||{}).forEach(d=>{
-    if(d>=start && d<=today && cache.meals[d] && cache.meals[d].length){
+    if(d>=start && d<today && cache.meals[d] && cache.meals[d].length){ // 今日は途中なので除外（前日まで）
       const consumed = cache.meals[d].reduce((a,e)=>a+fnum(e.kcal),0);
       total += (basal + activityBonus(d)) - consumed;
       loggedDays++;
