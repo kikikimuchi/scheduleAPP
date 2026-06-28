@@ -275,7 +275,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v64</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v65</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -581,6 +581,14 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
     <div style="flex:1;"><label class="fl">タンパク質(g)</label><input class="fi no-spinner" type="number" inputmode="decimal" id="food-protein" placeholder="g"></div>
   </div>
   <button class="btn-pri" id="food-save-btn" style="margin-top:14px;" onclick="saveFoodItem()">保存</button>
+</div></div></div>
+<div class="ov" id="ov-week-weight"><div class="modal"><div class="mhd"><div class="mttl">週別の体重</div><button class="mcl" onclick="closeModal('ov-week-weight')">×</button></div><div class="mbody">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+    <button class="btn-sec" style="padding:8px 12px;" onclick="shiftWeekChart(-1)">← 前の週</button>
+    <div style="text-align:center;"><div id="ww-range" style="font-size:13px;font-weight:700;">—</div><div id="ww-summary" style="font-size:11px;color:var(--ink-soft);">—</div></div>
+    <button class="btn-sec" id="ww-next" style="padding:8px 12px;" onclick="shiftWeekChart(1)">翌週 →</button>
+  </div>
+  <div id="ww-chart"></div>
 </div></div></div>
 <div class="ov" id="ov-food-pick"><div class="modal"><div class="mhd"><div class="mttl" id="foodpick-title">食べたものを選ぶ</div><button class="mcl" onclick="closeModal('ov-food-pick')">×</button></div><div class="mbody">
   <input class="fi" type="text" id="foodpick-search" placeholder="🔍 名称で検索" oninput="onFoodPickSearch(this.value)">
@@ -1142,6 +1150,6 @@ if(window.caches){ caches.keys().then(ks=>{ ks.forEach(k=>caches.delete(k)); }).
 </script>
 
 <!-- UI script -->
-<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=64"></script>
+<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=65"></script>
 </body>
 </html>

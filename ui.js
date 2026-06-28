@@ -1622,6 +1622,66 @@ function weightChartSvg(){
     ${xlabels}
   </svg>`;
 }
+
+// ===== 週別の体重グラフ（タップで開く・週ごとに遡れる） =====
+let _weekChartStart = null; // 表示中の週の月曜(YYYY-MM-DD)
+function mondayOf(dateStr){
+  const t = new Date(dateStr+'T00:00');
+  const dow = (t.getDay()+6)%7; // 月=0
+  t.setDate(t.getDate()-dow);
+  return ymd(t);
+}
+window.openWeekWeightChart = function(){
+  _weekChartStart = mondayOf(getTodayDateString());
+  renderWeekWeightChart();
+  openModal('ov-week-weight');
+};
+window.shiftWeekChart = function(n){
+  if(!_weekChartStart) return;
+  const next = shiftYmd(_weekChartStart, n*7);
+  if(n>0 && next > mondayOf(getTodayDateString())) return; // 今週より先には行かない
+  _weekChartStart = next;
+  renderWeekWeightChart();
+};
+function renderWeekWeightChart(){
+  const mon = _weekChartStart;
+  const days = []; for(let i=0;i<7;i++) days.push(shiftYmd(mon,i));
+  const sun = days[6];
+  const isThisWeek = mon === mondayOf(getTodayDateString());
+  const wmap = {}; cache.weights.forEach(e=>{ wmap[e.date]=e.weight; });
+  const pts = days.map((d,i)=>({i, d, w: wmap[d]})).filter(p=>p.w!=null);
+  // ヘッダ
+  if($('ww-range')) $('ww-range').textContent = `${dateLabelJP(mon)} 〜 ${dateLabelJP(sun)}`;
+  if($('ww-next')) $('ww-next').style.opacity = isThisWeek ? '.35' : '1';
+  // 週内の増減
+  let summary = '記録なし';
+  if(pts.length>=1){
+    const first=pts[0].w, last=pts[pts.length-1].w, diff=last-first;
+    summary = `${pts.length}件 ・ ${pts.length>=2?`${diff>=0?'+':''}${diff.toFixed(1)}kg`:`${last.toFixed(1)}kg`}`;
+  }
+  if($('ww-summary')) $('ww-summary').textContent = summary;
+  // SVG
+  const W=320,H=150,padL=34,padR=14,padTop=14,padBot=24;
+  const wd=['月','火','水','木','金','土','日'];
+  const X = i => padL + (W-padL-padR)*(i/6);
+  let svg;
+  if(pts.length===0){
+    svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;"><text x="${W/2}" y="${H/2}" text-anchor="middle" font-size="12" fill="#aab0b8">この週は記録がありません</text>${wd.map((d,i)=>`<text x="${X(i).toFixed(1)}" y="${H-7}" text-anchor="middle" font-size="9" fill="#9aa0a8">${d}</text>`).join('')}</svg>`;
+  } else {
+    const ws = pts.map(p=>p.w);
+    let min=Math.min(...ws), max=Math.max(...ws);
+    if(max-min<0.6){ min-=0.5; max+=0.5; }
+    const pad=(max-min)*0.12; min-=pad; max+=pad; const rng=max-min;
+    const Y = v => padTop + (H-padTop-padBot)*(1-(v-min)/rng);
+    const line = pts.map(p=>`${X(p.i).toFixed(1)},${Y(p.w).toFixed(1)}`).join(' ');
+    const grid = [max-pad, min+pad].map(v=>`<line x1="${padL}" y1="${Y(v).toFixed(1)}" x2="${W-padR}" y2="${Y(v).toFixed(1)}" stroke="#eceef1" stroke-width="1"/><text x="${(padL-4).toFixed(1)}" y="${(Y(v)+3).toFixed(1)}" text-anchor="end" font-size="9" fill="#aab0b8">${v.toFixed(1)}</text>`).join('');
+    const dots = pts.map(p=>`<circle cx="${X(p.i).toFixed(1)}" cy="${Y(p.w).toFixed(1)}" r="3.2" fill="#E07A91"/><text x="${X(p.i).toFixed(1)}" y="${(Y(p.w)-7).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="#DE6E87">${p.w.toFixed(1)}</text>`).join('');
+    const xlabels = wd.map((d,i)=>`<text x="${X(i).toFixed(1)}" y="${H-7}" text-anchor="middle" font-size="9" fill="${i>=5?'#c79aa6':'#9aa0a8'}">${d}</text>`).join('');
+    svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;overflow:visible;">${grid}${pts.length>=2?`<polyline points="${line}" fill="none" stroke="#E07A91" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>`:''}${dots}${xlabels}</svg>`;
+  }
+  if($('ww-chart')) $('ww-chart').innerHTML = svg;
+}
+
 function renderWeightTab(){
   const latest = cache.weights.length>0 ? cache.weights[cache.weights.length-1] : null;
   const w = latest ? latest.weight : cache.settings.startWeight;
@@ -1655,8 +1715,8 @@ function renderWeightTab(){
       ${remaining > 0 ? `<div style="background:rgba(255,255,255,.2);border-radius:8px;padding:8px 12px;font-size:12px;text-align:center;">📅 ${goal.label}までに <span style="font-weight:700;">${goal.weight}kg</span>（週 ${weeklyPace.toFixed(2)}kg・あと${daysLeft}日）</div>` : `<div style="background:rgba(255,255,255,.2);border-radius:8px;padding:8px 12px;font-size:12px;text-align:center;">${goal.label}の目標達成 🎉 次は最終 ${cache.settings.targetWeight}kg へ</div>`}
     </div>
     <div class="card">
-      <div class="sec-h">推移</div>
-      ${weightChartSvg()}
+      <div class="sec-h" style="display:flex;justify-content:space-between;align-items:center;">推移${cache.weights.length>=1?'<span style="font-size:10px;color:var(--ink-soft);font-weight:600;">タップで週別 ▸</span>':''}</div>
+      <div onclick="openWeekWeightChart()" style="cursor:pointer;">${weightChartSvg()}</div>
       ${cache.weights.length === 0 ? '<div class="empty-state"><div class="em-ico">📈</div><div>記録がありません</div></div>' :
         cache.weights.slice().reverse().slice(0,30).map(e=>`<div class="ptask-row">
           <div style="flex:1;font-size:12px;">${e.date}</div>
