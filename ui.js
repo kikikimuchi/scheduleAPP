@@ -1716,14 +1716,14 @@ function renderWeightTab(){
     </div>
     <div class="card">
       <div class="sec-h" style="display:flex;justify-content:space-between;align-items:center;">推移${cache.weights.length>=1?'<span style="font-size:10px;color:var(--ink-soft);font-weight:600;">タップで週別 ▸</span>':''}</div>
-      ${(()=>{ const td=totalDeficitStats();
+      ${(()=>{ const td=totalDeficitStats(); const av=deficitAvgThroughYesterday();
         const latest = cache.weights.length ? cache.weights[cache.weights.length-1].weight : fnum(cache.settings.startWeight);
         const today = new Date(getTodayDateString()+'T00:00');
         const photo = new Date(today.getFullYear(), 8, 19); // 9/19
         const daysTo = Math.round((photo - today)/86400000);
-        const ratePerDay = td.dayNum>0 ? td.fatKg/td.dayNum : 0;
-        const proj = latest - ratePerDay*Math.max(daysTo,0);
-        return `<div style="font-size:11px;font-weight:700;color:#D67E8E;text-align:center;background:#FFF4F6;border:1px solid #F0D2D9;border-radius:8px;padding:7px 8px;margin-bottom:8px;line-height:1.6;">🔥 ダイエット${td.dayNum}日目<br>累計赤字 <span style="font-size:13px;">${td.total.toLocaleString()}</span> kcal ・ 脂肪 約 <span style="font-size:13px;">${td.fatKg.toFixed(2)}</span> kg分${daysTo>0 ? `<br>📷 このペースなら 9/19に <span style="font-size:14px;">約${proj.toFixed(1)}</span> kg！` : ''}</div>`; })()}
+        const kgPerDay = av.days>0 ? av.avg/7700 : (td.dayNum>0 ? td.fatKg/td.dayNum : 0);
+        const proj = latest - kgPerDay*Math.max(daysTo,0);
+        return `<div style="font-size:11px;font-weight:700;color:#D67E8E;text-align:center;background:#FFF4F6;border:1px solid #F0D2D9;border-radius:8px;padding:7px 8px;margin-bottom:8px;line-height:1.6;">🔥 ダイエット${td.dayNum}日目<br>累計赤字 <span style="font-size:13px;">${td.total.toLocaleString()}</span> kcal ・ 脂肪 約 <span style="font-size:13px;">${td.fatKg.toFixed(2)}</span> kg分<br>前日までの赤字平均 ${av.days>0 ? `<span style="font-size:13px;">${Math.round(av.avg).toLocaleString()}</span> kcal/日（${av.days}日分）` : '集計中'}${daysTo>0 ? `<br>📷 このペースなら 9/19に <span style="font-size:14px;">約${proj.toFixed(1)}</span> kg！` : ''}</div>`; })()}
       <div onclick="openWeekWeightChart()" style="cursor:pointer;">${weightChartSvg()}</div>
       ${cache.weights.length === 0 ? '<div class="empty-state"><div class="em-ico">📈</div><div>記録がありません</div></div>' :
         cache.weights.slice().reverse().slice(0,30).map(e=>`<div class="ptask-row">
@@ -2047,6 +2047,20 @@ function totalDeficitStats(){
     }
   });
   return { dayNum, total: Math.round(total), fatKg: total/7700, loggedDays };
+}
+// 前日まで（今日は進行中なので除外）の1日あたり赤字平均
+function deficitAvgThroughYesterday(){
+  const start = cache.settings.trackStartDate || '2026-06-25';
+  const yest = shiftYmd(getTodayDateString(), -1);
+  const basal = fnum(cache.settings.basalMetabolism)||2200;
+  let total=0, days=0;
+  Object.keys(cache.meals||{}).forEach(d=>{
+    if(d>=start && d<=yest && cache.meals[d] && cache.meals[d].length){
+      const consumed = cache.meals[d].reduce((a,e)=>a+fnum(e.kcal),0);
+      total += (basal + activityBonus(d)) - consumed; days++;
+    }
+  });
+  return { avg: days>0 ? total/days : 0, days };
 }
 window.addWater = async function(ml){
   const date = foodDate();
