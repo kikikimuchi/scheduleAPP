@@ -1686,7 +1686,11 @@ function renderWeightTab(){
   const latest = cache.weights.length>0 ? cache.weights[cache.weights.length-1] : null;
   const w = latest ? latest.weight : cache.settings.startWeight;
   const bf = latest && latest.bodyFat ? latest.bodyFat : null;
-  const change = (w - cache.settings.startWeight).toFixed(1);
+  // 変化は「ダイエット開始日(6/25)の測定値」と比較（無ければ開始日以降の最初の記録→startWeight）
+  const startDate = cache.settings.trackStartDate || '2026-06-25';
+  const baseEntry = cache.weights.find(e=>e.date===startDate) || cache.weights.find(e=>e.date>=startDate);
+  const baseWeight = baseEntry ? baseEntry.weight : cache.settings.startWeight;
+  const change = (w - baseWeight).toFixed(1);
   const goal = activeGoal();
   const remaining = (w - goal.weight);
   const daysLeft = Math.max(Math.ceil((goal.dateObj - new Date())/(86400000)), 1);
@@ -1709,7 +1713,7 @@ function renderWeightTab(){
         </div>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:8px;">
-        <span>変化: ${change > 0 ? '+' : ''}${change}kg</span>
+        <span>変化(6/25比): ${change > 0 ? '+' : ''}${change}kg</span>
         <span>残り(${goal.label}): ${remaining.toFixed(1)}kg</span>
       </div>
       ${remaining > 0 ? `<div style="background:rgba(255,255,255,.2);border-radius:8px;padding:8px 12px;font-size:12px;text-align:center;">📅 ${goal.label}までに <span style="font-weight:700;">${goal.weight}kg</span>（週 ${weeklyPace.toFixed(2)}kg・あと${daysLeft}日）</div>` : `<div style="background:rgba(255,255,255,.2);border-radius:8px;padding:8px 12px;font-size:12px;text-align:center;">${goal.label}の目標達成 🎉 次は最終 ${cache.settings.targetWeight}kg へ</div>`}
