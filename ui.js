@@ -1716,6 +1716,14 @@ function renderWeightTab(){
     </div>
     <div class="card">
       <div class="sec-h" style="display:flex;justify-content:space-between;align-items:center;">推移${cache.weights.length>=1?'<span style="font-size:10px;color:var(--ink-soft);font-weight:600;">タップで週別 ▸</span>':''}</div>
+      ${(()=>{ const td=totalDeficitStats();
+        const latest = cache.weights.length ? cache.weights[cache.weights.length-1].weight : fnum(cache.settings.startWeight);
+        const today = new Date(getTodayDateString()+'T00:00');
+        const photo = new Date(today.getFullYear(), 8, 19); // 9/19
+        const daysTo = Math.round((photo - today)/86400000);
+        const ratePerDay = td.dayNum>0 ? td.fatKg/td.dayNum : 0;
+        const proj = latest - ratePerDay*Math.max(daysTo,0);
+        return `<div style="font-size:11px;font-weight:700;color:#D67E8E;text-align:center;background:#FFF4F6;border:1px solid #F0D2D9;border-radius:8px;padding:7px 8px;margin-bottom:8px;line-height:1.6;">🔥 ダイエット${td.dayNum}日目<br>累計赤字 <span style="font-size:13px;">${td.total.toLocaleString()}</span> kcal ・ 脂肪 約 <span style="font-size:13px;">${td.fatKg.toFixed(2)}</span> kg分${daysTo>0 ? `<br>📷 このペースなら 9/19に <span style="font-size:14px;">約${proj.toFixed(1)}</span> kg！` : ''}</div>`; })()}
       <div onclick="openWeekWeightChart()" style="cursor:pointer;">${weightChartSvg()}</div>
       ${cache.weights.length === 0 ? '<div class="empty-state"><div class="em-ico">📈</div><div>記録がありません</div></div>' :
         cache.weights.slice().reverse().slice(0,30).map(e=>`<div class="ptask-row">
@@ -2023,6 +2031,22 @@ function weekDeficitStats(refDate){
     }
   }
   return { achieved: Math.round(achieved), target: Math.round(effDays*dailyTarget), effDays };
+}
+// ダイエット開始日からの累計：日数・累計赤字・脂肪換算
+function totalDeficitStats(){
+  const start = cache.settings.trackStartDate || '2026-06-25';
+  const today = getTodayDateString();
+  const basal = fnum(cache.settings.basalMetabolism)||2200;
+  const dayNum = Math.max(1, Math.floor((new Date(today+'T00:00') - new Date(start+'T00:00'))/86400000) + 1);
+  let total = 0, loggedDays = 0;
+  Object.keys(cache.meals||{}).forEach(d=>{
+    if(d>=start && d<=today && cache.meals[d] && cache.meals[d].length){
+      const consumed = cache.meals[d].reduce((a,e)=>a+fnum(e.kcal),0);
+      total += (basal + activityBonus(d)) - consumed;
+      loggedDays++;
+    }
+  });
+  return { dayNum, total: Math.round(total), fatKg: total/7700, loggedDays };
 }
 window.addWater = async function(ml){
   const date = foodDate();
