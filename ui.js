@@ -1858,6 +1858,12 @@ function foodLogHTML(){
     <div style="text-align:center;font-size:14px;font-weight:700;">${dateLabelJP(date)}${isToday?' <span style="font-size:11px;color:var(--pink);">今日</span>':`<button class="btn-sec" style="padding:3px 8px;font-size:10px;margin-left:6px;" onclick="goFoodToday()">今日へ</button>`}</div>
     <button class="btn-sec" style="padding:8px 12px;${isToday?'opacity:.35;':''}" onclick="shiftFoodDate(1)">翌日 →</button>
   </div>
+  ${isExcludedDay(date)
+    ? `<div class="card" style="background:#EFEAF7;border:1px solid #D9CCEF;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;margin-bottom:10px;">
+        <div style="font-size:12.5px;font-weight:700;color:#6B53A1;">🎬 自主制作期間<div style="font-size:10.5px;font-weight:600;color:#8A77B8;">カロリー計算から除外中</div></div>
+        <button class="btn-sec" style="padding:6px 10px;font-size:11px;" onclick="toggleExcludeDay()">解除する</button>
+      </div>`
+    : `<button class="btn-sec" style="width:100%;margin-bottom:10px;font-size:12px;color:var(--ink-soft);" onclick="toggleExcludeDay()">🎬 この日を自主制作期間にする（計算から除外）</button>`}
   <button class="btn-sec" id="food-shot-btn" style="width:100%;margin-bottom:10px;" onclick="downloadFoodShot(this)">📷 この記録を画像で保存</button>
   <div id="food-capture" style="background:var(--bg);padding:1px 0;">
   <div class="hero-card hero-blue">
@@ -2015,7 +2021,9 @@ function weekStats(refDate){
   }
   return { run, wo, rest: Math.max(0, elapsed - active) };
 }
-// 今週(月〜日)の赤字積み上げ。記録のある日だけ (消費−摂取) を合計。目標は記録開始日以降の日数×1日分
+// 自主制作期間など、カロリー計算から除外する日か
+function isExcludedDay(d){ return (cache.settings.excludeDates||[]).includes(d); }
+// 今週(月〜日)の赤字積み上げ。記録のある日だけ (消費−摂取) を合計。目標は記録開始日以降の日数×1日分（自主制作期間は除外）
 function weekDeficitStats(refDate){
   const t = new Date((refDate||getTodayDateString())+'T00:00');
   const dow = (t.getDay()+6)%7; // 月=0
@@ -2028,6 +2036,7 @@ function weekDeficitStats(refDate){
   let achieved = 0, effDays = 0;
   for(let i=0;i<7;i++){
     const d = new Date(mon); d.setDate(mon.getDate()+i); const k = ymd(d);
+    if(isExcludedDay(k)) continue;                 // 自主制作期間は目標・実績ともに除外
     if(k >= trackStart) effDays++;                 // 目標にカウントする日（記録開始日以降）
     const meals = cache.meals[k];
     if(meals && meals.length && k>=trackStart && k < today){ // 開始日以降かつ前日までの記録のみ加算（今日は途中なので除外）
@@ -2042,10 +2051,13 @@ function totalDeficitStats(){
   const start = cache.settings.trackStartDate || '2026-06-25';
   const today = getTodayDateString();
   const basal = fnum(cache.settings.basalMetabolism)||2200;
-  const dayNum = Math.max(1, Math.floor((new Date(today+'T00:00') - new Date(start+'T00:00'))/86400000) + 1);
+  let dayNum = Math.max(1, Math.floor((new Date(today+'T00:00') - new Date(start+'T00:00'))/86400000) + 1);
+  // 自主制作期間（開始日〜今日の範囲内）はダイエット日数からも除外
+  (cache.settings.excludeDates||[]).forEach(d=>{ if(d>=start && d<=today) dayNum--; });
+  dayNum = Math.max(1, dayNum);
   let total = 0, loggedDays = 0;
   Object.keys(cache.meals||{}).forEach(d=>{
-    if(d>=start && d<today && cache.meals[d] && cache.meals[d].length){ // 今日は途中なので除外（前日まで）
+    if(d>=start && d<today && !isExcludedDay(d) && cache.meals[d] && cache.meals[d].length){ // 今日は途中なので除外（前日まで）。自主制作期間も除外
       const consumed = cache.meals[d].reduce((a,e)=>a+fnum(e.kcal),0);
       total += (basal + activityBonus(d)) - consumed;
       loggedDays++;
@@ -2060,7 +2072,7 @@ function deficitAvgThroughYesterday(){
   const basal = fnum(cache.settings.basalMetabolism)||2200;
   let total=0, days=0;
   Object.keys(cache.meals||{}).forEach(d=>{
-    if(d>=start && d<=yest && cache.meals[d] && cache.meals[d].length){
+    if(d>=start && d<=yest && !isExcludedDay(d) && cache.meals[d] && cache.meals[d].length){
       const consumed = cache.meals[d].reduce((a,e)=>a+fnum(e.kcal),0);
       total += (basal + activityBonus(d)) - consumed; days++;
     }
@@ -2085,6 +2097,14 @@ window.toggleActivity = async function(key){
   a = a.includes(key) ? a.filter(k=>k!==key) : [...a, key];
   cache.activities[date] = a;
   await window.saveActivitiesFB(date);
+  renderFoodTab();
+};
+// その日を自主制作期間（カロリー計算から除外）にする/解除する
+window.toggleExcludeDay = async function(){
+  const date = foodDate();
+  let ex = (cache.settings.excludeDates||[]).slice();
+  ex = ex.includes(date) ? ex.filter(d=>d!==date) : [...ex, date];
+  await window.saveSetting('excludeDates', ex);
   renderFoodTab();
 };
 
