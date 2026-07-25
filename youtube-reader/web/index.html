@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="登録CH">
+<title>登録チャンネル・リーダー</title>
+<style>
+:root{
+  --pink:#F4A6B5;--pink-soft:#FDEAEE;--pink-dk:#E88FA1;
+  --blue:#A8C8E8;--mint:#B5D4B5;--lav:#C8B5DB;
+  --bg:#FAFAFA;--card:#FFFFFF;--ink:#0A0A0A;--ink-soft:#4A4A4A;--ink-mute:#8A8A8A;--ink-faint:#B8B8B8;
+  --bdr:rgba(0,0,0,0.08);--bdr-s:rgba(0,0,0,0.18);
+  --r:14px;--sh:0 2px 12px rgba(0,0,0,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html{height:100%;}
+body{font-family:"Futura","Avenir Next","Hiragino Sans","Yu Gothic Medium",system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100%;padding-bottom:calc(96px + env(safe-area-inset-bottom,20px));-webkit-overflow-scrolling:touch;font-weight:500;}
+input,select,textarea{font-size:16px;}
+
+#header{position:sticky;top:0;background:rgba(250,250,250,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--bdr);padding:calc(12px + env(safe-area-inset-top,0px)) 18px 12px;z-index:100;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.hd-title{font-size:16px;font-weight:700;letter-spacing:.04em;}
+.hd-sub{font-size:10px;color:var(--ink-mute);margin-top:2px;}
+.hd-btn{border:none;background:var(--pink-soft);color:var(--pink-dk);font-weight:700;font-size:12px;padding:8px 12px;border-radius:10px;cursor:pointer;}
+
+.pg{display:none;max-width:640px;margin:0 auto;padding:12px 12px 20px;}
+.pg.on{display:block;}
+
+/* tag chips row */
+.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 10px;scrollbar-width:none;}
+.chips::-webkit-scrollbar{display:none;}
+.chip{flex:0 0 auto;border:1px solid var(--bdr-s);background:var(--card);color:var(--ink-soft);border-radius:999px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.chip.on{background:var(--pink);color:#fff;border-color:var(--pink);}
+.chip .n{font-size:11px;opacity:.7;margin-left:4px;}
+
+.sortbar{display:flex;gap:6px;margin:2px 2px 12px;}
+.sortbtn{flex:1;border:1px solid var(--bdr);background:var(--card);color:var(--ink-soft);border-radius:10px;padding:8px 4px;font-size:11px;font-weight:600;cursor:pointer;text-align:center;line-height:1.3;}
+.sortbtn.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+.sortbtn small{display:block;font-size:9px;opacity:.7;font-weight:500;}
+
+/* video card */
+.vid{display:flex;gap:10px;background:var(--card);border:1px solid var(--bdr);border-radius:var(--r);padding:8px;margin-bottom:10px;cursor:pointer;text-decoration:none;color:inherit;}
+.vid:active{background:var(--pink-soft);}
+.vthumb{flex:0 0 128px;width:128px;aspect-ratio:16/9;border-radius:10px;object-fit:cover;background:#eee;}
+.vmeta{min-width:0;display:flex;flex-direction:column;gap:4px;padding:2px 2px 2px 0;}
+.vtitle{font-size:13px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.vch{font-size:11px;color:var(--ink-mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.vtime{font-size:10px;color:var(--ink-faint);}
+.badge{display:inline-block;font-size:9px;font-weight:700;padding:1px 6px;border-radius:6px;margin-right:5px;vertical-align:1px;}
+.badge.live{background:#ffe3e3;color:#d33;}
+.badge.stale{background:var(--lav);color:#4a3a63;}
+
+.empty{text-align:center;color:var(--ink-mute);font-size:13px;padding:40px 20px;line-height:1.7;}
+
+/* channel manage */
+.mgbar{display:flex;gap:6px;margin:2px 2px 12px;}
+.mgbar .sortbtn{font-size:12px;}
+.crow{background:var(--card);border:1px solid var(--bdr);border-radius:var(--r);padding:10px 12px;margin-bottom:8px;}
+.crow-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.cname{font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mute{border:none;background:none;font-size:11px;color:var(--ink-mute);cursor:pointer;flex:0 0 auto;}
+.mute.on{color:var(--pink-dk);font-weight:700;}
+.ctags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.ctag{font-size:11px;background:var(--pink-soft);color:var(--pink-dk);border-radius:999px;padding:3px 8px;cursor:pointer;font-weight:600;}
+.ctag:active{opacity:.6;}
+.ctag .x{margin-left:4px;opacity:.6;}
+.addtag{font-size:11px;border:1px dashed var(--bdr-s);background:none;color:var(--ink-mute);border-radius:999px;padding:3px 9px;cursor:pointer;}
+
+.tagmgr{margin-top:10px;}
+.tagmgr .trow{display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid var(--bdr);}
+.tagmgr .tname{flex:1;font-size:13px;font-weight:600;}
+.tagmgr .tn{font-size:11px;color:var(--ink-mute);}
+.linkbtn{border:none;background:none;color:var(--pink-dk);font-size:11px;cursor:pointer;font-weight:600;}
+.fi{width:100%;padding:0 12px;height:42px;border:none;background:rgba(0,0,0,.04);border-radius:10px;outline:none;-webkit-appearance:none;}
+.fi:focus{box-shadow:0 0 0 2px rgba(244,166,181,.4);}
+.btn{border:none;background:var(--pink);color:#fff;font-weight:700;border-radius:10px;padding:10px 14px;cursor:pointer;font-size:13px;}
+.btn.ghost{background:var(--pink-soft);color:var(--pink-dk);}
+.card{background:var(--card);border:1px solid var(--bdr);border-radius:var(--r);padding:14px;margin-bottom:12px;}
+.card h3{font-size:13px;margin-bottom:8px;}
+.card p{font-size:12px;color:var(--ink-soft);line-height:1.7;}
+.sec-h{font-size:12px;color:var(--ink-mute);font-weight:700;letter-spacing:.08em;margin:16px 2px 8px;}
+
+#tabbar{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.94);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--bdr);display:flex;z-index:9999;padding-bottom:max(env(safe-area-inset-bottom,0px),14px);padding-top:10px;}
+.tb{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:2px;font-size:10px;color:var(--ink-faint);background:none;border:none;cursor:pointer;letter-spacing:.08em;font-weight:600;}
+.tb.on{color:var(--ink);}
+.tb .ic{font-size:18px;line-height:1;}
+
+#toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:rgba(0,0,0,.82);color:#fff;font-size:12px;padding:9px 16px;border-radius:999px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:10000;}
+#toast.on{opacity:1;}
+.banner{background:#fff8e1;border:1px solid #f0e0a0;color:#7a6300;font-size:12px;border-radius:10px;padding:10px 12px;margin-bottom:12px;line-height:1.6;}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div>
+    <div class="hd-title">登録チャンネル</div>
+    <div class="hd-sub" id="hdSub">読み込み中…</div>
+  </div>
+  <button class="hd-btn" onclick="location.reload()">更新</button>
+</div>
+
+<!-- FEED -->
+<div id="pg-feed" class="pg on">
+  <div class="chips" id="tagChips"></div>
+  <div class="sortbar" id="sortBar">
+    <button class="sortbtn" data-mode="newest">新着順<small>公開が新しい順</small></button>
+    <button class="sortbtn" data-mode="rediscover">再発見<small>ご無沙汰CH優先</small></button>
+    <button class="sortbtn" data-mode="one-per-channel">1本ずつ<small>CH最新1本のみ</small></button>
+  </div>
+  <div id="feedList"></div>
+</div>
+
+<!-- CHANNELS -->
+<div id="pg-ch" class="pg">
+  <div id="chBanner"></div>
+  <div class="mgbar">
+    <button class="sortbtn on" data-filter="all">すべて</button>
+    <button class="sortbtn" data-filter="untagged">タグ未設定のみ</button>
+  </div>
+  <div id="chList"></div>
+</div>
+
+<!-- SETTINGS -->
+<div id="pg-set" class="pg">
+  <div class="sec-h">タグの管理</div>
+  <div class="card">
+    <div style="display:flex;gap:8px;">
+      <input class="fi" id="newTagInput" placeholder="新しいタグ名（例: vtuber）">
+      <button class="btn" onclick="app.createTag()">追加</button>
+    </div>
+    <div class="tagmgr" id="tagMgr"></div>
+  </div>
+
+  <div class="sec-h">登録チャンネルの取り込み</div>
+  <div class="card">
+    <p>Google Takeout の「登録チャンネル」→ <b>subscriptions.csv</b> を選ぶと、
+    チャンネル一覧をこのアプリ（Firestore）に取り込みます。既存のタグはそのまま残ります。</p>
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <input type="file" id="csvFile" accept=".csv,text/csv">
+      <button class="btn ghost" onclick="app.importCsv()">取り込む</button>
+    </div>
+  </div>
+
+  <div class="sec-h">バックアップ</div>
+  <div class="card">
+    <p>タグ付けの結果（チャンネル情報）を書き出し／読み込みできます。</p>
+    <div style="margin-top:10px;display:flex;gap:8px;">
+      <button class="btn ghost" onclick="app.exportChannels()">書き出し</button>
+      <label class="btn ghost" style="cursor:pointer;">読み込み
+        <input type="file" id="importJson" accept="application/json" style="display:none" onchange="app.importChannels(event)">
+      </label>
+    </div>
+  </div>
+
+  <div class="sec-h">状態</div>
+  <div class="card">
+    <p id="statusLine">—</p>
+  </div>
+</div>
+
+<div id="tabbar">
+  <button class="tb on" data-pg="feed" onclick="app.tab('feed')"><span class="ic">📺</span>フィード</button>
+  <button class="tb" data-pg="ch" onclick="app.tab('ch')"><span class="ic">📂</span>チャンネル</button>
+  <button class="tb" data-pg="set" onclick="app.tab('set')"><span class="ic">⚙️</span>設定</button>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+// ===================== 設定・定数 =====================
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyC4kuVMrD1iKBxsX8V12n8OHzPBW2xA0Ew",
+  authDomain: "keiriauto-6f8f1.firebaseapp.com",
+  projectId: "keiriauto-6f8f1",
+  storageBucket: "keiriauto-6f8f1.firebasestorage.app",
+  messagingSenderId: "796610783894",
+  appId: "1:796610783894:web:017da7e1949574090cf0b7"
+};
+const CH_COL = 'schedule_ytChannels';   // チャンネル状態(タグ/mute/視聴日時)
+const META_DOC = ['schedule_ytMeta','app']; // タグ一覧・カテゴリ別ソートモード
+
+// rediscover の重み付け（仕様書6.1: 定数として外出し。ここを触ると並びが変わる）
+const REDISCOVER = {
+  W_STALE: 1.0,     // 最終視聴からの経過日数にかける重み（大きいほど「ご無沙汰CH」を上げる）
+  W_FRESH: 0.6,     // 動画の新しさにかける重み
+  FRESH_CAP_DAYS: 30, // 「新しさ」の頭打ち日数
+  NEVER_VIEWED_DAYS: 400 // 一度も見ていないCHの経過日数の見なし値
+};
+
+const DEMO = new URLSearchParams(location.search).has('demo');
+const DAY = 86400000;
+const now = () => Date.now();
+const nowIso = () => new Date().toISOString();
+
+// ===================== 状態 =====================
+const state = {
+  videos: [],          // [{id,cid,t,p,u}]
+  channels: {},        // { cid: {title,tags[],muted,lastViewedAt,channelUrl} }
+  meta: { tags: [], modes: {} }, // modes: { tagName: 'newest'|'rediscover'|'one-per-channel' }
+  activeTag: '__all__',
+  chFilter: 'all',
+  fb: null,            // firestore ハンドル群（オフライン/デモ時は null）
+};
+
+// ===================== ユーティリティ =====================
+const $ = (s, r=document) => r.querySelector(s);
+const esc = (s='') => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('on'),1800); }
+
+function thumb(id){ return `https://i.ytimg.com/vi/${id}/mqdefault.jpg`; }
+function watchUrl(id){ return `https://www.youtube.com/watch?v=${id}`; }
+
+function timeAgo(iso){
+  const t = Date.parse(iso); if(!Number.isFinite(t)) return '';
+  const diff = now() - t;
+  if(diff < 0){ // 未来（配信予定）
+    const d = Math.round(-diff/DAY);
+    return d<=0 ? 'まもなく配信' : `${d}日後に配信`;
+  }
+  const m=Math.floor(diff/60000), h=Math.floor(m/60), d=Math.floor(h/24);
+  if(d>=30) return `${Math.floor(d/30)}ヶ月前`;
+  if(d>=1) return `${d}日前`;
+  if(h>=1) return `${h}時間前`;
+  if(m>=1) return `${m}分前`;
+  return 'たった今';
+}
+// 並び替え用の公開時刻。未来日(配信予定)は現在時刻でクランプして先頭独占を防ぐ
+function sortKeyPublished(iso){ const t=Date.parse(iso)||0; return Math.min(t, now()); }
+function pub(v){ return Date.parse(v.p)||0; }
+function isFuture(v){ return pub(v) > now(); }
+// 新着順の比較: 公開済み(新しい順)を上に、配信予定(近い順)を下にまとめる
+function newestCmp(a,b){
+  const fa=isFuture(a), fb=isFuture(b);
+  if(fa!==fb) return fa?1:-1;         // 予定は後ろ
+  return fa ? pub(a)-pub(b) : pub(b)-pub(a); // 予定は近い順 / 公開済みは新しい順
+}
+
+// ===================== ローカルキャッシュ =====================
+const LS = {
+  ch: 'ytr_channels', meta: 'ytr_meta',
+  get(k, def){ try{ return JSON.parse(localStorage.getItem(k)) ?? def; }catch(e){ return def; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} },
+};
+
+// ===================== データ読み込み =====================
+async function loadVideos(){
+  try{
+    const r = await fetch('./data/videos.json?t=' + Math.floor(now()/60000));
+    const j = await r.json();
+    state.videos = j.videos || [];
+    return j.updatedAt;
+  }catch(e){ state.videos = []; return null; }
+}
+
+async function initFirestore(){
+  if(DEMO) return null;
+  try{
+    const [{ initializeApp }, fs] = await Promise.all([
+      import("https://www.gstatic.com/firebasejs/11.7.1/firebase-app.js"),
+      import("https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js"),
+    ]);
+    const app = initializeApp(FIREBASE_CONFIG);
+    const db = fs.getFirestore(app);
+    return { db, ...fs };
+  }catch(e){ console.warn('Firestore 初期化失敗、ローカル保存で継続', e); return null; }
+}
+
+async function loadChannels(){
+  if(DEMO){
+    try{ const r=await fetch('./data/channels.demo.json'); state.channels = await r.json(); }
+    catch(e){ state.channels = {}; }
+    return;
+  }
+  // Firestore優先。失敗時はローカルキャッシュ。
+  if(state.fb){
+    try{
+      const snap = await state.fb.getDocs(state.fb.collection(state.fb.db, CH_COL));
+      const out = {};
+      snap.forEach(d => { out[d.id] = normalizeCh(d.data()); });
+      state.channels = out;
+      LS.set(LS.ch, out);
+      // meta
+      try{
+        const mref = state.fb.doc(state.fb.db, META_DOC[0], META_DOC[1]);
+        const msnap = await state.fb.getDoc(mref);
+        if(msnap.exists()) state.meta = { tags: [], modes:{}, ...msnap.data() };
+      }catch(e){}
+      return;
+    }catch(e){ console.warn('channels 読み込み失敗、ローカルへ', e); }
+  }
+  state.channels = LS.get(LS.ch, {});
+  state.meta = LS.get(LS.meta, { tags: [], modes: {} });
+}
+
+function normalizeCh(c){
+  return {
+    title: c.title || '',
+    tags: Array.isArray(c.tags) ? c.tags : [],
+    muted: !!c.muted,
+    lastViewedAt: c.lastViewedAt || null,
+    channelUrl: c.channelUrl || '',
+  };
+}
+
+// ===================== 保存 =====================
+async function saveChannel(cid){
+  const c = state.channels[cid];
+  LS.set(LS.ch, state.channels);
+  if(state.fb){
+    try{
+      await state.fb.setDoc(state.fb.doc(state.fb.db, CH_COL, cid), { channelId: cid, ...c }, { merge: true });
+    }catch(e){ console.warn('saveChannel 失敗', e); }
+  }
+}
+async function saveMeta(){
+  LS.set(LS.meta, state.meta);
+  if(state.fb){
+    try{ await state.fb.setDoc(state.fb.doc(state.fb.db, META_DOC[0], META_DOC[1]), state.meta, { merge:true }); }
+    catch(e){ console.warn('saveMeta 失敗', e); }
+  }
+}
+
+// ===================== タグ集計 =====================
+function allTags(){
+  const s = new Set(state.meta.tags || []);
+  Object.values(state.channels).forEach(c => (c.tags||[]).forEach(t => s.add(t)));
+  return [...s].sort((a,b)=>a.localeCompare(b,'ja'));
+}
+function tagCount(tag){
+  return Object.values(state.channels).filter(c => !c.muted && (c.tags||[]).includes(tag)).length;
+}
+function channelsForTag(tag){
+  return Object.entries(state.channels).filter(([,c]) =>
+    !c.muted && (tag==='__all__' || (c.tags||[]).includes(tag))
+  ).map(([cid])=>cid);
+}
+
+// ===================== 並び替え =====================
+function videosForTag(tag, mode){
+  const cids = new Set(channelsForTag(tag));
+  let vids = state.videos.filter(v => cids.has(v.cid));
+
+  if(mode === 'one-per-channel'){
+    const best = new Map();
+    for(const v of vids){
+      const cur = best.get(v.cid);
+      // 各CHの代表は「公開済みの最新」を優先。無ければ配信予定を採用。
+      if(!cur || newestCmp(v, cur) < 0) best.set(v.cid, v);
+    }
+    vids = [...best.values()].sort(newestCmp);
+  } else if(mode === 'rediscover'){
+    vids = vids.map(v => ({ v, s: rediscoverScore(v) }))
+               .sort((a,b)=>b.s-a.s).map(x=>x.v);
+  } else { // newest
+    vids = vids.sort(newestCmp);
+  }
+  return vids;
+}
+function rediscoverScore(v){
+  const c = state.channels[v.cid] || {};
+  const lv = Date.parse(c.lastViewedAt);
+  const staleDays = Number.isFinite(lv) ? (now()-lv)/DAY : REDISCOVER.NEVER_VIEWED_DAYS;
+  const ageDays = Math.max(0, (now()-sortKeyPublished(v.p))/DAY);
+  const freshness = Math.max(0, REDISCOVER.FRESH_CAP_DAYS - Math.min(ageDays, REDISCOVER.FRESH_CAP_DAYS));
+  return staleDays*REDISCOVER.W_STALE + freshness*REDISCOVER.W_FRESH;
+}
+function modeFor(tag){ return (state.meta.modes && state.meta.modes[tag]) || 'newest'; }
+
+// ===================== 描画: フィード =====================
+function renderChips(){
+  const tags = allTags();
+  const el = $('#tagChips');
+  const chip = (key,label,n,on)=>`<button class="chip ${on?'on':''}" data-tag="${esc(key)}">${esc(label)}${n!=null?`<span class="n">${n}</span>`:''}</button>`;
+  let html = chip('__all__','すべて', channelsForTag('__all__').length, state.activeTag==='__all__');
+  html += tags.map(t => chip(t, t, tagCount(t), state.activeTag===t)).join('');
+  el.innerHTML = html;
+  el.querySelectorAll('.chip').forEach(b => b.onclick = () => { state.activeTag = b.dataset.tag; renderFeed(); });
+}
+function renderSortBar(){
+  const mode = modeFor(state.activeTag);
+  $('#sortBar').querySelectorAll('.sortbtn').forEach(b=>{
+    b.classList.toggle('on', b.dataset.mode===mode);
+    b.onclick = () => {
+      state.meta.modes = state.meta.modes || {};
+      state.meta.modes[state.activeTag] = b.dataset.mode;
+      saveMeta(); renderFeed();
+    };
+  });
+}
+function renderFeed(){
+  renderChips(); renderSortBar();
+  const mode = modeFor(state.activeTag);
+  const vids = videosForTag(state.activeTag, mode);
+  const list = $('#feedList');
+  if(!vids.length){
+    list.innerHTML = `<div class="empty">この条件の動画がありません。<br>「設定」でCSVを取り込むか、<br>「チャンネル」でタグを付けてください。</div>`;
+    return;
+  }
+  list.innerHTML = vids.map(v => {
+    const c = state.channels[v.cid] || {};
+    const future = (Date.parse(v.p)||0) > now();
+    let badge = '';
+    if(future) badge = `<span class="badge live">配信予定</span>`;
+    else if(mode==='rediscover'){
+      const lv=Date.parse(c.lastViewedAt);
+      const days = Number.isFinite(lv)?Math.floor((now()-lv)/DAY):null;
+      if(days===null) badge = `<span class="badge stale">未視聴</span>`;
+      else if(days>=30) badge = `<span class="badge stale">${days}日ぶり</span>`;
+    }
+    return `<a class="vid" href="${watchUrl(v.id)}" target="_blank" rel="noopener" data-vid="${v.id}" data-cid="${v.cid}">
+      <img class="vthumb" loading="lazy" src="${thumb(v.id)}" alt="">
+      <div class="vmeta">
+        <div class="vtitle">${esc(v.t||'(無題)')}</div>
+        <div class="vch">${esc(c.title||v.cid)}</div>
+        <div class="vtime">${badge}${timeAgo(v.p)}</div>
+      </div>
+    </a>`;
+  }).join('');
+  list.querySelectorAll('.vid').forEach(a => a.addEventListener('click', () => markViewed(a.dataset.cid)));
+}
+
+async function markViewed(cid){
+  const c = state.channels[cid];
+  if(!c) return;
+  c.lastViewedAt = nowIso();
+  await saveChannel(cid); // 視聴記録（仕様書6.4）
+}
+
+// ===================== 描画: チャンネル管理 =====================
+function renderChannels(){
+  const banner = $('#chBanner');
+  const total = Object.keys(state.channels).length;
+  banner.innerHTML = total===0
+    ? `<div class="banner">まだチャンネルがありません。「設定」→「登録チャンネルの取り込み」で Takeout の CSV を読み込んでください。</div>`
+    : '';
+  $('#pg-ch').querySelectorAll('.mgbar .sortbtn').forEach(b=>{
+    b.classList.toggle('on', b.dataset.filter===state.chFilter);
+    b.onclick = () => { state.chFilter = b.dataset.filter; renderChannels(); };
+  });
+
+  let entries = Object.entries(state.channels);
+  if(state.chFilter==='untagged') entries = entries.filter(([,c]) => !(c.tags&&c.tags.length));
+  entries.sort((a,b)=>(a[1].title||'').localeCompare(b[1].title||'','ja'));
+
+  const tags = allTags();
+  const list = $('#chList');
+  if(!entries.length){ list.innerHTML = `<div class="empty">該当なし</div>`; return; }
+  list.innerHTML = entries.map(([cid,c]) => {
+    const chosen = new Set(c.tags||[]);
+    const chips = (c.tags||[]).map(t => `<span class="ctag" data-cid="${cid}" data-tag="${esc(t)}">${esc(t)}<span class="x">×</span></span>`).join('');
+    const avail = tags.filter(t=>!chosen.has(t));
+    const options = avail.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('');
+    return `<div class="crow">
+      <div class="crow-top">
+        <div class="cname">${esc(c.title||cid)}</div>
+        <button class="mute ${c.muted?'on':''}" data-cid="${cid}">${c.muted?'🔕 ミュート中':'🔔'}</button>
+      </div>
+      <div class="ctags">
+        ${chips}
+        <select class="addtag as" data-cid="${cid}" style="max-width:150px">
+          <option value="">＋タグを付ける</option>${options}
+          <option value="__new__">＋ 新規タグ…</option>
+        </select>
+      </div>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.ctag').forEach(el => el.onclick = () => { removeTag(el.dataset.cid, el.dataset.tag); });
+  list.querySelectorAll('.mute').forEach(el => el.onclick = () => toggleMute(el.dataset.cid));
+  list.querySelectorAll('select.as').forEach(sel => sel.onchange = () => {
+    const cid = sel.dataset.cid; let t = sel.value; sel.value='';
+    if(!t) return;
+    if(t==='__new__'){ t = prompt('新しいタグ名'); if(!t) return; t=t.trim(); if(!t) return; }
+    addTag(cid, t);
+  });
+}
+async function addTag(cid, tag){
+  const c = state.channels[cid]; if(!c) return;
+  c.tags = c.tags || [];
+  if(!c.tags.includes(tag)){ c.tags.push(tag); await saveChannel(cid); }
+  if(!(state.meta.tags||[]).includes(tag)){ state.meta.tags=[...(state.meta.tags||[]),tag]; await saveMeta(); }
+  renderChannels();
+}
+async function removeTag(cid, tag){
+  const c = state.channels[cid]; if(!c) return;
+  c.tags = (c.tags||[]).filter(t=>t!==tag);
+  await saveChannel(cid); renderChannels();
+}
+async function toggleMute(cid){
+  const c = state.channels[cid]; if(!c) return;
+  c.muted = !c.muted; await saveChannel(cid); renderChannels();
+}
+
+// ===================== 描画: 設定（タグ管理） =====================
+function renderTagMgr(){
+  const tags = allTags();
+  const mgr = $('#tagMgr');
+  if(!tags.length){ mgr.innerHTML = `<p style="margin-top:10px">タグはまだありません。</p>`; return; }
+  mgr.innerHTML = tags.map(t => {
+    const n = Object.values(state.channels).filter(c=>(c.tags||[]).includes(t)).length;
+    return `<div class="trow">
+      <span class="tname">${esc(t)} <span class="tn">(${n})</span></span>
+      <button class="linkbtn" data-act="rename" data-tag="${esc(t)}">名前変更</button>
+      <button class="linkbtn" data-act="del" data-tag="${esc(t)}">削除</button>
+    </div>`;
+  }).join('');
+  mgr.querySelectorAll('.linkbtn').forEach(b => b.onclick = () => {
+    if(b.dataset.act==='rename') renameTag(b.dataset.tag);
+    else deleteTag(b.dataset.tag);
+  });
+}
+async function createTag(){
+  const inp = $('#newTagInput'); const t = inp.value.trim(); if(!t) return;
+  if(!(state.meta.tags||[]).includes(t)){ state.meta.tags=[...(state.meta.tags||[]),t]; await saveMeta(); }
+  inp.value=''; renderTagMgr(); toast('タグを追加しました');
+}
+async function renameTag(old){
+  const nn = prompt(`「${old}」の新しい名前`, old); if(!nn) return; const t=nn.trim(); if(!t||t===old) return;
+  for(const [cid,c] of Object.entries(state.channels)){
+    if((c.tags||[]).includes(old)){ c.tags = c.tags.map(x=>x===old?t:x).filter((x,i,a)=>a.indexOf(x)===i); await saveChannel(cid); }
+  }
+  state.meta.tags = (state.meta.tags||[]).map(x=>x===old?t:x).filter((x,i,a)=>a.indexOf(x)===i);
+  if(state.meta.modes && state.meta.modes[old]){ state.meta.modes[t]=state.meta.modes[old]; delete state.meta.modes[old]; }
+  await saveMeta();
+  if(state.activeTag===old) state.activeTag=t;
+  renderTagMgr(); renderChannels(); toast('名前を変更しました');
+}
+async function deleteTag(t){
+  if(!confirm(`タグ「${t}」を全チャンネルから外します。よろしいですか？`)) return;
+  for(const [cid,c] of Object.entries(state.channels)){
+    if((c.tags||[]).includes(t)){ c.tags = c.tags.filter(x=>x!==t); await saveChannel(cid); }
+  }
+  state.meta.tags = (state.meta.tags||[]).filter(x=>x!==t);
+  if(state.meta.modes) delete state.meta.modes[t];
+  await saveMeta();
+  if(state.activeTag===t) state.activeTag='__all__';
+  renderTagMgr(); renderChannels(); toast('タグを削除しました');
+}
+
+// ===================== CSV 取り込み =====================
+function parseCsv(text){
+  if(text.charCodeAt(0)===0xfeff) text=text.slice(1);
+  const rows=[]; let row=[],f='',q=false;
+  for(let i=0;i<text.length;i++){ const ch=text[i];
+    if(q){ if(ch==='"'){ if(text[i+1]==='"'){f+='"';i++;} else q=false; } else f+=ch; continue; }
+    if(ch==='"') q=true;
+    else if(ch===',') { row.push(f); f=''; }
+    else if(ch==='\n'){ row.push(f); rows.push(row); row=[]; f=''; }
+    else if(ch==='\r'){ if(text[i+1]!=='\n'){ row.push(f); rows.push(row); row=[]; f=''; } }
+    else f+=ch;
+  }
+  if(f.length||row.length){ row.push(f); rows.push(row); }
+  return rows.filter(r=>!(r.length===1&&r[0].trim()===''));
+}
+async function importCsv(){
+  const file = $('#csvFile').files[0];
+  if(!file){ toast('CSVファイルを選んでください'); return; }
+  const rows = parseCsv(await file.text());
+  if(rows.length<2){ toast('CSVが空のようです'); return; }
+  const header = rows[0].map(h=>h.trim().toLowerCase().replace(/\s+/g,''));
+  const idx = (names)=>{ for(const n of names){ const i=header.indexOf(n); if(i>=0) return i; } return -1; };
+  const iId = idx(['channelid']), iTitle = idx(['channeltitle','title']), iUrl = idx(['channelurl']);
+  if(iId<0){ toast('Channel Id 列が見つかりません'); return; }
+  let added=0, kept=0;
+  for(const r of rows.slice(1)){
+    const cid=(r[iId]||'').trim(); if(!cid) continue;
+    const title=(iTitle>=0?r[iTitle]:'').trim();
+    const url=(iUrl>=0?r[iUrl]:'').trim();
+    if(state.channels[cid]){
+      state.channels[cid].title = title || state.channels[cid].title;
+      if(url && !state.channels[cid].channelUrl) state.channels[cid].channelUrl=url;
+      kept++;
+    }else{
+      state.channels[cid] = { title:title||cid, tags:[], muted:false, lastViewedAt:null, channelUrl:url||`https://www.youtube.com/channel/${cid}` };
+      added++;
+    }
+    await saveChannel(cid);
+  }
+  toast(`取り込み完了: 新規${added} / 既存${kept}`);
+  renderChannels(); renderFeed(); refreshStatus();
+}
+
+// ===================== バックアップ =====================
+function exportChannels(){
+  const blob = new Blob([JSON.stringify({ channels: state.channels, meta: state.meta }, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download = 'youtube-channels-backup.json'; a.click();
+}
+async function importChannels(ev){
+  const file = ev.target.files[0]; if(!file) return;
+  try{
+    const j = JSON.parse(await file.text());
+    if(j.channels){ for(const [cid,c] of Object.entries(j.channels)){ state.channels[cid]=normalizeCh(c); await saveChannel(cid); } }
+    if(j.meta){ state.meta = { tags:[], modes:{}, ...j.meta }; await saveMeta(); }
+    toast('読み込みました'); renderAll();
+  }catch(e){ toast('JSONの読み込みに失敗しました'); }
+}
+
+// ===================== タブ / 状態表示 =====================
+function tab(name){
+  ['feed','ch','set'].forEach(p => $('#pg-'+p).classList.toggle('on', p===name));
+  document.querySelectorAll('.tb').forEach(b => b.classList.toggle('on', b.dataset.pg===name));
+  if(name==='ch') renderChannels();
+  if(name==='set'){ renderTagMgr(); refreshStatus(); }
+}
+function refreshStatus(){
+  const total = Object.keys(state.channels).length;
+  const untagged = Object.values(state.channels).filter(c=>!(c.tags&&c.tags.length)).length;
+  $('#statusLine').innerHTML =
+    `保存先: <b>${state.fb?'Firestore(クラウド同期)':(DEMO?'デモ':'この端末のみ')}</b><br>`+
+    `チャンネル: ${total} / タグ未設定: ${untagged} / 動画キャッシュ: ${state.videos.length}`;
+}
+function renderAll(){ renderFeed(); renderChannels(); renderTagMgr(); refreshStatus(); }
+
+// ===================== 起動 =====================
+async function init(){
+  state.fb = await initFirestore();
+  const [updatedAt] = await Promise.all([ loadVideos(), loadChannels() ]);
+  if(state.meta && !state.meta.modes) state.meta.modes = {};
+  $('#hdSub').textContent = (updatedAt ? `更新: ${timeAgo(updatedAt)}` : 'データ未取得')
+    + (state.fb ? '' : (DEMO?'・デモ':'・ローカル'));
+  renderFeed(); refreshStatus();
+}
+
+// グローバル公開（onclick用）
+window.app = { tab, createTag, importCsv, exportChannels, importChannels };
+init();
+</script>
+</body>
+</html>
