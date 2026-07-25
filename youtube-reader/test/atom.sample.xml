@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"
+      xmlns:media="http://search.yahoo.com/mrss/"
+      xmlns="http://www.w3.org/2005/Atom">
+ <link rel="self" href="http://www.youtube.com/feeds/videos.xml?channel_id=UC_x5XG1OV2P6uZZ5FSM9Ttw"/>
+ <id>yt:channel:_x5XG1OV2P6uZZ5FSM9Ttw</id>
+ <yt:channelId>UC_x5XG1OV2P6uZZ5FSM9Ttw</yt:channelId>
+ <title>Google for Developers</title>
+ <link rel="alternate" href="https://www.youtube.com/channel/UC_x5XG1OV2P6uZZ5FSM9Ttw"/>
+ <author>
+  <name>Google for Developers</name>
+  <uri>https://www.youtube.com/channel/UC_x5XG1OV2P6uZZ5FSM9Ttw</uri>
+ </author>
+ <published>2007-08-30T18:33:32+00:00</published>
+ <entry>
+  <id>yt:video:AAAAAAAAAAA</id>
+  <yt:videoId>AAAAAAAAAAA</yt:videoId>
+  <yt:channelId>UC_x5XG1OV2P6uZZ5FSM9Ttw</yt:channelId>
+  <title>Tips &amp; Tricks &lt;Live&gt; #1</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=AAAAAAAAAAA"/>
+  <author>
+   <name>Google for Developers</name>
+   <uri>https://www.youtube.com/channel/UC_x5XG1OV2P6uZZ5FSM9Ttw</uri>
+  </author>
+  <published>2024-05-01T17:00:07+00:00</published>
+  <updated>2024-05-02T00:00:00+00:00</updated>
+  <media:group>
+   <media:title>Tips &amp; Tricks &lt;Live&gt; #1</media:title>
+   <media:thumbnail url="https://i4.ytimg.com/vi/AAAAAAAAAAA/hqdefault.jpg" width="480" height="360"/>
+   <media:description>desc &amp; more</media:description>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:BBBBBBBBBBB</id>
+  <yt:videoId>BBBBBBBBBBB</yt:videoId>
+  <yt:channelId>UC_x5XG1OV2P6uZZ5FSM9Ttw</yt:channelId>
+  <title>Upcoming Live Stream (scheduled)</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=BBBBBBBBBBB"/>
+  <author>
+   <name>Google for Developers</name>
+   <uri>https://www.youtube.com/channel/UC_x5XG1OV2P6uZZ5FSM9Ttw</uri>
+  </author>
+  <published>2099-12-31T09:00:00+00:00</published>
+  <updated>2099-12-30T00:00:00+00:00</updated>
+  <media:group>
+   <media:thumbnail url="https://i4.ytimg.com/vi/BBBBBBBBBBB/hqdefault.jpg" width="480" height="360"/>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:CCCCCCCCCCC</id>
+  <yt:videoId>CCCCCCCCCCC</yt:videoId>
+  <yt:channelId>UC_x5XG1OV2P6uZZ5FSM9Ttw</yt:channelId>
+  <title>No explicit alternate link here</title>
+  <author>
+   <name>Google for Developers</name>
+  </author>
+  <published>2024-04-20T10:00:00+00:00</published>
+  <updated>2024-04-20T10:30:00+00:00</updated>
+  <media:group>
+   <media:thumbnail url="https://i4.ytimg.com/vi/CCCCCCCCCCC/hqdefault.jpg" width="480" height="360"/>
+  </media:group>
+ </entry>
+</feed>

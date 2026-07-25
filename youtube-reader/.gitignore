@@ -1,0 +1,10 @@
+node_modules/
+
+# 個人データ（自動生成・大きい）。手元だけで持ち、コミットしない既定。
+# ※ channels.json は分類タグ入りの「マスター」。手で育てるので、
+#   バックアップしたい場合はこの2行をコメントアウトしてコミットしてよい。
+data/channels.json
+data/videos.json
+
+# Takeout の実データ（サンプルは data/subscriptions.sample.csv として追跡）
+data/subscriptions.csv

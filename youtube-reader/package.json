@@ -1,0 +1,15 @@
+{
+  "name": "youtube-reader",
+  "version": "0.1.0",
+  "private": true,
+  "description": "個人用 YouTube 登録チャンネル・リーダー（データ層のみ / step1）",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "import": "node import-subscriptions.js",
+    "fetch": "node fetch-feeds.js",
+    "test": "node test/run.js"
+  }
+}
