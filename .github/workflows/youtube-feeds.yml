@@ -27,17 +27,23 @@ jobs:
         with:
           node-version: 20
 
-      - name: Fetch RSS and rebuild videos.json
+      - name: Fetch subscription RSS -> videos.json
         run: node youtube-reader/gha-fetch.js
+
+      - name: Fetch discover (YouTube search) -> discover.json
+        # YOUTUBE_API_KEY シークレット未設定なら中でスキップされる
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: node youtube-reader/gha-discover.js
 
       - name: Commit if changed
         run: |
-          if git diff --quiet -- youtube-reader/web/data/videos.json; then
+          if git diff --quiet -- youtube-reader/web/data/videos.json youtube-reader/web/data/discover.json; then
             echo "変更なし。コミットしません。"
           else
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add youtube-reader/web/data/videos.json
-            git commit -m "chore: refresh YouTube feeds (videos.json)"
+            git add youtube-reader/web/data/videos.json youtube-reader/web/data/discover.json
+            git commit -m "chore: refresh YouTube feeds (videos/discover)"
             git push
           fi
