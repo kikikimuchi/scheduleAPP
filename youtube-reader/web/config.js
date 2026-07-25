@@ -23,7 +23,7 @@ window.YTR_CONFIG = {
   // --- Google ログイン用 OAuth クライアントID ---
   //  設定すると「Googleでログインして登録チャンネルを取り込む」が有効になります。
   //  未設定の場合はログインボタンを隠し、CSV取り込みだけになります。
-  oauthClientId: "",
+  oauthClientId: "104816687611-c0oj0sggpj2d8iv3pkh602lqqla5a40t.apps.googleusercontent.com",
 
   // 発見フィードの1カテゴリあたり最大表示数など（お好みで）
   discoverPerCategory: 12
