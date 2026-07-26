@@ -160,18 +160,35 @@ select.as{font-family:var(--mono);font-size:10.5px;border:1.5px dashed var(--lin
 #np.mini{left:auto;right:10px;transform:none;top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 100px);width:190px;max-width:190px;height:auto;}
 #np.mini #npInfo{display:none;}
 #np.mini #npPlayer{border:2px solid var(--sky);box-shadow:4px 4px 0 rgba(0,0,0,.5);}
-#np.mini .np-btn{width:22px;height:18px;top:2px;font-size:10px;}
-#np.mini #npMin{right:26px;}
-#np.mini #npClose{right:2px;}
+#np:not(.mini) #npPlayer .np-btn{display:none;} /* 全画面時はプレーヤー上のボタンを出さない(YouTubeで開くの横に移動) */
+#np.mini .np-btn{width:30px;height:26px;top:3px;font-size:15px;}
+#np.mini #npMin{right:36px;}
+#np.mini #npClose{right:4px;}
 @media (orientation:landscape){
   #np.on:not(.mini){max-width:none;left:0;transform:none;}
   #np.on:not(.mini) #npPlayer{aspect-ratio:auto;height:100vh;height:100dvh;}
   #np.on:not(.mini) #npInfo{display:none;}
 }
 .sheet-title{font-size:15px;font-weight:800;line-height:1.4;margin-bottom:4px;}
-.sheet-ch{font-size:12px;color:var(--ink-mute);margin-bottom:10px;}
-.acts{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
-.acts .btn{height:38px;font-size:12px;flex:1;min-width:120px;display:flex;align-items:center;justify-content:center;gap:6px;}
+.sheet-ch{font-size:12px;color:var(--sky);margin-bottom:6px;cursor:pointer;}
+.sheet-ch:active{opacity:.6;}
+.vstats{font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-bottom:12px;}
+.acts{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+.acts .btn{height:40px;font-size:12px;flex:1;min-width:130px;display:flex;align-items:center;justify-content:center;gap:6px;}
+.acts .npb{flex:0 0 auto;min-width:52px;max-width:56px;font-size:16px;}
+.lnk{color:var(--sky);cursor:pointer;text-decoration:underline;word-break:break-all;}
+.cmt .cu .clike{margin-left:8px;color:var(--ink-faint);}
+.desc.open{max-height:none;}
+#chatBox iframe{width:100%;height:340px;border:2px solid var(--line2);background:#fff;margin-bottom:12px;}
+.crow .cfav{border:none;background:none;font-size:17px;line-height:1;cursor:pointer;flex:0 0 auto;filter:grayscale(1);opacity:.5;}
+.crow .cfav.on{filter:none;opacity:1;}
+#searchPanel,#tagPick{position:fixed;inset:0;z-index:10005;background:var(--night);display:none;flex-direction:column;max-width:var(--maxw);left:50%;transform:translateX(-50%);}
+#searchPanel.on,#tagPick.on{display:flex;}
+.sp-head{display:flex;gap:8px;align-items:center;padding:calc(12px + env(safe-area-inset-top,0px)) 12px 10px;border-bottom:2px solid var(--line);}
+.sp-head .fi{height:40px;}
+#searchList,#tagPickList{flex:1;overflow-y:auto;padding:12px;}
+#tagPickList{display:flex;flex-wrap:wrap;gap:8px;align-content:flex-start;}
+#searchList{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start;}
 .cmt{display:flex;gap:9px;padding:10px 2px;border-bottom:1px solid var(--line);}
 .cmt .av{width:30px;height:30px;flex:0 0 auto;border-radius:50%;background:var(--panel2);border:1.5px solid var(--line2);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;color:var(--sky);}
 .cmt .cb{min-width:0;}
@@ -179,7 +196,7 @@ select.as{font-family:var(--mono);font-size:10.5px;border:1.5px dashed var(--lin
 .cmt .ct{font-size:12.5px;line-height:1.6;overflow-wrap:anywhere;}
 .cmt .ct .ts{color:var(--sky);cursor:pointer;font-weight:700;}
 .cmt .ct .ts:active{opacity:.6;}
-.desc{font-size:12px;line-height:1.65;color:var(--ink-soft);max-height:130px;overflow-y:auto;margin:0 0 14px;padding:9px 10px;background:var(--night2);border:2px solid var(--line);overflow-wrap:anywhere;}
+.desc{font-size:12px;line-height:1.65;color:var(--ink-soft);max-height:120px;overflow-y:auto;margin:0 0 14px;padding:9px 10px;background:var(--night2);border:2px solid var(--line);overflow-wrap:anywhere;cursor:pointer;}
 .desc:empty{display:none;}
 .desc .ts{color:var(--sky);cursor:pointer;font-weight:700;}
 
@@ -215,6 +232,7 @@ select.as{font-family:var(--mono);font-size:10.5px;border:1.5px dashed var(--lin
       <div class="hd-title">まんぼー<b>ちゅーぶ</b></div>
       <div class="hd-upd" id="hdUpd"></div>
     </div>
+    <button class="demo-pill" id="searchBtn" title="検索">🔍</button>
     <button class="demo-pill" id="reloadBtn" title="最新を取得">更新</button>
   </div>
 
@@ -250,19 +268,6 @@ select.as{font-family:var(--mono);font-size:10.5px;border:1.5px dashed var(--lin
 
   <!-- SETTINGS -->
   <div id="pg-set" class="pg">
-    <div class="sec-h" id="acctSec">アカウント</div>
-    <div class="card" id="loginCard">
-      <p style="margin-bottom:10px">Googleでログインして、あなたの登録チャンネルを取り込みます（自分のデータを読むだけ・規約OK）。</p>
-      <button class="btn wide sky" id="loginBtn2">Googleでログインして取り込む</button>
-    </div>
-    <div class="sec-h">登録チャンネルの取り込み（CSV）</div>
-    <div class="card">
-      <p style="margin-bottom:10px">Google Takeout の「登録チャンネル」→ subscriptions.csv を選ぶと取り込みます。既存のタグは残ります。</p>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <input type="file" id="csvFile" accept=".csv,text/csv">
-        <button class="btn" id="csvBtn">取り込む</button>
-      </div>
-    </div>
     <div class="sec-h">タグの管理</div>
     <div class="card">
       <div style="display:flex;gap:8px;">
@@ -282,6 +287,19 @@ select.as{font-family:var(--mono);font-size:10.5px;border:1.5px dashed var(--lin
     </div>
     <div class="sec-h">状態</div>
     <div class="card"><p id="statusLine">—</p></div>
+    <div class="sec-h" id="acctSec">アカウント</div>
+    <div class="card" id="loginCard">
+      <p style="margin-bottom:10px">Googleでログインして、あなたの登録チャンネルを取り込みます（自分のデータを読むだけ・規約OK）。</p>
+      <button class="btn wide sky" id="loginBtn2">Googleでログインして取り込む</button>
+    </div>
+    <div class="sec-h">登録チャンネルの取り込み（CSV）</div>
+    <div class="card">
+      <p style="margin-bottom:10px">Google Takeout の「登録チャンネル」→ subscriptions.csv を選ぶと取り込みます。既存のタグは残ります。</p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input type="file" id="csvFile" accept=".csv,text/csv">
+        <button class="btn" id="csvBtn">取り込む</button>
+      </div>
+    </div>
   </div>
 
   <div id="tabbar">
@@ -301,19 +319,33 @@ select.as{font-family:var(--mono);font-size:10.5px;border:1.5px dashed var(--lin
   </div>
   <div id="npInfo">
     <div class="sheet-title" id="sTitle"></div>
-    <div class="sheet-ch" id="sCh"></div>
+    <div class="sheet-ch" id="sCh" title="チャンネルを開く"></div>
+    <div class="vstats" id="vStats"></div>
     <div class="acts">
       <button class="btn" id="openYt">▶ YouTubeで開く</button>
-      <button class="btn ghost" id="doComment">💬 コメントする</button>
-      <button class="btn ghost" id="doLike">👍 高評価</button>
+      <button class="btn ghost npb" id="actMin" title="小窓化">▽</button>
+      <button class="btn ghost npb" id="actClose" title="閉じる">✕</button>
     </div>
-    <div class="sec-h" style="margin-top:2px">概要</div>
+    <button class="hist-link" id="chatBtn" style="display:none">💬 チャットリプレイを表示</button>
+    <div id="chatBox" style="display:none"></div>
+    <div class="sec-h" style="margin-top:2px">概要（タップで開閉）</div>
     <div id="descBox" class="desc"></div>
     <div class="sec-h">コメント（表示のみ）</div>
     <div id="cmtList"></div>
     <p style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);margin-top:10px;line-height:1.6;">
-      ※ ▽で小窓化して継続再生。iPhoneを横にすると全画面。コメント投稿・高評価は公式アプリが開きます。</p>
+      ※ ▽で小窓化して継続再生。iPhoneを横にすると全画面。</p>
   </div>
+</div>
+
+<!-- SEARCH -->
+<div id="searchPanel">
+  <div class="sp-head"><input class="fi" id="searchInput" placeholder="登録・発見の動画を検索"><button class="btn ghost npb" id="searchClose">✕</button></div>
+  <div id="searchList"></div>
+</div>
+<!-- TAG PICKER (すべて長押し) -->
+<div id="tagPick">
+  <div class="sp-head"><div style="flex:1;font-weight:800;font-size:14px">カテゴリを選ぶ</div><button class="btn ghost npb" id="tagPickClose">✕</button></div>
+  <div id="tagPickList"></div>
 </div>
 
 <div id="toast"></div>
@@ -350,7 +382,18 @@ function timeAgo(iso){const t=Date.parse(iso);if(!Number.isFinite(t))return'';co
   const m=Math.floor(d/60000),h=Math.floor(m/60),dy=Math.floor(h/24);
   if(dy>=30)return`${Math.floor(dy/30)}ヶ月前`;if(dy>=1)return`${dy}日前`;if(h>=1)return`${h}時間前`;if(m>=1)return`${m}分前`;return'たった今';}
 
-function allTags(){const s=new Set(state.meta.tags||[]);Object.values(state.channels).forEach(c=>(c.tags||[]).forEach(t=>s.add(t)));return[...s].sort((a,b)=>a.localeCompare(b,'ja'));}
+// タグ順は meta.tags の並びに従う（設定で並び替え可）。未登録の実タグは末尾に。
+function allTags(){
+  const order=(state.meta.tags||[]).slice();
+  const inCh=new Set();Object.values(state.channels).forEach(c=>(c.tags||[]).forEach(t=>inCh.add(t)));
+  const extras=[...inCh].filter(t=>!order.includes(t)).sort((a,b)=>a.localeCompare(b,'ja'));
+  return [...order,...extras];
+}
+function syncTags(){
+  const order=(state.meta.tags||[]).slice(),set=new Set(order),extras=[];
+  Object.values(state.channels).forEach(c=>(c.tags||[]).forEach(t=>{if(!set.has(t)){set.add(t);extras.push(t);}}));
+  if(extras.length){state.meta.tags=[...order,...extras.sort((a,b)=>a.localeCompare(b,'ja'))];saveMeta();}
+}
 function tagCount(t){return Object.values(state.channels).filter(c=>!c.muted&&(c.tags||[]).includes(t)).length;}
 function channelsForTag(t){return Object.entries(state.channels).filter(([,c])=>!c.muted&&(t==='__all__'||(c.tags||[]).includes(t))).map(([cid])=>cid);}
 function modeFor(t){return (state.meta.modes&&state.meta.modes[t])||'newest';}
@@ -362,7 +405,9 @@ function discCats(){
 }
 
 function videosForTag(tag,mode){
-  const cids=new Set(channelsForTag(tag));let v=state.videos.filter(x=>cids.has(x.cid));
+  let cids=new Set(channelsForTag(tag));
+  if(mode==='fav')cids=new Set([...cids].filter(cid=>state.channels[cid]&&state.channels[cid].fav));
+  let v=state.videos.filter(x=>cids.has(x.cid));
   if(mode==='one-per-channel'){const best=new Map();for(const x of v){const c=best.get(x.cid);if(!c||newestCmp(x,c)<0)best.set(x.cid,x);}v=[...best.values()].sort(newestCmp);}
   else if(mode==='rediscover'){v=v.map(x=>({x,s:score(x)})).sort((a,b)=>b.s-a.s).map(o=>o.x);}
   else v=v.sort(newestCmp);
@@ -375,14 +420,18 @@ function score(v){const c=state.channels[v.cid]||{};const lv=Date.parse(c.lastVi
   return stale*REDISCOVER.W_STALE+fresh*REDISCOVER.W_FRESH;}
 
 function chTitle(o){if(o.ch)return o.ch;const c=state.channels[o.cid];return (c&&c.title)||o.cid||'';}
+function chUrl(cid){const c=state.channels[cid];return (c&&c.channelUrl)||('https://www.youtube.com/channel/'+cid);}
 function findById(id){return state.videos.find(v=>v.id===id)||state.discover.find(v=>v.id===id);}
 function cardHtml(o,badge,why){
   const ch=chTitle(o);
   return `<div class="vid" data-id="${esc(o.id)}" data-cid="${esc(o.cid||'')}" data-t="${esc(o.t||'')}" data-ch="${esc(ch)}">${thumbHtml(o.id,o.cid||'',ch)}`
-    +`<div class="vmeta"><div class="vtitle">${esc(o.t||'(無題)')}</div><div class="vch">${esc(ch)}</div>`
+    +`<div class="vmeta"><div class="vtitle">${esc(o.t||'(無題)')}</div><div class="vch" data-cid="${esc(o.cid||'')}">${esc(ch)}</div>`
     +`<div class="vtime">${badge||''}${o.p?timeAgo(o.p):''}</div>${why?`<div class="vwhy">✨ ${esc(why)}</div>`:''}</div></div>`;
 }
-function bindCards(root){root.querySelectorAll('.vid').forEach(el=>el.onclick=()=>openVideo({id:el.dataset.id,cid:el.dataset.cid,t:el.dataset.t,ch:el.dataset.ch}));}
+function bindCards(root){
+  root.querySelectorAll('.vid').forEach(el=>el.onclick=()=>openVideo({id:el.dataset.id,cid:el.dataset.cid,t:el.dataset.t,ch:el.dataset.ch}));
+  root.querySelectorAll('.vch[data-cid]').forEach(el=>el.onclick=(e)=>{e.stopPropagation();if(el.dataset.cid)window.open(chUrl(el.dataset.cid),'_blank','noopener');});
+}
 
 function renderChips(){
   const el=$('#tagChips'),isDisc=state.feedMode==='discover';
@@ -394,6 +443,11 @@ function renderChips(){
   html+=tags.map(t=>chip(t,t,cnt(t),state.activeTag===t)).join('');
   el.innerHTML=html;
   el.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{state.activeTag=b.dataset.tag;renderFeed();});
+  // 「すべて」長押しでカテゴリ一覧
+  const all=el.querySelector('.chip[data-tag="__all__"]');
+  if(all){let lt;const clr=()=>clearTimeout(lt);
+    all.addEventListener('touchstart',()=>{lt=setTimeout(()=>openTagPick(isDisc),480);},{passive:true});
+    ['touchend','touchmove','touchcancel'].forEach(ev=>all.addEventListener(ev,clr,{passive:true}));}
 }
 function renderSort(){
   const bar=$('#sortBar');
@@ -402,7 +456,7 @@ function renderSort(){
     bar.querySelectorAll('button').forEach(b=>{b.classList.toggle('on',b.dataset.d===state.discMode);b.onclick=()=>{state.discMode=b.dataset.d;renderFeed();};});
   }else{
     const mode=modeFor(state.activeTag);
-    bar.innerHTML=`<button data-mode="newest">新着順<small>公開が新しい順</small></button><button data-mode="rediscover">再発見<small>ご無沙汰CH優先</small></button><button data-mode="one-per-channel">1本ずつ<small>CH最新1本</small></button>`;
+    bar.innerHTML=`<button data-mode="fav" title="お気に入り">⭐<small>お気に入り</small></button><button data-mode="newest">新着順<small>公開が新しい順</small></button><button data-mode="rediscover">再発見<small>ご無沙汰CH優先</small></button><button data-mode="one-per-channel">1本ずつ<small>CH最新1本</small></button>`;
     bar.querySelectorAll('button').forEach(b=>{b.classList.toggle('on',b.dataset.mode===mode);
       b.onclick=()=>{state.meta.modes=state.meta.modes||{};state.meta.modes[state.activeTag]=b.dataset.mode;saveMeta();renderFeed();};});
   }
@@ -447,28 +501,33 @@ function openVideo(o){
   state.currentVideo=o;
   const ch=o.ch||chTitle(o);
   $('#sTitle').textContent=o.t||'(動画)';$('#sCh').textContent=ch;
+  $('#sCh').onclick=()=>{ if(o.cid) window.open(chUrl(o.cid),'_blank','noopener'); };
   $('#descBox').innerHTML='';
   $('#playerBox').innerHTML=`<iframe src="https://www.youtube.com/embed/${encodeURIComponent(o.id)}?autoplay=1&playsinline=1&rel=0&enablejsapi=1" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
   loadDesc(o.id);
   loadComments(o.id);
   const yt=`https://www.youtube.com/watch?v=${o.id}`;
   $('#openYt').onclick=()=>window.open(yt,'_blank','noopener');
-  $('#doComment').onclick=()=>{window.open(yt,'_blank','noopener');toast('公式アプリでコメントできます');};
-  $('#doLike').onclick=()=>{window.open(yt,'_blank','noopener');toast('公式アプリで高評価できます');};
   if(o.cid&&state.channels[o.cid]){state.channels[o.cid].lastViewedAt=nowIso();saveChannel(o.cid);}
   state.history=[{id:o.id,at:nowIso(),cid:o.cid||'',t:o.t||'',ch:ch},...state.history.filter(h=>h.id!==o.id)].slice(0,200);
   LS.set(LSK_HIST,state.history);
   const np=$('#np'); np.classList.remove('mini'); np.classList.add('on');
   $('#npInfo').scrollTop=0;
 }
+function numJa(n){n=+n;if(!isFinite(n))return'';if(n>=1e8)return (n/1e8).toFixed(1).replace(/\.0$/,'')+'億';if(n>=1e4)return (n/1e4).toFixed(1).replace(/\.0$/,'')+'万';return n.toLocaleString('ja-JP');}
 async function loadDesc(id){
-  const box=$('#descBox'); box.innerHTML='';
+  const box=$('#descBox'); box.innerHTML=''; box.classList.remove('open');
+  $('#vStats').textContent=''; $('#chatBtn').style.display='none'; $('#chatBox').innerHTML=''; $('#chatBox').style.display='none';
   if(!CFG.youtubeApiKey) return;
   try{
-    const r=await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${encodeURIComponent(id)}&key=${CFG.youtubeApiKey}`);
+    const r=await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,liveStreamingDetails&id=${encodeURIComponent(id)}&key=${CFG.youtubeApiKey}`);
     if(!r.ok) return; const j=await r.json();
-    const d=j.items&&j.items[0]&&j.items[0].snippet; if(!d) return;
-    box.innerHTML=fmtComment(d.description||'');
+    const it=j.items&&j.items[0]; if(!it) return;
+    const d=it.snippet||{}, st=it.statistics||{};
+    box.innerHTML=fmtRich(d.description||'');
+    const vc=st.viewCount?`👁 ${numJa(st.viewCount)}回`:'', lc=st.likeCount?`👍 ${numJa(st.likeCount)}`:'';
+    $('#vStats').textContent=[vc,lc].filter(Boolean).join('　');
+    if(it.liveStreamingDetails&&it.liveStreamingDetails.actualEndTime){ $('#chatBtn').style.display=''; $('#chatBtn').dataset.id=id; }
   }catch(e){}
 }
 // ミニプレーヤー: iframeは動かさず #np のクラスだけで大/小を切替（＝再生シームレス）
@@ -487,14 +546,31 @@ async function refreshData(){
   }catch(e){ toast('更新に失敗しました'); }
   btn.textContent=old; btn.disabled=false;
 }
-// コメント整形: 改行を保持し、タイムスタンプ(H:MM:SS / M:SS)を頭出しリンクにする
-function fmtComment(t){
-  let h=esc(t||'');
-  h=h.replace(/(\d{1,2}):([0-5]\d)(?::([0-5]\d))?/g,(m,a,b,c)=>{
+// URLからYouTube動画IDを抽出（対応なら null 以外）
+function ytId(url){
+  let m=url.match(/[?&]v=([\w-]{11})/); if(m)return m[1];
+  m=url.match(/youtu\.be\/([\w-]{11})/); if(m)return m[1];
+  m=url.match(/youtube\.com\/(?:shorts|live|embed)\/([\w-]{11})/); if(m)return m[1];
+  return null;
+}
+function tsify(escd){
+  return escd.replace(/(\d{1,2}):([0-5]\d)(?::([0-5]\d))?/g,(m,a,b,c)=>{
     const sec=c!==undefined?(+a)*3600+(+b)*60+(+c):(+a)*60+(+b);
-    return `<span class="ts" data-s="${sec}">${m}</span>`;
-  });
-  return h.replace(/\n/g,'<br>');
+    return `<span class="ts" data-s="${sec}">${m}</span>`;});
+}
+// 概要/コメント整形: 改行保持＋タイムスタンプ頭出し＋URLリンク化(YouTube動画はアプリ内)
+function fmtRich(raw){
+  raw=raw||''; const urlRe=/(https?:\/\/[^\s<>"'）)]+)/g;
+  let out='',last=0,m;
+  while((m=urlRe.exec(raw))){
+    out+=tsify(esc(raw.slice(last,m.index)));
+    const url=m[1], id=ytId(url);
+    out+= id ? `<span class="lnk yt" data-yt="${id}">${esc(url)}</span>`
+             : `<span class="lnk" data-url="${esc(url)}">${esc(url)}</span>`;
+    last=m.index+url.length;
+  }
+  out+=tsify(esc(raw.slice(last)));
+  return out.replace(/\n/g,'<br>');
 }
 function seekTo(sec){
   const f=$('#playerBox iframe'); if(!f||!f.contentWindow) return;
@@ -512,11 +588,34 @@ async function loadComments(id){
     const j=await r.json();
     const items=(j.items||[]).map(it=>it.snippet.topLevelComment.snippet);
     if(!items.length){box.innerHTML=`<p class="cmt-note">コメントはまだありません。</p>`;return;}
-    box.innerHTML=items.map(s=>`<div class="cmt"><div class="av">${esc((s.authorDisplayName||'?').replace(/^@/,'').charAt(0))}</div><div class="cb"><div class="cu">${esc(s.authorDisplayName||'')}</div><div class="ct">${fmtComment(s.textDisplay||'')}</div></div></div>`).join('');
+    box.innerHTML=items.map(s=>{const lk=s.likeCount?`<span class="clike">👍 ${numJa(s.likeCount)}</span>`:'';
+      return `<div class="cmt"><div class="av">${esc((s.authorDisplayName||'?').replace(/^@/,'').charAt(0))}</div><div class="cb"><div class="cu">${esc(s.authorDisplayName||'')}${lk}</div><div class="ct">${fmtRich(s.textDisplay||'')}</div></div></div>`;}).join('');
   }catch(e){box.innerHTML=`<p class="cmt-note">コメント取得でエラーが発生しました。</p>`;}
 }
 function closeNp(){const np=$('#np');np.classList.remove('on','mini');$('#playerBox').innerHTML='';}
 function updHdUpd(){ $('#hdUpd').textContent = state._updatedAt?`更新: ${timeAgo(state._updatedAt)}`:''; }
+// カテゴリ一覧（「すべて」長押し）
+function openTagPick(isDisc){
+  const cats=['__all__',...(isDisc?discCats():allTags())];
+  $('#tagPickList').innerHTML=cats.map(t=>`<button class="chip ${state.activeTag===t?'on':''}" data-t="${esc(t)}">${t==='__all__'?'すべて':esc(t)}</button>`).join('');
+  $('#tagPickList').querySelectorAll('.chip').forEach(b=>b.onclick=()=>{state.activeTag=b.dataset.t;$('#tagPick').classList.remove('on');renderFeed();scrollTop();});
+  $('#tagPick').classList.add('on');
+}
+// 検索（登録＋発見の動画をタイトル/チャンネル名で絞り込み）
+function openSearch(){ $('#searchPanel').classList.add('on'); const i=$('#searchInput'); i.value=state._sq||''; renderSearch(); setTimeout(()=>i.focus(),60); }
+function renderSearch(){
+  const q=($('#searchInput').value||'').trim().toLowerCase(); state._sq=q;
+  const list=$('#searchList');
+  if(!q){list.innerHTML=`<div class="empty" style="grid-column:1/-1">キーワードを入力してください</div>`;return;}
+  const seen=new Set(),res=[];
+  const push=(o,ch)=>{if(seen.has(o.id))return;if((o.t||'').toLowerCase().includes(q)||(ch||'').toLowerCase().includes(q)){seen.add(o.id);res.push({...o,ch:ch||o.ch});}};
+  state.videos.forEach(v=>push(v,(state.channels[v.cid]||{}).title));
+  state.discover.forEach(d=>push(d,d.ch));
+  res.sort((a,b)=>pub(b)-pub(a));
+  if(!res.length){list.innerHTML=`<div class="empty" style="grid-column:1/-1">「${esc(q)}」は見つかりません</div>`;return;}
+  list.innerHTML=res.slice(0,80).map(o=>cardHtml(o)).join('');
+  bindCards(list);
+}
 
 function chFilterMatch(c){
   if(state.chFilter==='untagged')return !(c.tags&&c.tags.length);
@@ -549,10 +648,12 @@ function renderChannels(){
     return `<div class="crow"><div class="crow-top">`
       +`<div class="cthumb" style="${th}"></div>`
       +`<div class="cname" data-url="${esc(url)}">${esc(c.title||cid)}</div>`
+      +`<button class="cfav ${c.fav?'on':''}" data-cid="${cid}" title="お気に入り">${c.fav?'⭐':'☆'}</button>`
       +`<button class="mute ${c.muted?'on':''}" data-cid="${cid}">${c.muted?'🔕':'🔔'}</button></div>`
       +`<div class="ctags">${chips}<select class="as" data-cid="${cid}"><option value="">＋タグ</option>${opts}<option value="__new__">＋新規…</option></select></div></div>`;
   }).join('');
   list.querySelectorAll('.cname').forEach(el=>el.onclick=()=>window.open(el.dataset.url,'_blank','noopener'));
+  list.querySelectorAll('.cfav').forEach(el=>el.onclick=()=>{const c=state.channels[el.dataset.cid];c.fav=!c.fav;saveChannel(el.dataset.cid);renderChannels();});
   list.querySelectorAll('.ctag').forEach(el=>el.onclick=()=>{const c=state.channels[el.dataset.cid];c.tags=(c.tags||[]).filter(t=>t!==el.dataset.tag);saveChannel(el.dataset.cid);renderChannels();});
   list.querySelectorAll('.mute').forEach(el=>el.onclick=()=>{const c=state.channels[el.dataset.cid];c.muted=!c.muted;saveChannel(el.dataset.cid);renderChannels();});
   list.querySelectorAll('select.as').forEach(sel=>sel.onchange=()=>{const cid=sel.dataset.cid;let t=sel.value;sel.value='';
@@ -581,13 +682,22 @@ async function fetchChannelThumbs(){
   if($('#pg-ch').classList.contains('on'))renderChannels();
 }
 function renderTagMgr(){
+  syncTags();
   const tags=allTags(),mgr=$('#tagMgr');
   if(!tags.length){mgr.innerHTML=`<p style="margin-top:10px;font-size:12px;color:var(--ink-mute)">タグはまだありません。</p>`;return;}
-  mgr.innerHTML=tags.map(t=>{const n=Object.values(state.channels).filter(c=>(c.tags||[]).includes(t)).length;
-    return `<div class="trow"><span class="tname">${esc(t)} <span class="tn">(${n})</span></span>`
-      +`<button class="linkbtn" data-act="rename" data-tag="${esc(t)}">名前変更</button>`
+  mgr.innerHTML=`<p style="font-size:11px;color:var(--ink-mute);margin:2px 0 8px">▲▼で並び替え（フィードのタグ順に反映）</p>`+tags.map((t,i)=>{const n=Object.values(state.channels).filter(c=>(c.tags||[]).includes(t)).length;
+    return `<div class="trow"><button class="linkbtn ord" data-mv="up" data-i="${i}" ${i===0?'disabled':''}>▲</button>`
+      +`<button class="linkbtn ord" data-mv="down" data-i="${i}" ${i===tags.length-1?'disabled':''}>▼</button>`
+      +`<span class="tname">${esc(t)} <span class="tn">(${n})</span></span>`
+      +`<button class="linkbtn" data-act="rename" data-tag="${esc(t)}">名前</button>`
       +`<button class="linkbtn" data-act="del" data-tag="${esc(t)}">削除</button></div>`;}).join('');
-  mgr.querySelectorAll('.linkbtn').forEach(b=>b.onclick=()=>b.dataset.act==='rename'?renameTag(b.dataset.tag):deleteTag(b.dataset.tag));
+  mgr.querySelectorAll('.linkbtn[data-act]').forEach(b=>b.onclick=()=>b.dataset.act==='rename'?renameTag(b.dataset.tag):deleteTag(b.dataset.tag));
+  mgr.querySelectorAll('.ord').forEach(b=>b.onclick=()=>moveTag(+b.dataset.i,b.dataset.mv));
+}
+async function moveTag(i,dir){
+  const t=(state.meta.tags||[]).slice(); const j=dir==='up'?i-1:i+1;
+  if(j<0||j>=t.length)return; [t[i],t[j]]=[t[j],t[i]]; state.meta.tags=t; await saveMeta();
+  renderTagMgr(); if($('#pg-feed').classList.contains('on'))renderFeed();
 }
 async function renameTag(old){const nn=prompt(`「${old}」の新しい名前`,old);if(!nn)return;const t=nn.trim();if(!t||t===old)return;
   for(const [cid,c] of Object.entries(state.channels))if((c.tags||[]).includes(old)){c.tags=c.tags.map(x=>x===old?t:x).filter((x,i,a)=>a.indexOf(x)===i);await saveChannel(cid);}
@@ -644,7 +754,7 @@ async function initFirestore(){
     const app=initializeApp(CFG.firebase);const db=fs.getFirestore(app);return {db,...fs};
   }catch(e){console.warn('Firestore初期化に失敗、ローカル保存で継続',e);return null;}
 }
-function normCh(c){return {title:c.title||'',tags:Array.isArray(c.tags)?c.tags:[],muted:!!c.muted,lastViewedAt:c.lastViewedAt||null,channelUrl:c.channelUrl||''};}
+function normCh(c){return {title:c.title||'',tags:Array.isArray(c.tags)?c.tags:[],muted:!!c.muted,fav:!!c.fav,lastViewedAt:c.lastViewedAt||null,channelUrl:c.channelUrl||'',thumb:c.thumb||''};}
 async function loadChannels(){
   if(state.fb){try{
     const snap=await state.fb.getDocs(state.fb.collection(state.fb.db,CH_COL));
@@ -709,6 +819,7 @@ async function init(){
   const [updatedAt]=await Promise.all([loadVideos(),loadDiscover(),loadChannels()]);
   state._updatedAt=updatedAt; shuffleDiscover();
   if(!state.meta.modes)state.meta.modes={};
+  syncTags();
   document.querySelectorAll('.tb').forEach(b=>b.onclick=()=>tab(b.dataset.pg));
   $('#feedMode').querySelectorAll('button').forEach(b=>b.onclick=()=>{
     if(state.feedMode===b.dataset.fm)return;state.feedMode=b.dataset.fm;state.activeTag='__all__';
@@ -722,8 +833,28 @@ async function init(){
   $('#logoBtn').onclick=scrollTop;
   $('#npClose').onclick=closeNp;
   $('#npMin').onclick=()=>$('#np').classList.contains('mini')?expandPlayer():minimizePlayer();
-  // タイムスタンプ頭出し（概要＋コメント）
-  $('#npInfo').addEventListener('click',e=>{const el=e.target.closest('.ts');if(el)seekTo(+el.dataset.s);});
+  $('#actMin').onclick=minimizePlayer;
+  $('#actClose').onclick=closeNp;
+  // チャットリプレイ（アーカイブ配信のみ）
+  $('#chatBtn').onclick=()=>{
+    const box=$('#chatBox'), id=$('#chatBtn').dataset.id, hidden=(box.style.display==='none'||!box.style.display);
+    if(hidden){
+      if(!box.querySelector('iframe'))box.innerHTML=`<iframe src="https://www.youtube.com/live_chat?v=${encodeURIComponent(id)}&embed_domain=${location.hostname}" allow="autoplay"></iframe>`;
+      box.style.display='';$('#chatBtn').textContent='💬 チャットリプレイを隠す';
+    }else{ box.style.display='none';$('#chatBtn').textContent='💬 チャットリプレイを表示'; }
+  };
+  // 概要/コメント: タイムスタンプ頭出し・URLリンク（YouTube動画はアプリ内）・概要タップで開閉
+  $('#npInfo').addEventListener('click',e=>{
+    const yt=e.target.closest('.lnk.yt'); if(yt){openVideo({id:yt.dataset.yt});return;}
+    const lk=e.target.closest('.lnk'); if(lk){if(lk.dataset.url)window.open(lk.dataset.url,'_blank','noopener');return;}
+    const ts=e.target.closest('.ts'); if(ts){seekTo(+ts.dataset.s);return;}
+    const db=e.target.closest('#descBox'); if(db){db.classList.toggle('open');}
+  });
+  // 検索・カテゴリ選択
+  $('#searchBtn').onclick=openSearch;
+  $('#searchClose').onclick=()=>$('#searchPanel').classList.remove('on');
+  $('#searchInput').addEventListener('input',renderSearch);
+  $('#tagPickClose').onclick=()=>$('#tagPick').classList.remove('on');
   // 下スワイプで小窓化（追従あり）
   (function(){const np=$('#np'),info=$('#npInfo');let sy=0,drag=false;
     info.addEventListener('touchstart',e=>{drag=!np.classList.contains('mini')&&info.scrollTop<=0;sy=e.touches[0].clientY;},{passive:true});
