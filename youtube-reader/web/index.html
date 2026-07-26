@@ -158,6 +158,10 @@ select.as{font-family:var(--mono);font-size:10.5px;border:1.5px dashed var(--lin
 #npPlayer{position:relative;width:100%;aspect-ratio:16/9;background:#000;flex:0 0 auto;}
 #playerBox{position:absolute;inset:0;}
 #playerBox iframe{width:100%;height:100%;border:0;display:block;}
+.pl-err{position:absolute;inset:0;background:rgba(6,11,24,.95);display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;z-index:5;}
+.pl-err-in p{font-size:13px;line-height:1.6;margin-bottom:14px;color:var(--ink);}
+.pl-err-in small{color:var(--ink-faint);font-size:11px;}
+.pl-err-in .btn{height:44px;padding:0 20px;font-size:13px;}
 /* 疑似全画面: iPhoneで自動回転オフでもCSS回転で横向きフル表示 */
 #fsExit{display:none;}
 #np.fs #npInfo{display:none;}
@@ -628,9 +632,9 @@ function cardHtml(o,badge,why){
 }
 function bindCards(root){
   // カード内はどこを押しても再生ページへ（チャンネル名の誤タップ防止）。チャンネルは再生画面/チャンネルタブから開ける
+  // メンバー限定もまずアプリ内で再生を試みる（弾かれたらプレーヤー上に公式で開くボタンを出す）
   root.querySelectorAll('.vid').forEach(el=>el.onclick=()=>{
-    if(el.dataset.mem==='1'){window.open('https://www.youtube.com/watch?v='+el.dataset.id,'_blank','noopener');return;} // メンバー限定は公式アプリへ
-    openVideo({id:el.dataset.id,cid:el.dataset.cid,t:el.dataset.t,ch:el.dataset.ch});});
+    openVideo({id:el.dataset.id,cid:el.dataset.cid,t:el.dataset.t,ch:el.dataset.ch,mem:el.dataset.mem==='1'});});
 }
 
 function renderChips(){
@@ -721,6 +725,15 @@ function openVideo(o){
   const np=$('#np'); np.classList.remove('mini'); np.classList.add('on');
   state._playing=true; $('#miniPlay').classList.remove('paused'); $('#npMin').textContent='▽';
   $('#npInfo').scrollTop=0;
+}
+function showPlayerError(code){
+  const o=state.currentVideo||{}; if(!o.id)return;
+  const box=$('#playerBox'); if(!box||box.querySelector('.pl-err'))return;
+  const t=Math.floor(state._curTime||0);
+  const div=document.createElement('div'); div.className='pl-err';
+  div.innerHTML=`<div class="pl-err-in"><p>アプリ内で再生できませんでした${o.mem?'（メンバー限定）':''}。<br><small>この端末のブラウザでYouTubeにログインすると再生できる場合があります。</small></p><button class="btn" id="plErrOpen">▶ YouTube／公式アプリで開く</button></div>`;
+  box.appendChild(div);
+  const b=div.querySelector('#plErrOpen'); if(b)b.onclick=()=>window.open(`https://www.youtube.com/watch?v=${o.id}${t>1?`&t=${t}s`:''}`,'_blank','noopener');
 }
 function numJa(n){n=+n;if(!isFinite(n))return'';if(n>=1e8)return (n/1e8).toFixed(1).replace(/\.0$/,'')+'億';if(n>=1e4)return (n/1e4).toFixed(1).replace(/\.0$/,'')+'万';return n.toLocaleString('ja-JP');}
 async function loadDesc(id){
@@ -1181,7 +1194,10 @@ async function init(){
   // プレーヤーからの再生位置を受信（公式アプリへその時間で飛ぶため）
   window.addEventListener('message',e=>{
     if(typeof e.data!=='string'||(''+e.origin).indexOf('youtube')<0)return;
-    try{const d=JSON.parse(e.data);if(d&&d.info&&typeof d.info.currentTime==='number')state._curTime=d.info.currentTime;}catch(_){}
+    try{const d=JSON.parse(e.data);
+      if(d&&d.info&&typeof d.info.currentTime==='number')state._curTime=d.info.currentTime;
+      if(d&&d.event==='onError')showPlayerError(d.info);
+    }catch(_){}
   });
   $('#actMin').onclick=minimizePlayer;
   $('#actClose').onclick=()=>history.back();
