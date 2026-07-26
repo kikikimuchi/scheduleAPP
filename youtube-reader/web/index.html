@@ -208,11 +208,13 @@ body.fs-lock{overflow:hidden;}
     margin:0;padding:16px 12px;background:var(--night2);border-right:2px solid var(--line);z-index:95;}
   #pg-feed.on #tagChips .chip{width:100%;box-shadow:none;}
   #pg-feed.on #sortBar{margin:2px 0 12px;}
-  #feedList,#histList,.vgrid,#chvList{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))!important;}
+  #feedList,#histList,.vgrid,#chvList{grid-template-columns:repeat(auto-fill,minmax(400px,1fr))!important;}
   #searchList{grid-template-columns:1fr 1fr;}
-  #np.on:not(.mini){max-width:960px;}
-  #np.on:not(.mini) #npInfo{display:block;}
-  #searchPanel,#tagPick,#chView{max-width:900px;}
+  /* 再生ページは全画面（プレーヤーは横幅いっぱい・シアター表示、情報は下） */
+  #np.on:not(.mini){max-width:100%;left:0;transform:none;}
+  #np.on:not(.mini) #npPlayer{aspect-ratio:auto;width:100%;height:min(56.25vw,80vh);}
+  #np.on:not(.mini) #npInfo{display:block;max-width:1100px;margin:0 auto;}
+  #searchPanel,#tagPick,#chView{max-width:1000px;}
 }
 .sheet-title{font-size:15px;font-weight:800;line-height:1.4;margin-bottom:4px;}
 .sheet-ch{font-size:12px;color:var(--sky);margin-bottom:6px;cursor:pointer;}
