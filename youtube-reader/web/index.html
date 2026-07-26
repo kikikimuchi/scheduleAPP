@@ -181,10 +181,20 @@ body.fs-lock{overflow:hidden;}
 #miniPlay.paused::before{width:0;height:0;border-left:12px solid #fff;border-top:7px solid transparent;border-bottom:7px solid transparent;margin-left:2px;}
 #np.mini #npMin{right:36px;}
 #np.mini #npClose{right:4px;}
-@media (orientation:landscape){
+/* 横向き全画面はタッチ端末(iPhone等)のみ。PC(pointer:fine)では発動させない＝閉じるボタンが消えないように */
+@media (orientation:landscape) and (pointer:coarse){
   #np.on:not(.mini){max-width:none;left:0;transform:none;}
   #np.on:not(.mini) #npPlayer{aspect-ratio:auto;height:100vh;height:100dvh;}
   #np.on:not(.mini) #npInfo{display:none;}
+}
+/* PC(マウス操作・広い画面)向けレイアウト */
+@media (min-width:820px) and (pointer:fine){
+  :root{--maxw:1000px;}
+  #feedList,#histList,.vgrid,#chvList{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))!important;}
+  #searchList{grid-template-columns:1fr;}
+  /* プレーヤーは中央のモーダル（全高を占有せず、下に情報＋閉じるボタン） */
+  #np.on:not(.mini){max-width:760px;top:20px;bottom:20px;height:auto;border:2px solid var(--line2);box-shadow:6px 6px 0 rgba(0,0,0,.5);}
+  #np.on:not(.mini) #npInfo{display:block;}
 }
 .sheet-title{font-size:15px;font-weight:800;line-height:1.4;margin-bottom:4px;}
 .sheet-ch{font-size:12px;color:var(--sky);margin-bottom:6px;cursor:pointer;}
@@ -474,6 +484,7 @@ function findById(id){return state.videos.find(v=>v.id===id)||state.discover.fin
 // アプリ内チャンネル表示（そのチャンネルの動画一覧）
 function openChannel(cid){
   if(!cid)return;
+  histCapture(); $('#searchPanel').classList.remove('on'); $('#tagPick').classList.remove('on');
   const c=state.channels[cid]||{};
   const first=state.videos.find(v=>v.cid===cid)||state.discover.find(v=>v.cid===cid)||{};
   $('#chvTitle').textContent=c.title||first.ch||'チャンネル';
@@ -571,6 +582,7 @@ function renderHistory(){
 
 function openVideo(o){
   state.currentVideo=o;
+  histCapture();
   ['#searchPanel','#tagPick','#chView'].forEach(s=>{const el=$(s);if(el)el.classList.remove('on');});
   const ch=o.ch||chTitle(o);
   $('#sTitle').textContent=o.t||'(動画)';$('#sCh').textContent=ch;
@@ -696,16 +708,28 @@ async function loadComments(id){
   }catch(e){box.innerHTML=`<p class="cmt-note">コメント取得でエラーが発生しました。</p>`;}
 }
 function closeNp(){const np=$('#np');np.classList.remove('on','mini','fs');document.body.classList.remove('fs-lock');$('#playerBox').innerHTML='';}
+// ブラウザバックでアプリを抜けず、プレーヤー/オーバーレイを閉じる
+function ovlOpen(){return $('#np').classList.contains('on')||$('#searchPanel').classList.contains('on')||$('#chView').classList.contains('on')||$('#tagPick').classList.contains('on');}
+function histCapture(){ if(!state._hist){ try{history.pushState({ovl:1},'');}catch(e){} state._hist=true; } }
+function histClose(){
+  const np=$('#np');
+  if(np.classList.contains('fs')){cssFsToggle(false);}
+  else if($('#tagPick').classList.contains('on')){$('#tagPick').classList.remove('on');}
+  else if($('#searchPanel').classList.contains('on')){$('#searchPanel').classList.remove('on');}
+  else if($('#chView').classList.contains('on')){$('#chView').classList.remove('on');}
+  else if(np.classList.contains('on')){closeNp();}
+  if(ovlOpen()){ try{history.pushState({ovl:1},'');}catch(e){} } else { state._hist=false; }
+}
 function updHdUpd(){ $('#hdUpd').textContent = state._updatedAt?`更新: ${timeAgo(state._updatedAt)}`:''; }
 // カテゴリ一覧（「すべて」長押し）
 function openTagPick(isDisc){
   const cats=['__all__',...(isDisc?discCats():allTags())];
   $('#tagPickList').innerHTML=cats.map(t=>`<button class="chip ${state.activeTag===t?'on':''}" data-t="${esc(t)}">${t==='__all__'?'すべて':esc(t)}</button>`).join('');
-  $('#tagPickList').querySelectorAll('.chip').forEach(b=>b.onclick=()=>{state.activeTag=b.dataset.t;$('#tagPick').classList.remove('on');renderFeed();scrollTop();});
-  $('#tagPick').classList.add('on');
+  $('#tagPickList').querySelectorAll('.chip').forEach(b=>b.onclick=()=>{state.activeTag=b.dataset.t;renderFeed();scrollTop();history.back();});
+  histCapture(); $('#tagPick').classList.add('on');
 }
 // 検索（登録＋発見の動画をタイトル/チャンネル名で絞り込み）
-function openSearch(){ $('#searchPanel').classList.add('on'); const i=$('#searchInput'); i.value=state._sq||''; renderSearch(); setTimeout(()=>i.focus(),60); }
+function openSearch(){ histCapture(); $('#searchPanel').classList.add('on'); const i=$('#searchInput'); i.value=state._sq||''; renderSearch(); setTimeout(()=>i.focus(),60); }
 function renderSearch(){
   const q=($('#searchInput').value||'').trim().toLowerCase(); state._sq=q;
   const list=$('#searchList');
@@ -990,17 +1014,18 @@ async function init(){
   $('#reloadBtn').onclick=refreshData;
   $('#logoBtn').onclick=goHome;
   $('#chSearch').addEventListener('input',e=>{state.chQuery=e.target.value;renderChannels();});
-  $('#npClose').onclick=closeNp;
+  $('#npClose').onclick=()=>history.back();
   $('#npMin').onclick=()=>$('#np').classList.contains('mini')?expandPlayer():minimizePlayer();
   $('#actFull').onclick=goFullscreen;
-  $('#fsExit').onclick=()=>cssFsToggle(false);
+  $('#fsExit').onclick=()=>history.back();
+  window.addEventListener('popstate',histClose);
   // プレーヤーからの再生位置を受信（公式アプリへその時間で飛ぶため）
   window.addEventListener('message',e=>{
     if(typeof e.data!=='string'||(''+e.origin).indexOf('youtube')<0)return;
     try{const d=JSON.parse(e.data);if(d&&d.info&&typeof d.info.currentTime==='number')state._curTime=d.info.currentTime;}catch(_){}
   });
   $('#actMin').onclick=minimizePlayer;
-  $('#actClose').onclick=closeNp;
+  $('#actClose').onclick=()=>history.back();
   // 小窓の再生/一時停止（YouTubeロゴを踏まずに操作できるように）
   $('#miniPlay').onclick=()=>{
     const f=$('#playerBox iframe'); if(!f||!f.contentWindow)return;
@@ -1027,10 +1052,10 @@ async function init(){
   });
   // 検索・カテゴリ選択
   $('#searchBtn').onclick=openSearch;
-  $('#searchClose').onclick=()=>$('#searchPanel').classList.remove('on');
+  $('#searchClose').onclick=()=>history.back();
   $('#searchInput').addEventListener('input',renderSearch);
-  $('#tagPickClose').onclick=()=>$('#tagPick').classList.remove('on');
-  $('#chvClose').onclick=()=>$('#chView').classList.remove('on');
+  $('#tagPickClose').onclick=()=>history.back();
+  $('#chvClose').onclick=()=>history.back();
   // 下スワイプで小窓化（追従あり）。概要エリアでのみ（プレーヤー上はYouTubeの操作を優先）
   (function(){const np=$('#np'),info=$('#npInfo');let sy=0,drag=false;
     info.addEventListener('touchstart',e=>{drag=!np.classList.contains('mini')&&info.scrollTop<=0;sy=e.touches[0].clientY;},{passive:true});
