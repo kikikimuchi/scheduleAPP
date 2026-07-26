@@ -18,7 +18,7 @@ window.YTR_CONFIG = {
   // --- YouTube Data API キー ---
   //  設定すると「コメント表示」が有効になります（発見フィードは裏の取得係が使用）。
   //  未設定（空文字）の場合、それらの機能は「設定してね」の表示になります。
-  youtubeApiKey: "",
+  youtubeApiKey: "AIzaSyCZcutDH3xvvO1MQNDVW2mQj_3UoRNtgJ0",
 
   // --- Google ログイン用 OAuth クライアントID ---
   //  設定すると「Googleでログインして登録チャンネルを取り込む」が有効になります。
