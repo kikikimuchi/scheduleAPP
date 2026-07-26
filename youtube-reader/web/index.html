@@ -467,8 +467,9 @@ function isShortV(v){return !!v.short;}
 function videosForTag(tag,mode){
   let cids=new Set(channelsForTag(tag));
   if(mode==='fav')cids=new Set([...cids].filter(cid=>state.channels[cid]&&state.channels[cid].fav));
-  let v=state.videos.filter(x=>cids.has(x.cid));
-  if(state.memberVideos&&state.memberVideos.length)v=v.concat(state.memberVideos.filter(x=>tag==='__all__'||cids.has(x.cid))); // メンバー限定は「すべて」では常に表示
+  let v=state.videos.filter(x=>cids.has(x.cid)||(x.mem&&tag==='__all__')); // メンバー限定(videos.json由来)は「すべて」で常に表示
+  if(state.memberVideos&&state.memberVideos.length)v=v.concat(state.memberVideos.filter(x=>tag==='__all__'||cids.has(x.cid))); // Firestore/スクレイパー由来も
+  const _s=new Set();v=v.filter(x=>_s.has(x.id)?false:(_s.add(x.id),true)); // 重複除去
   if(mode==='shorts'){ v=v.filter(isShortV).sort(newestCmp); }
   else{
     v=v.filter(x=>!isShortV(x)); // ショートは通常フィードから除外
