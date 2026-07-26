@@ -464,7 +464,7 @@ function videosForTag(tag,mode){
   let cids=new Set(channelsForTag(tag));
   if(mode==='fav')cids=new Set([...cids].filter(cid=>state.channels[cid]&&state.channels[cid].fav));
   let v=state.videos.filter(x=>cids.has(x.cid));
-  if(state.memberVideos&&state.memberVideos.length)v=v.concat(state.memberVideos.filter(x=>cids.has(x.cid))); // メンバー限定を混ぜる
+  if(state.memberVideos&&state.memberVideos.length)v=v.concat(state.memberVideos.filter(x=>tag==='__all__'||cids.has(x.cid))); // メンバー限定は「すべて」では常に表示
   if(mode==='shorts'){ v=v.filter(isShortV).sort(newestCmp); }
   else{
     v=v.filter(x=>!isShortV(x)); // ショートは通常フィードから除外
@@ -961,7 +961,7 @@ async function importMemberVideos(token){
     while(i<cids.length){
       const cid=cids[i++], up='UU'+cid.slice(2);
       try{
-        const r=await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=20&playlistId=${encodeURIComponent(up)}`,{headers:{Authorization:'Bearer '+token}});
+        const r=await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=15&playlistId=${encodeURIComponent(up)}`,{headers:{Authorization:'Bearer '+token}});
         if(!r.ok){errCh++;lastErr='HTTP'+r.status;continue;} okCh++;
         const j=await r.json();
         for(const it of j.items||[]){seenItems++;const s=it.snippet||{},vid=s.resourceId&&s.resourceId.videoId;if(!vid)continue;
