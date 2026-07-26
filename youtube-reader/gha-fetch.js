@@ -19,9 +19,10 @@ const PROJECT_ID = process.env.FIRESTORE_PROJECT_ID || 'keiriauto-6f8f1';
 const API_KEY = process.env.FIRESTORE_API_KEY || 'AIzaSyC4kuVMrD1iKBxsX8V12n8OHzPBW2xA0Ew';
 const CH_COL = 'schedule_ytChannels';
 const MAX_VIDEOS = Number(process.env.MAX_VIDEOS || 5000);
-const SHORT_CHECK_MAX = Number(process.env.SHORT_CHECK_MAX || 1500); // ショート判定する新しい動画の上限
+const SHORT_CHECK_MAX = Number(process.env.SHORT_CHECK_MAX || 5000); // ショート/ライブ判定する上限（実質全件）
 const YT_KEY = process.env.YOUTUBE_API_KEY || '';
-const SHORT_MAX_SEC = Number(process.env.SHORT_MAX_SEC || 60); // この秒数以下をショート扱い
+const SHORT_MAX_SEC = Number(process.env.SHORT_MAX_SEC || 60); // これ以下は無条件でショート
+const SHORT_URLCHECK_SEC = Number(process.env.SHORT_URLCHECK_SEC || 182); // 60〜この秒数はURLで確認（ショートは最大3分）
 
 const now = () => new Date().toISOString();
 
@@ -29,6 +30,21 @@ function isoDurToSec(iso) {
   const m = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(iso || '');
   if (!m) return null;
   return (+(m[1] || 0)) * 3600 + (+(m[2] || 0)) * 60 + (+(m[3] || 0));
+}
+
+// youtube.com/shorts/ID は、ショートなら200、通常動画なら/watchへ302。同意ページ回避にCookie付与。
+async function isShortUrl(id) {
+  try {
+    const r = await fetch(`https://www.youtube.com/shorts/${id}`, {
+      redirect: 'manual',
+      headers: { 'User-Agent': config.userAgent, Cookie: 'SOCS=CAI; CONSENT=YES+cb', 'Accept-Language': 'ja' },
+    });
+    r.body?.cancel?.();
+    if (r.status === 200) return true;
+    const loc = r.headers.get('location') || '';
+    if (/\/watch/.test(loc)) return false;
+    return false;
+  } catch (e) { return false; }
 }
 
 // ショート判定（#shorts タグ or 尺<=SHORT_MAX_SEC）＋ ライブ/配信予定 判定を YouTube Data API で付与。
@@ -40,6 +56,7 @@ async function markMeta(list) {
     return;
   }
   let live = 0, upcoming = 0;
+  const urlCand = []; // 60〜3分の動画はURLでショート確認
   for (let i = 0; i < list.length; i += 50) {
     const batch = list.slice(i, i + 50);
     const ids = batch.map((v) => v.id).join(',');
@@ -55,13 +72,17 @@ async function markMeta(list) {
         const sec = isoDurToSec(it.contentDetails?.duration);
         if (bc === 'live') { v.live = true; if (lsd.actualStartTime) v.p = lsd.actualStartTime; live++; }
         else if (bc === 'upcoming') { v.upcoming = true; if (lsd.scheduledStartTime) v.p = lsd.scheduledStartTime; upcoming++; }
-        else if (sec != null && sec > 0 && sec <= SHORT_MAX_SEC) v.short = true; // ライブ以外だけショート判定
+        else if (sec != null && sec > 0 && sec <= SHORT_MAX_SEC) v.short = true; // 60秒以下は無条件ショート
+        else if (sec != null && sec > SHORT_MAX_SEC && sec <= SHORT_URLCHECK_SEC && !v.short) urlCand.push(v); // 60秒〜3分はURL確認
       }
     } catch (e) {
       console.error('videos.list 失敗:', e.message);
     }
   }
-  console.log(`ライブ判定: 配信中 ${live} / 配信予定 ${upcoming}`);
+  // 60秒〜3分の候補をURLでショート確認（縦型ショートを取りこぼさない）
+  let urlShort = 0;
+  await mapPool(urlCand, config.concurrency, async (v) => { if (await isShortUrl(v.id)) { v.short = true; urlShort++; } });
+  console.log(`ライブ判定: 配信中 ${live} / 配信予定 ${upcoming} / URL確認ショート ${urlShort}/${urlCand.length}`);
 }
 
 const MEMBER_DAYS = Number(process.env.MEMBER_DAYS || 60); // メンバー候補は直近この日数のみ
