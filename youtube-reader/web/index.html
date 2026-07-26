@@ -478,7 +478,7 @@ body.fs-lock{overflow:hidden;}
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script>
 const CFG = window.YTR_CONFIG || {};
-const APP_VER = 'pip-v6'; // 更新確認用。設定>状態 に表示
+const APP_VER = 'pip-v7'; // 更新確認用。設定>状態 に表示
 const CH_COL='schedule_ytChannels', META_DOC=['schedule_ytMeta','app'], MEM_DOC=['schedule_ytMeta','members'];
 const REDISCOVER={W_STALE:1.0,W_FRESH:0.6,FRESH_CAP_DAYS:30,NEVER_VIEWED_DAYS:400};
 const DAY=86400000, now=()=>Date.now(), nowIso=()=>new Date().toISOString();
@@ -805,7 +805,7 @@ function applyPlayer(o,native,startAt){
   $('#playerBox').innerHTML=`<iframe src="https://www.youtube.com/embed/${encodeURIComponent(o.id)}?${params}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
   const f=$('#playerBox iframe');
   if(f)f.addEventListener('load',()=>{ try{f.contentWindow.postMessage(JSON.stringify({event:'listening',id:1,channel:'widget'}),'*');}catch(e){} if(!native)captionsOff(); });
-  state._nativeMode=native;
+  state._nativeMode=native; if(native)state._nativeAt=Date.now(); // 復帰誤検知防止用のタイムスタンプ
   const pb=$('#actPip'); if(pb)pb.classList.toggle('on',native); // ネイティブ時はボタン点灯
 }
 // 📺トグル: ネイティブ⇄インラインを切替（現在の再生位置から）
@@ -1429,14 +1429,15 @@ async function init(){
     }catch(_){}
   });
   window.addEventListener('pagehide',flushPos);
-  document.addEventListener('visibilitychange',()=>{
-    if(document.visibilityState==='hidden'){ flushPos(); if(state._nativeMode&&$('#np').classList.contains('on'))state._pipHidden=true; }
-    else if(document.visibilityState==='visible'){
-      if(state._pipHidden&&state._nativeMode&&state.currentVideo&&$('#np').classList.contains('on')){
-        state._pipHidden=false; const t=Math.floor(state._curTime||0); applyPlayer(state.currentVideo,false,t>1?t:0); // アプリに戻ったら自動でインラインへ
-      } else state._pipHidden=false;
-    }
-  });
+  // PiP/ネイティブ再生からアプリに戻ったら自動でインラインへ（iOSは色々なイベントで来るので複数拾う）
+  function maybeReturnInline(){
+    if(!state._nativeMode||!state.currentVideo||!$('#np').classList.contains('on'))return;
+    if(Date.now()-(state._nativeAt||0)<2500)return; // 全画面移行直後の誤発火を無視
+    const t=Math.floor(state._curTime||0); applyPlayer(state.currentVideo,false,t>1?t:0);
+  }
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden')flushPos(); else maybeReturnInline(); });
+  window.addEventListener('focus',maybeReturnInline);
+  window.addEventListener('pageshow',maybeReturnInline);
   $('#actMin').onclick=minimizePlayer;
   $('#actClose').onclick=()=>history.back();
   // 小窓の再生/一時停止（YouTubeロゴを踏まずに操作できるように）
