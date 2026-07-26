@@ -56,7 +56,7 @@ body.hdhide #header{transform:translateY(-108%);}
 .hd-title{font-size:16px;font-weight:400;letter-spacing:.04em;color:#fff;
   text-shadow:2px 2px 0 rgba(0,0,0,.5);}
 .hd-upd{font-family:var(--pix);font-size:6px;letter-spacing:.02em;color:var(--ink-mute);margin-top:5px;}
-#feedTop{position:sticky;top:var(--hdh,64px);z-index:90;background:var(--night);padding-top:6px;margin:0 -12px;padding-left:12px;padding-right:12px;transition:top .22s ease;}
+#feedTop{position:sticky;top:var(--hdh,64px);z-index:90;background:var(--night);padding-top:4px;margin:0 -12px;padding-left:12px;padding-right:12px;transition:top .22s ease;}
 body.hdhide #feedTop{top:0;}
 .hd-title b{color:var(--yellow);}
 .demo-pill{font-family:var(--pix);font-size:8px;letter-spacing:.04em;color:#101A38;background:var(--yellow);
@@ -77,15 +77,16 @@ body.hdhide #feedTop{top:0;}
 .hero .t h4{font-size:13px;font-weight:800;margin-bottom:3px;}
 .hero .t p{font-size:11px;color:var(--ink-soft);line-height:1.5;}
 
-.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 12px;scrollbar-width:none;}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 7px;scrollbar-width:none;}
 .chips::-webkit-scrollbar{display:none;}
 .chip{flex:0 0 auto;border:2px solid var(--line2);background:var(--panel);color:var(--ink-soft);border-radius:6px;
-  padding:8px 13px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,.35);}
+  padding:8px 13px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,0,0,.35);
+  user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
 .chip:active{transform:translate(1px,1px);box-shadow:1px 1px 0 rgba(0,0,0,.35);}
 .chip.on{background:var(--yellow);color:#101A38;border-color:#0A1022;}
 .chip .n{font-family:var(--mono);font-size:10.5px;opacity:.7;margin-left:5px;}
 
-.seg{display:flex;gap:6px;margin:0 2px 14px;}
+.seg{display:flex;gap:6px;margin:0 2px 9px;}
 .seg button{flex:1;border:2px solid var(--line2);background:var(--panel);color:var(--ink-soft);border-radius:6px;padding:7px 3px;
   font-size:11px;font-weight:800;cursor:pointer;text-align:center;line-height:1.25;box-shadow:2px 2px 0 rgba(0,0,0,.3);}
 .seg button small{display:block;font-family:var(--mono);font-size:8.5px;opacity:.7;font-weight:500;margin-top:2px;letter-spacing:.02em;}
@@ -106,7 +107,7 @@ body.hdhide #feedTop{top:0;}
 .badge.stale{background:#2A2450;color:var(--lav);border:1px solid #3a3468;}
 .badge.hist{background:#123045;color:var(--sky);border:1px solid #1d4a63;}
 .badge.rec{background:#3A3410;color:var(--yellow);border:1px solid #5A5220;}
-.seg.fm{margin:2px 2px 12px;}
+.seg.fm{margin:2px 2px 7px;}
 .seg.fm button{font-size:12.5px;padding:10px 4px;}
 .seg.fm button.on{background:var(--yellow);color:#101A38;}
 .vwhy{font-family:var(--mono);font-size:9.5px;color:var(--sky);margin-top:2px;}
@@ -233,7 +234,8 @@ select.as{font-family:var(--mono);font-size:10.5px;border:1.5px dashed var(--lin
 .vthumb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
 .cmt-note{font-family:var(--mono);font-size:11px;color:var(--ink-mute);line-height:1.7;padding:10px 2px;}
 .hidden{display:none!important;}
-.crow .cthumb{width:38px;height:38px;flex:0 0 auto;border-radius:50%;background:#0b1226 center/cover no-repeat;border:2px solid var(--line2);}
+.crow .cthumb{width:38px;height:38px;flex:0 0 auto;border-radius:50%;background:#0b1226 center/cover no-repeat;border:2px solid var(--line2);cursor:pointer;}
+.crow .cthumb:active{opacity:.6;}
 .crow .cname{cursor:pointer;flex:1;min-width:0;}
 .crow .cname:active{color:var(--sky);}
 .hist-link{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--sky);background:var(--panel);border:2px solid var(--line2);padding:7px 12px;margin:2px 2px 12px;cursor:pointer;box-shadow:2px 2px 0 rgba(0,0,0,.3);}
@@ -281,6 +283,7 @@ select.as{font-family:var(--mono);font-size:10.5px;border:1.5px dashed var(--lin
 
   <!-- CHANNELS -->
   <div id="pg-ch" class="pg">
+    <input class="fi" id="chSearch" placeholder="🔍 登録チャンネルを検索" style="margin-bottom:10px;height:40px;">
     <div class="chips" id="chChips"></div>
     <div id="chList"></div>
   </div>
@@ -425,7 +428,7 @@ function syncTags(){
 }
 function tagCount(t){return Object.values(state.channels).filter(c=>!c.muted&&(c.tags||[]).includes(t)).length;}
 function channelsForTag(t){return Object.entries(state.channels).filter(([,c])=>!c.muted&&(t==='__all__'||(c.tags||[]).includes(t))).map(([cid])=>cid);}
-function modeFor(t){return (state.meta.modes&&state.meta.modes[t])||'newest';}
+function modeFor(t){return (state.meta.modes&&state.meta.modes[t])||(t==='__all__'?'fav':'newest');}
 function discCats(){
   const set=[...new Set(state.discover.map(d=>d.cat).filter(Boolean))];
   const pin='湊あくあ切り抜き';
@@ -705,6 +708,8 @@ function renderChChips(){
 function renderChannels(){
   renderChChips();
   let entries=Object.entries(state.channels).filter(([,c])=>chFilterMatch(c));
+  const q=(state.chQuery||'').trim().toLowerCase();
+  if(q)entries=entries.filter(([,c])=>((c.title||'')+(c.yomi||'')).toLowerCase().includes(q));
   entries.sort((a,b)=>(a[1].title||'').localeCompare(b[1].title||'','ja'));
   const tags=allTags(),list=$('#chList');
   if(!entries.length){list.innerHTML=`<div class="empty"><div class="m"></div>${Object.keys(state.channels).length?'該当なし':'まだチャンネルがありません。「設定」から取り込んでください。'}</div>`;return;}
@@ -715,13 +720,13 @@ function renderChannels(){
     const th=c.thumb?`background-image:url('${esc(c.thumb)}')`:'';
     const url=c.channelUrl||('https://www.youtube.com/channel/'+cid);
     return `<div class="crow"><div class="crow-top">`
-      +`<div class="cthumb" style="${th}"></div>`
-      +`<div class="cname" data-url="${esc(url)}">${esc(c.title||cid)}</div>`
+      +`<div class="cthumb" data-cid="${cid}" style="${th}"></div>`
+      +`<div class="cname" data-cid="${cid}">${esc(c.title||cid)}</div>`
       +`<button class="cfav ${c.fav?'on':''}" data-cid="${cid}" title="お気に入り">${c.fav?'⭐':'☆'}</button>`
       +`<button class="mute ${c.muted?'on':''}" data-cid="${cid}">${c.muted?'🔕':'🔔'}</button></div>`
       +`<div class="ctags">${chips}<select class="as" data-cid="${cid}"><option value="">＋タグ</option>${opts}<option value="__new__">＋新規…</option></select></div></div>`;
   }).join('');
-  list.querySelectorAll('.cname').forEach(el=>el.onclick=()=>window.open(el.dataset.url,'_blank','noopener'));
+  list.querySelectorAll('.cname[data-cid],.cthumb[data-cid]').forEach(el=>el.onclick=()=>openChannel(el.dataset.cid));
   list.querySelectorAll('.cfav').forEach(el=>el.onclick=()=>{const c=state.channels[el.dataset.cid];c.fav=!c.fav;saveChannel(el.dataset.cid);renderChannels();});
   list.querySelectorAll('.ctag').forEach(el=>el.onclick=()=>{const c=state.channels[el.dataset.cid];c.tags=(c.tags||[]).filter(t=>t!==el.dataset.tag);saveChannel(el.dataset.cid);renderChannels();});
   list.querySelectorAll('.mute').forEach(el=>el.onclick=()=>{const c=state.channels[el.dataset.cid];c.muted=!c.muted;saveChannel(el.dataset.cid);renderChannels();});
@@ -872,6 +877,14 @@ async function loadDiscover(){const j=await loadJson('./data/discover.json');sta
 
 // ---- タブ・状態 ----
 function scrollTop(){window.scrollTo({top:0,behavior:'smooth'});document.body.classList.remove('hdhide');}
+// ロゴ＝ホーム（お気に入りフィードの先頭へ）
+function goHome(){
+  state.feedMode='subs';
+  $('#feedMode').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.fm==='subs'));
+  state.activeTag='__all__';
+  state.meta.modes=state.meta.modes||{}; state.meta.modes['__all__']='fav'; saveMeta();
+  tab('feed'); renderFeed(); scrollTop();
+}
 function tab(name){['feed','hist','ch','set'].forEach(p=>$('#pg-'+p).classList.toggle('on',p===name));
   document.querySelectorAll('.tb').forEach(b=>b.classList.toggle('on',b.dataset.pg===name));
   if(name==='hist')renderHistory();if(name==='ch')renderChannels();if(name==='set'){renderTagMgr();refreshStatus();}
@@ -899,7 +912,8 @@ async function init(){
   $('#csvBtn').onclick=importCsv;
   $('#exportBtn').onclick=exportChannels;$('#importJson').addEventListener('change',importChannels);
   $('#reloadBtn').onclick=refreshData;
-  $('#logoBtn').onclick=scrollTop;
+  $('#logoBtn').onclick=goHome;
+  $('#chSearch').addEventListener('input',e=>{state.chQuery=e.target.value;renderChannels();});
   $('#npClose').onclick=closeNp;
   $('#npMin').onclick=()=>$('#np').classList.contains('mini')?expandPlayer():minimizePlayer();
   $('#actMin').onclick=minimizePlayer;
@@ -915,7 +929,7 @@ async function init(){
   $('#chatBtn').onclick=()=>{
     const box=$('#chatBox'), id=$('#chatBtn').dataset.id, hidden=(box.style.display==='none'||!box.style.display);
     if(hidden){
-      if(!box.querySelector('iframe'))box.innerHTML=`<iframe src="https://www.youtube.com/live_chat_replay?v=${encodeURIComponent(id)}&embed_domain=${location.hostname}" allow="autoplay"></iframe>`;
+      if(!box.querySelector('iframe'))box.innerHTML=`<iframe src="https://www.youtube.com/live_chat?v=${encodeURIComponent(id)}&embed_domain=${location.hostname}" allow="autoplay"></iframe>`;
       box.style.display='';$('#chatBtn').textContent='💬 チャットリプレイを隠す';
     }else{ box.style.display='none';$('#chatBtn').textContent='💬 チャットリプレイを表示'; }
   };
