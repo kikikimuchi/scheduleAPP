@@ -891,9 +891,12 @@ async function refreshData(){
   const btn=$('#reloadBtn'); const old=btn.textContent; btn.textContent='更新中'; btn.disabled=true;
   try{
     const [u]=await Promise.all([loadVideos(),loadDiscover(),loadChannels()]);
-    state._updatedAt=u; shuffleDiscover(); updHdUpd();
+    state._updatedAt=u; updHdUpd();
     const on=document.querySelector('.pg.on'); const cur=on?on.id.replace('pg-',''):'feed';
-    if(cur==='feed')renderFeed(); else if(cur==='hist')renderHistory(); else if(cur==='ch')renderChannels(); else {renderTagMgr();refreshStatus();}
+    const sy=window.scrollY; // その場更新: スクロール位置を保つ
+    if(cur==='feed'){if(state.feedMode==='discover')shuffleDiscover();renderFeed();} // 発見のシャッフルは発見表示時のみ
+    else {if(cur==='hist')renderHistory(); else if(cur==='ch')renderChannels(); else {renderTagMgr();refreshStatus();}}
+    requestAnimationFrame(()=>window.scrollTo(0,sy)); // 再描画後に位置を復元
     refreshLiveStatus(); loadMemberVideos();
     toast('更新しました');
   }catch(e){ toast('更新に失敗しました'); }
@@ -1448,7 +1451,7 @@ async function liveTick(){
   const before=liveSig();
   try{ await loadVideos(); }catch(e){} // videos.json再読込（静的ファイルで軽い）
   await refreshLiveStatus();            // 状態変化あれば内部でrenderFeed
-  if(liveSig()!==before){ const on=document.querySelector('.pg.on'); if((!on||on.id==='pg-feed')&&state.feedMode!=='discover')renderFeed(); } // ライブ集合が変わった時だけ再描画（スクロール維持）
+  if(liveSig()!==before){ const on=document.querySelector('.pg.on'); if((!on||on.id==='pg-feed')&&state.feedMode!=='discover'){const sy=window.scrollY;renderFeed();requestAnimationFrame(()=>window.scrollTo(0,sy));} } // ライブ集合が変わった時だけ再描画（スクロール維持）
 }
 init();
 </script>
