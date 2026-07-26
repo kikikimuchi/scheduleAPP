@@ -6,7 +6,7 @@ name: YouTube feeds refresh
 
 on:
   schedule:
-    - cron: '0 */6 * * *'   # 6時間ごと（UTC基準）
+    - cron: '0 * * * *'      # 毎時（フィード=RSSは無料なので頻繁でOK。ライブ配信を早く拾うため）
   workflow_dispatch: {}      # 手動実行も可
 
 # 同時実行の重複を防ぐ
@@ -34,10 +34,17 @@ jobs:
         run: node youtube-reader/gha-fetch.js
 
       - name: Fetch discover (YouTube search) -> discover.json
-        # YOUTUBE_API_KEY シークレット未設定なら中でスキップされる
+        # おすすめは検索APIでクォータ消費が大きいので6時間ごと(UTC 0,6,12,18時)だけ実行。
+        # 手動実行(workflow_dispatch)時は常に実行。
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-        run: node youtube-reader/gha-discover.js
+        run: |
+          H=$(date -u +%H)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ $((10#$H % 6)) -eq 0 ]; then
+            node youtube-reader/gha-discover.js
+          else
+            echo "discover はこの時間帯はスキップ（6時間ごとに実行）。"
+          fi
 
       - name: Commit if changed
         run: |

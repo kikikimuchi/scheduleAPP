@@ -1439,6 +1439,16 @@ async function init(){
   renderFeed();refreshStatus();
   refreshLiveStatus();
   loadMemberVideos();
+  setInterval(liveTick,4*60*1000); // 4分ごとにライブ状態と新着配信を自動チェック
+}
+// 開いている間もライブ配信を自動反映（配信予定→ライブ中の切替や、直前に始まった配信の取り込み）
+function liveSig(){return state.videos.filter(v=>v.live||v.upcoming).map(v=>v.id+(v.live?'L':'U')).sort().join(',');}
+async function liveTick(){
+  if($('#np').classList.contains('on'))return; // 再生中は触らない
+  const before=liveSig();
+  try{ await loadVideos(); }catch(e){} // videos.json再読込（静的ファイルで軽い）
+  await refreshLiveStatus();            // 状態変化あれば内部でrenderFeed
+  if(liveSig()!==before){ const on=document.querySelector('.pg.on'); if((!on||on.id==='pg-feed')&&state.feedMode!=='discover')renderFeed(); } // ライブ集合が変わった時だけ再描画（スクロール維持）
 }
 init();
 </script>
