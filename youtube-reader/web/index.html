@@ -183,8 +183,12 @@ select.as{font-family:var(--mono);font-size:10.5px;border:1.5px dashed var(--lin
 #chatBox iframe{width:100%;height:340px;border:2px solid var(--line2);background:#fff;margin-bottom:12px;}
 .crow .cfav{border:none;background:none;font-size:17px;line-height:1;cursor:pointer;flex:0 0 auto;filter:grayscale(1);opacity:.5;}
 .crow .cfav.on{filter:none;opacity:1;}
-#searchPanel,#tagPick{position:fixed;inset:0;z-index:10005;background:var(--night);display:none;flex-direction:column;max-width:var(--maxw);left:50%;transform:translateX(-50%);}
-#searchPanel.on,#tagPick.on{display:flex;}
+#searchPanel,#tagPick,#chView{position:fixed;inset:0;z-index:10005;background:var(--night);display:none;flex-direction:column;max-width:var(--maxw);left:50%;transform:translateX(-50%);}
+#searchPanel.on,#tagPick.on,#chView.on{display:flex;}
+.chv-id{flex:1;display:flex;align-items:center;gap:9px;min-width:0;}
+.chv-thumb{width:34px;height:34px;flex:0 0 auto;border-radius:50%;border:2px solid var(--line2);background:var(--panel2) center/cover no-repeat;}
+.chv-title{font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#chvList{flex:1;overflow-y:auto;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start;}
 .sp-head{display:flex;gap:8px;align-items:center;padding:calc(12px + env(safe-area-inset-top,0px)) 12px 10px;border-bottom:2px solid var(--line);}
 .sp-head .fi{height:40px;}
 #searchList,#tagPickList{flex:1;overflow-y:auto;padding:12px;}
@@ -195,6 +199,9 @@ select.as{font-family:var(--mono);font-size:10.5px;border:1.5px dashed var(--lin
 .cmt .cb{min-width:0;}
 .cmt .cu{font-family:var(--mono);font-size:10.5px;color:var(--ink-mute);margin-bottom:2px;}
 .cmt .ct{font-size:12.5px;line-height:1.6;overflow-wrap:anywhere;}
+.cmt .ct.clamp{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;}
+.cmt .ct.long{cursor:pointer;}
+.cmt .cmore{color:var(--sky);font-size:11px;font-weight:700;cursor:pointer;margin-top:3px;}
 .cmt .ct .ts{color:var(--sky);cursor:pointer;font-weight:700;}
 .cmt .ct .ts:active{opacity:.6;}
 .desc{font-size:12px;line-height:1.65;color:var(--ink-soft);max-height:120px;overflow-y:auto;margin:0 0 14px;padding:9px 10px;background:var(--night2);border:2px solid var(--line);overflow-wrap:anywhere;cursor:pointer;}
@@ -344,6 +351,15 @@ select.as{font-family:var(--mono);font-size:10.5px;border:1.5px dashed var(--lin
   <div class="sp-head"><input class="fi" id="searchInput" placeholder="登録・発見の動画を検索"><button class="btn ghost npb" id="searchClose">✕</button></div>
   <div id="searchList"></div>
 </div>
+<!-- CHANNEL VIEW (アプリ内チャンネル) -->
+<div id="chView">
+  <div class="sp-head">
+    <div class="chv-id"><div class="chv-thumb" id="chvThumb"></div><div class="chv-title" id="chvTitle"></div></div>
+    <button class="btn ghost npb" id="chvClose">✕</button>
+  </div>
+  <div style="padding:10px 12px 0"><button class="btn ghost" id="chvOpen" style="width:100%">▶ YouTubeでチャンネルを開く</button></div>
+  <div id="chvList"></div>
+</div>
 <!-- TAG PICKER (すべて長押し) -->
 <div id="tagPick">
   <div class="sp-head"><div style="flex:1;font-weight:800;font-size:14px">カテゴリを選ぶ</div><button class="btn ghost npb" id="tagPickClose">✕</button></div>
@@ -424,6 +440,25 @@ function score(v){const c=state.channels[v.cid]||{};const lv=Date.parse(c.lastVi
 function chTitle(o){if(o.ch)return o.ch;const c=state.channels[o.cid];return (c&&c.title)||o.cid||'';}
 function chUrl(cid){const c=state.channels[cid];return (c&&c.channelUrl)||('https://www.youtube.com/channel/'+cid);}
 function findById(id){return state.videos.find(v=>v.id===id)||state.discover.find(v=>v.id===id);}
+// アプリ内チャンネル表示（そのチャンネルの動画一覧）
+function openChannel(cid){
+  if(!cid)return;
+  const c=state.channels[cid]||{};
+  const first=state.videos.find(v=>v.cid===cid)||state.discover.find(v=>v.cid===cid)||{};
+  $('#chvTitle').textContent=c.title||first.ch||'チャンネル';
+  const th=$('#chvThumb');
+  if(c.thumb){th.style.backgroundImage=`url(${c.thumb})`;th.style.display='';}else{th.style.display='none';}
+  $('#chvOpen').onclick=()=>window.open(chUrl(cid),'_blank','noopener');
+  const seen=new Set(),vids=[];
+  state.videos.concat(state.discover).forEach(v=>{if(v.cid===cid&&!seen.has(v.id)){seen.add(v.id);vids.push(v);}});
+  vids.sort((a,b)=>pub(b)-pub(a));
+  const list=$('#chvList');
+  list.innerHTML=vids.length?vids.map(v=>cardHtml(v)).join('')
+    :`<div class="empty" style="grid-column:1/-1">このチャンネルの動画はまだ取得できていません。<br>下のボタンからYouTubeで開けます。</div>`;
+  bindCards(list);
+  $('#chvList').scrollTop=0;
+  $('#chView').classList.add('on');
+}
 function cardHtml(o,badge,why){
   const ch=chTitle(o);
   return `<div class="vid" data-id="${esc(o.id)}" data-cid="${esc(o.cid||'')}" data-t="${esc(o.t||'')}" data-ch="${esc(ch)}">${thumbHtml(o.id,o.cid||'',ch)}`
@@ -432,7 +467,7 @@ function cardHtml(o,badge,why){
 }
 function bindCards(root){
   root.querySelectorAll('.vid').forEach(el=>el.onclick=()=>openVideo({id:el.dataset.id,cid:el.dataset.cid,t:el.dataset.t,ch:el.dataset.ch}));
-  root.querySelectorAll('.vch[data-cid]').forEach(el=>el.onclick=(e)=>{e.stopPropagation();if(el.dataset.cid)window.open(chUrl(el.dataset.cid),'_blank','noopener');});
+  root.querySelectorAll('.vch[data-cid]').forEach(el=>el.onclick=(e)=>{e.stopPropagation();if(el.dataset.cid)openChannel(el.dataset.cid);});
 }
 
 function renderChips(){
@@ -458,7 +493,7 @@ function renderSort(){
     bar.querySelectorAll('button').forEach(b=>{b.classList.toggle('on',b.dataset.d===state.discMode);b.onclick=()=>{state.discMode=b.dataset.d;renderFeed();};});
   }else{
     const mode=modeFor(state.activeTag);
-    bar.innerHTML=`<button data-mode="fav" title="お気に入り">⭐<small>お気に入り</small></button><button data-mode="newest">新着順<small>公開が新しい順</small></button><button data-mode="rediscover">再発見<small>ご無沙汰CH優先</small></button><button data-mode="one-per-channel">1本ずつ<small>CH最新1本</small></button>`;
+    bar.innerHTML=`<button data-mode="fav" title="お気に入り">⭐<small>お気に入り</small></button><button data-mode="newest">新着順<small>公開が新しい順</small></button><button data-mode="one-per-channel">1本ずつ<small>CH最新1本</small></button><button data-mode="rediscover">再発見<small>ご無沙汰CH優先</small></button>`;
     bar.querySelectorAll('button').forEach(b=>{b.classList.toggle('on',b.dataset.mode===mode);
       b.onclick=()=>{state.meta.modes=state.meta.modes||{};state.meta.modes[state.activeTag]=b.dataset.mode;saveMeta();renderFeed();};});
   }
@@ -501,9 +536,10 @@ function renderHistory(){
 
 function openVideo(o){
   state.currentVideo=o;
+  ['#searchPanel','#tagPick','#chView'].forEach(s=>{const el=$(s);if(el)el.classList.remove('on');});
   const ch=o.ch||chTitle(o);
   $('#sTitle').textContent=o.t||'(動画)';$('#sCh').textContent=ch;
-  $('#sCh').onclick=()=>{ if(o.cid) window.open(chUrl(o.cid),'_blank','noopener'); };
+  $('#sCh').onclick=()=>{ if(o.cid) openChannel(o.cid); };
   $('#descBox').innerHTML='';
   $('#playerBox').innerHTML=`<iframe src="https://www.youtube.com/embed/${encodeURIComponent(o.id)}?autoplay=1&playsinline=1&rel=0&enablejsapi=1" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
   loadDesc(o.id);
@@ -593,6 +629,10 @@ async function loadComments(id){
     if(!items.length){box.innerHTML=`<p class="cmt-note">コメントはまだありません。</p>`;return;}
     box.innerHTML=items.map(s=>{const lk=s.likeCount?`<span class="clike">👍 ${numJa(s.likeCount)}</span>`:'';
       return `<div class="cmt"><div class="av">${esc((s.authorDisplayName||'?').replace(/^@/,'').charAt(0))}</div><div class="cb"><div class="cu">${esc(s.authorDisplayName||'')}${lk}</div><div class="ct">${fmtRich(s.textDisplay||'')}</div></div></div>`;}).join('');
+    // 長文は折りたたみ、タップで開く
+    box.querySelectorAll('.ct').forEach(ct=>{ ct.classList.add('clamp');
+      if(ct.scrollHeight-ct.clientHeight>4){ ct.classList.add('long'); const mo=document.createElement('div'); mo.className='cmore'; mo.textContent='…続きを読む'; ct.after(mo); }
+      else ct.classList.remove('clamp'); });
   }catch(e){box.innerHTML=`<p class="cmt-note">コメント取得でエラーが発生しました。</p>`;}
 }
 function closeNp(){const np=$('#np');np.classList.remove('on','mini');$('#playerBox').innerHTML='';}
@@ -858,6 +898,8 @@ async function init(){
     const yt=e.target.closest('.lnk.yt'); if(yt){openVideo({id:yt.dataset.yt});return;}
     const lk=e.target.closest('.lnk'); if(lk){if(lk.dataset.url)window.open(lk.dataset.url,'_blank','noopener');return;}
     const ts=e.target.closest('.ts'); if(ts){seekTo(+ts.dataset.s);return;}
+    const mo=e.target.closest('.cmore'); if(mo){const c=mo.previousElementSibling;c.classList.toggle('clamp');mo.textContent=c.classList.contains('clamp')?'…続きを読む':'▲ 閉じる';return;}
+    const cl=e.target.closest('.ct.long'); if(cl){cl.classList.toggle('clamp');const m=cl.nextElementSibling;if(m&&m.classList.contains('cmore'))m.textContent=cl.classList.contains('clamp')?'…続きを読む':'▲ 閉じる';return;}
     const db=e.target.closest('#descBox'); if(db){db.classList.toggle('open');}
   });
   // 検索・カテゴリ選択
@@ -865,6 +907,7 @@ async function init(){
   $('#searchClose').onclick=()=>$('#searchPanel').classList.remove('on');
   $('#searchInput').addEventListener('input',renderSearch);
   $('#tagPickClose').onclick=()=>$('#tagPick').classList.remove('on');
+  $('#chvClose').onclick=()=>$('#chView').classList.remove('on');
   // 下スワイプで小窓化（追従あり）
   (function(){const np=$('#np'),info=$('#npInfo');let sy=0,drag=false;
     info.addEventListener('touchstart',e=>{drag=!np.classList.contains('mini')&&info.scrollTop<=0;sy=e.touches[0].clientY;},{passive:true});
