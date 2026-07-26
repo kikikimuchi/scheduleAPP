@@ -418,7 +418,7 @@ body.fs-lock{overflow:hidden;}
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script>
 const CFG = window.YTR_CONFIG || {};
-const CH_COL='schedule_ytChannels', META_DOC=['schedule_ytMeta','app'], MEM_COL='schedule_ytMembers';
+const CH_COL='schedule_ytChannels', META_DOC=['schedule_ytMeta','app'], MEM_DOC=['schedule_ytMeta','members'];
 const REDISCOVER={W_STALE:1.0,W_FRESH:0.6,FRESH_CAP_DAYS:30,NEVER_VIEWED_DAYS:400};
 const DAY=86400000, now=()=>Date.now(), nowIso=()=>new Date().toISOString();
 const LSK_CH='ytr_channels', LSK_META='ytr_meta', LSK_HIST='ytr_history', LSK_MEM='ytr_member', LSK_MEMPL='ytr_member_pl';
@@ -472,8 +472,8 @@ function isShortV(v){return !!v.short;}
 function videosForTag(tag,mode){
   let cids=new Set(channelsForTag(tag));
   if(mode==='fav')cids=new Set([...cids].filter(cid=>state.channels[cid]&&state.channels[cid].fav));
-  let v=state.videos.filter(x=>cids.has(x.cid)||(x.mem&&tag==='__all__')); // メンバー限定(videos.json由来)は「すべて」で常に表示
-  if(state.memberVideos&&state.memberVideos.length)v=v.concat(state.memberVideos.filter(x=>tag==='__all__'||cids.has(x.cid))); // Firestore/スクレイパー由来も
+  let v=state.videos.filter(x=>cids.has(x.cid));
+  if(state.memberVideos&&state.memberVideos.length)v=v.concat(state.memberVideos.filter(x=>cids.has(x.cid))); // メンバー限定も日付順で混ぜる
   const _s=new Set();v=v.filter(x=>_s.has(x.id)?false:(_s.add(x.id),true)); // 重複除去
   if(mode==='shorts'){ v=v.filter(isShortV).sort(newestCmp); }
   else{
@@ -570,7 +570,7 @@ function renderFeed(){
     list.innerHTML=items.map(d=>cardHtml(d,`<span class="badge rec">おすすめ</span>`,d.why)).join('');
     bindCards(list);return;
   }
-  const mode=modeFor(state.activeTag),vids=videosForTag(state.activeTag,mode);
+  const mode=modeFor(state.activeTag),vids=videosForTag(state.activeTag,mode).slice(0,600);
   if(!vids.length){list.innerHTML=`<div class="empty"><div class="m"></div>この条件の動画がありません。<br>「設定」で取り込むか、「チャンネル」でタグを付けてください。</div>`;return;}
   list.innerHTML=vids.map(v=>{
     const c=state.channels[v.cid]||{};let badge='';
@@ -956,18 +956,22 @@ async function importSubscriptions(token){
     toast(`取り込み完了: 新規${added}/既存${kept}/解除${removed}`);renderFeed();renderChannels();refreshStatus();
   }catch(e){toast('取り込み中にエラー');console.warn(e);}
 }
-// メンバー限定動画は Firestore の schedule_ytMembers から読む（PC側スクレイパーが書き込む）。
+// メンバー限定動画は Firestore の単一ドキュメント(schedule_ytMeta/members)に配列で保存（1000本超でも1回で読める）。
 async function loadMemberVideos(){
-  let mem=[];
+  let mem=null;
   if(state.fb){try{
-    const snap=await state.fb.getDocs(state.fb.collection(state.fb.db,MEM_COL));
-    snap.forEach(d=>{const c=d.data()||{};if(c.id)mem.push({id:c.id,cid:c.cid||'',t:c.t||'メンバー限定動画',p:c.p||c.updatedAt||nowIso(),ch:c.ch||'',mem:true});});
+    const d=await state.fb.getDoc(state.fb.doc(state.fb.db,MEM_DOC[0],MEM_DOC[1]));
+    if(d.exists()){const a=(d.data()||{}).videos;if(Array.isArray(a))mem=a.map(v=>({...v,mem:true}));}
   }catch(e){console.warn('member読み込み失敗',e);}}
-  if(mem.length){state.memberVideos=mem;LS.set(LSK_MEM,mem);}
+  if(mem&&mem.length){state.memberVideos=mem;LS.set(LSK_MEM,mem);}
   else state.memberVideos=LS.get(LSK_MEM,[]);
   renderFeed();
 }
-// YouTubeで拾ってコピーしたデータ（[{id,t,cid,ch}]）を貼り付けて取り込む
+async function saveMemberVideos(){
+  LS.set(LSK_MEM,state.memberVideos);
+  if(state.fb){try{await state.fb.setDoc(state.fb.doc(state.fb.db,MEM_DOC[0],MEM_DOC[1]),{videos:state.memberVideos,updatedAt:nowIso()});}catch(e){console.warn(e);}}
+}
+// YouTubeで拾ってコピーしたデータ（[{id,t,cid,ch,p}]）を貼り付けて取り込む
 async function importMemberPaste(){
   const ta=$('#memPaste'); let arr;
   try{ arr=JSON.parse((ta.value||'').trim()); }catch(e){ toast('データの形式が不正です'); return; }
@@ -975,16 +979,15 @@ async function importMemberPaste(){
   const byId=new Map((state.memberVideos||[]).map(v=>[v.id,v]));
   let added=0;
   for(const v of arr){ if(!v||!v.id)continue; const o={id:v.id,cid:v.cid||'',t:v.t||'メンバー限定動画',p:v.p||nowIso(),ch:v.ch||'',mem:true};
-    if(!byId.has(v.id))added++; byId.set(v.id,o);
-    if(state.fb){try{await state.fb.setDoc(state.fb.doc(state.fb.db,MEM_COL,v.id),{...o,updatedAt:nowIso()},{merge:true});}catch(e){}}}
-  state.memberVideos=[...byId.values()]; LS.set(LSK_MEM,state.memberVideos);
+    if(!byId.has(v.id))added++; byId.set(v.id,o); }
+  state.memberVideos=[...byId.values()];
+  await saveMemberVideos();
   ta.value=''; renderFeed(); refreshStatus();
   toast(`メンバー動画 ${added}本追加（計${state.memberVideos.length}本）`);
 }
 async function clearMembers(){
   if(!confirm('メンバー限定動画を全部消しますか？'))return;
-  const cur=state.memberVideos||[]; state.memberVideos=[]; LS.set(LSK_MEM,[]);
-  if(state.fb){for(const v of cur){try{await state.fb.deleteDoc(state.fb.doc(state.fb.db,MEM_COL,v.id));}catch(e){}}}
+  state.memberVideos=[]; await saveMemberVideos();
   renderFeed(); refreshStatus(); toast('消しました');
 }
 
