@@ -350,6 +350,7 @@ select.as{font-family:var(--mono);font-size:10.5px;border:1.5px dashed var(--lin
     <div class="vstats" id="vStats"></div>
     <div class="acts">
       <button class="btn" id="openYt">▶ YouTubeで開く</button>
+      <button class="btn ghost npb" id="actFull" title="全画面">⛶</button>
       <button class="btn ghost npb" id="actMin" title="小窓化">▽</button>
       <button class="btn ghost npb" id="actClose" title="閉じる">✕</button>
     </div>
@@ -432,7 +433,7 @@ function syncTags(){
 }
 function tagCount(t){return Object.values(state.channels).filter(c=>!c.muted&&(c.tags||[]).includes(t)).length;}
 function channelsForTag(t){return Object.entries(state.channels).filter(([,c])=>!c.muted&&(t==='__all__'||(c.tags||[]).includes(t))).map(([cid])=>cid);}
-function modeFor(t){return (state.meta.modes&&state.meta.modes[t])||(t==='__all__'?'fav':'newest');}
+function modeFor(t){let m=state.meta.modes&&state.meta.modes[t];if(m==='one-per-channel')m='shorts';return m||(t==='__all__'?'fav':'newest');}
 function discCats(){
   const set=[...new Set(state.discover.map(d=>d.cat).filter(Boolean))];
   const pin='湊あくあ切り抜き';
@@ -440,13 +441,17 @@ function discCats(){
   return set.includes(pin)?[pin,...rest]:rest;
 }
 
+function isShortV(v){return !!v.short;}
 function videosForTag(tag,mode){
   let cids=new Set(channelsForTag(tag));
   if(mode==='fav')cids=new Set([...cids].filter(cid=>state.channels[cid]&&state.channels[cid].fav));
   let v=state.videos.filter(x=>cids.has(x.cid));
-  if(mode==='one-per-channel'){const best=new Map();for(const x of v){const c=best.get(x.cid);if(!c||newestCmp(x,c)<0)best.set(x.cid,x);}v=[...best.values()].sort(newestCmp);}
-  else if(mode==='rediscover'){v=v.map(x=>({x,s:score(x)})).sort((a,b)=>b.s-a.s).map(o=>o.x);}
-  else v=v.sort(newestCmp);
+  if(mode==='shorts'){ v=v.filter(isShortV).sort(newestCmp); }
+  else{
+    v=v.filter(x=>!isShortV(x)); // ショートは通常フィードから除外
+    if(mode==='rediscover'){v=v.map(x=>({x,s:score(x)})).sort((a,b)=>b.s-a.s).map(o=>o.x);}
+    else v=v.sort(newestCmp);
+  }
   return v;
 }
 function score(v){const c=state.channels[v.cid]||{};const lv=Date.parse(c.lastViewedAt);
@@ -511,7 +516,7 @@ function renderSort(){
     bar.querySelectorAll('button').forEach(b=>{b.classList.toggle('on',b.dataset.d===state.discMode);b.onclick=()=>{state.discMode=b.dataset.d;renderFeed();};});
   }else{
     const mode=modeFor(state.activeTag);
-    bar.innerHTML=`<button data-mode="fav" title="お気に入り">⭐<small>お気に入り</small></button><button data-mode="newest">新着順<small>公開が新しい順</small></button><button data-mode="one-per-channel">1本ずつ<small>CH最新1本</small></button><button data-mode="rediscover">再発見<small>ご無沙汰CH優先</small></button>`;
+    bar.innerHTML=`<button data-mode="fav" title="お気に入り">⭐<small>お気に入り</small></button><button data-mode="newest">新着順<small>公開が新しい順</small></button><button data-mode="shorts">ショート<small>短尺を新着順</small></button><button data-mode="rediscover">再発見<small>ご無沙汰CH優先</small></button>`;
     bar.querySelectorAll('button').forEach(b=>{b.classList.toggle('on',b.dataset.mode===mode);
       b.onclick=()=>{state.meta.modes=state.meta.modes||{};state.meta.modes[state.activeTag]=b.dataset.mode;saveMeta();renderFeed();};});
   }
@@ -588,6 +593,12 @@ async function loadDesc(id){
   }catch(e){}
 }
 // ミニプレーヤー: iframeは動かさず #np のクラスだけで大/小を切替（＝再生シームレス）
+function goFullscreen(){
+  const f=$('#playerBox iframe'), el=f||$('#npPlayer');
+  const req=el.requestFullscreen||el.webkitRequestFullscreen||el.webkitEnterFullscreen||el.mozRequestFullScreen||el.msRequestFullscreen;
+  if(req){ try{ const r=req.call(el); if(r&&r.catch)r.catch(()=>toast('全画面はiPhoneを横向きにしてください')); return; }catch(e){} }
+  toast('全画面はiPhoneを横向きにしてください');
+}
 function minimizePlayer(){ const np=$('#np'); if(np.classList.contains('on')){ np.classList.add('mini'); $('#npMin').textContent='△'; } }
 function expandPlayer(){ const np=$('#np'); np.classList.remove('mini'); $('#npMin').textContent='▽'; $('#npInfo').scrollTop=0; }
 function closeMini(){ $('#np').classList.remove('mini'); }
@@ -920,6 +931,7 @@ async function init(){
   $('#chSearch').addEventListener('input',e=>{state.chQuery=e.target.value;renderChannels();});
   $('#npClose').onclick=closeNp;
   $('#npMin').onclick=()=>$('#np').classList.contains('mini')?expandPlayer():minimizePlayer();
+  $('#actFull').onclick=goFullscreen;
   $('#actMin').onclick=minimizePlayer;
   $('#actClose').onclick=closeNp;
   // 小窓の再生/一時停止（YouTubeロゴを踏まずに操作できるように）

@@ -19,8 +19,30 @@ const PROJECT_ID = process.env.FIRESTORE_PROJECT_ID || 'keiriauto-6f8f1';
 const API_KEY = process.env.FIRESTORE_API_KEY || 'AIzaSyC4kuVMrD1iKBxsX8V12n8OHzPBW2xA0Ew';
 const CH_COL = 'schedule_ytChannels';
 const MAX_VIDEOS = Number(process.env.MAX_VIDEOS || 5000);
+const SHORT_CHECK_MAX = Number(process.env.SHORT_CHECK_MAX || 1200); // ショート判定する新しい動画の上限
 
 const now = () => new Date().toISOString();
+
+// ショート判定: youtube.com/shorts/ID は、ショートなら 200、通常動画なら watch へリダイレクト。
+async function isShort(id) {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), config.requestTimeoutMs);
+    try {
+      const res = await fetch(`https://www.youtube.com/shorts/${encodeURIComponent(id)}`, {
+        signal: ctrl.signal,
+        headers: { 'User-Agent': config.userAgent, Accept: 'text/html' },
+      });
+      const finalUrl = res.url || '';
+      res.body?.cancel?.();
+      return /\/shorts\//.test(finalUrl);
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch (e) {
+    return false;
+  }
+}
 
 async function listChannels() {
   const base = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/${CH_COL}?key=${API_KEY}&pageSize=300`;
@@ -104,6 +126,15 @@ async function main() {
   const key = (v) => Math.min(Date.parse(v.p) || 0, nowMs);
   videos.sort((a, b) => key(b) - key(a));
   const trimmed = videos.slice(0, MAX_VIDEOS);
+
+  // 新しい動画からショート判定（フィードの「ショート」表示と通常フィードの除外に使う）
+  const toCheck = trimmed.slice(0, SHORT_CHECK_MAX);
+  let shortCount = 0;
+  await mapPool(toCheck, config.concurrency, async (v) => {
+    v.short = await isShort(v.id);
+    if (v.short) shortCount++;
+  });
+  console.log(`ショート判定: ${toCheck.length}本中 ${shortCount}本がショート`);
 
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, JSON.stringify({ updatedAt: now(), count: trimmed.length, videos: trimmed }) + '\n', 'utf8');
