@@ -31,28 +31,37 @@ function isoDurToSec(iso) {
   return (+(m[1] || 0)) * 3600 + (+(m[2] || 0)) * 60 + (+(m[3] || 0));
 }
 
-// ショート判定: #shorts タグ、または YouTube Data API の尺が SHORT_MAX_SEC 以下。
-// （データセンターIPからは shorts/ID リダイレクト法が同意ページで不安定なため API 尺で判定）
-async function markShorts(list) {
+// ショート判定（#shorts タグ or 尺<=SHORT_MAX_SEC）＋ ライブ/配信予定 判定を YouTube Data API で付与。
+// （データセンターIPからは shorts/ID リダイレクト法が同意ページで不安定なため API で判定）
+async function markMeta(list) {
   for (const v of list) if (/#shorts?\b/i.test(v.t || '')) v.short = true;
   if (!YT_KEY) {
-    console.log('YOUTUBE_API_KEY 未設定のため、尺によるショート判定はスキップ（#shortsタグのみ）。');
+    console.log('YOUTUBE_API_KEY 未設定のため、尺/ライブ判定はスキップ（#shortsタグのみ）。');
     return;
   }
+  let live = 0, upcoming = 0;
   for (let i = 0; i < list.length; i += 50) {
     const batch = list.slice(i, i + 50);
     const ids = batch.map((v) => v.id).join(',');
     try {
-      const r = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${ids}&maxResults=50&key=${YT_KEY}`);
+      const r = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet,liveStreamingDetails&id=${ids}&maxResults=50&key=${YT_KEY}`);
       if (!r.ok) { console.error(`videos.list HTTP ${r.status}: ${await r.text()}`); continue; }
       const j = await r.json();
-      const dur = new Map();
-      for (const it of j.items || []) dur.set(it.id, isoDurToSec(it.contentDetails?.duration));
-      for (const v of batch) { const s = dur.get(v.id); if (s != null && s <= SHORT_MAX_SEC) v.short = true; }
+      const byId = new Map((j.items || []).map((it) => [it.id, it]));
+      for (const v of batch) {
+        const it = byId.get(v.id); if (!it) continue;
+        const bc = it.snippet?.liveBroadcastContent;
+        const lsd = it.liveStreamingDetails || {};
+        const sec = isoDurToSec(it.contentDetails?.duration);
+        if (bc === 'live') { v.live = true; if (lsd.actualStartTime) v.p = lsd.actualStartTime; live++; }
+        else if (bc === 'upcoming') { v.upcoming = true; if (lsd.scheduledStartTime) v.p = lsd.scheduledStartTime; upcoming++; }
+        else if (sec != null && sec > 0 && sec <= SHORT_MAX_SEC) v.short = true; // ライブ以外だけショート判定
+      }
     } catch (e) {
       console.error('videos.list 失敗:', e.message);
     }
   }
+  console.log(`ライブ判定: 配信中 ${live} / 配信予定 ${upcoming}`);
 }
 
 async function listChannels() {
@@ -140,7 +149,7 @@ async function main() {
 
   // 新しい動画からショート判定（フィードの「ショート」表示と通常フィードの除外に使う）
   const toCheck = trimmed.slice(0, SHORT_CHECK_MAX);
-  await markShorts(toCheck);
+  await markMeta(toCheck);
   const shortCount = toCheck.filter((v) => v.short).length;
   console.log(`ショート判定: ${toCheck.length}本中 ${shortCount}本がショート`);
 

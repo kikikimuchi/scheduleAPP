@@ -104,6 +104,7 @@ body.hdhide #feedTop{top:0;}
 .vtime{font-family:var(--mono);font-size:9px;color:var(--ink-faint);}
 .badge{display:inline-block;font-family:var(--mono);font-size:8.5px;font-weight:800;padding:2px 6px;border-radius:4px;margin-right:6px;vertical-align:1px;letter-spacing:.04em;}
 .badge.live{background:#3A1E24;color:var(--red);border:1px solid #5a2a30;}
+.badge.onair{background:var(--red);color:#fff;border:1px solid #7a1520;}
 .badge.stale{background:#2A2450;color:var(--lav);border:1px solid #3a3468;}
 .badge.hist{background:#123045;color:var(--sky);border:1px solid #1d4a63;}
 .badge.rec{background:#3A3410;color:var(--yellow);border:1px solid #5A5220;}
@@ -417,7 +418,7 @@ function thumbHtml(id,cid,title){
 }
 function pub(v){return Date.parse(v.p)||0;}
 function isFuture(v){return pub(v)>now();}
-function newestCmp(a,b){const fa=isFuture(a),fb=isFuture(b);if(fa!==fb)return fa?1:-1;return fa?pub(a)-pub(b):pub(b)-pub(a);}
+function newestCmp(a,b){if(!!a.live!==!!b.live)return a.live?-1:1;/* ライブ中を最優先 */const fa=isFuture(a),fb=isFuture(b);if(fa!==fb)return fa?1:-1;return fa?pub(a)-pub(b):pub(b)-pub(a);}
 function sortKeyPub(iso){return Math.min(Date.parse(iso)||0,now());}
 function timeAgo(iso){const t=Date.parse(iso);if(!Number.isFinite(t))return'';const d=now()-t;
   if(d<0){const dd=Math.round(-d/DAY);return dd<=0?'まもなく配信':`${dd}日後に配信`;}
@@ -546,7 +547,8 @@ function renderFeed(){
   if(!vids.length){list.innerHTML=`<div class="empty"><div class="m"></div>この条件の動画がありません。<br>「設定」で取り込むか、「チャンネル」でタグを付けてください。</div>`;return;}
   list.innerHTML=vids.map(v=>{
     const c=state.channels[v.cid]||{};let badge='';
-    if(isFuture(v))badge=`<span class="badge live">配信予定</span>`;
+    if(v.live)badge=`<span class="badge onair">🔴 ライブ中</span>`;
+    else if(v.upcoming||isFuture(v))badge=`<span class="badge live">配信予定</span>`;
     else if(mode==='rediscover'){const lv=Date.parse(c.lastViewedAt),d=Number.isFinite(lv)?Math.floor((now()-lv)/DAY):null;
       if(d===null)badge=`<span class="badge stale">未視聴</span>`;else if(d>=30)badge=`<span class="badge stale">${d}日ぶり</span>`;}
     return cardHtml(v,badge);
@@ -623,6 +625,7 @@ async function refreshData(){
     state._updatedAt=u; shuffleDiscover(); updHdUpd();
     const on=document.querySelector('.pg.on'); const cur=on?on.id.replace('pg-',''):'feed';
     if(cur==='feed')renderFeed(); else if(cur==='hist')renderHistory(); else if(cur==='ch')renderChannels(); else {renderTagMgr();refreshStatus();}
+    refreshLiveStatus();
     toast('更新しました');
   }catch(e){ toast('更新に失敗しました'); }
   btn.textContent=old; btn.disabled=false;
@@ -868,6 +871,8 @@ async function loadChannels(){
 }
 async function saveChannel(cid){const c=state.channels[cid];LS.set(LSK_CH,state.channels);
   if(state.fb){try{await state.fb.setDoc(state.fb.doc(state.fb.db,CH_COL,cid),{channelId:cid,...c},{merge:true});}catch(e){console.warn(e);}}}
+async function deleteChannel(cid){delete state.channels[cid];LS.set(LSK_CH,state.channels);
+  if(state.fb){try{await state.fb.deleteDoc(state.fb.doc(state.fb.db,CH_COL,cid));}catch(e){console.warn(e);}}}
 async function saveMeta(){LS.set(LSK_META,state.meta);
   if(state.fb){try{await state.fb.setDoc(state.fb.doc(state.fb.db,META_DOC[0],META_DOC[1]),state.meta,{merge:true});}catch(e){}}}
 
@@ -881,7 +886,7 @@ function initLogin(){
 function doLogin(){if(!tokenClient){toast('OAuthクライアントID未設定（SETUP参照）');return;}tokenClient.requestAccessToken();}
 async function onToken(resp){if(resp&&resp.error){toast('ログインに失敗しました');return;}await importSubscriptions(resp.access_token);}
 async function importSubscriptions(token){
-  toast('登録チャンネルを取得中…');let pageToken='',added=0,kept=0;
+  toast('登録チャンネルを取得中…');let pageToken='',added=0,kept=0;const fetched=new Set();
   try{
     do{
       const url=`https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&mine=true&maxResults=50&order=alphabetical${pageToken?`&pageToken=${pageToken}`:''}`;
@@ -889,12 +894,16 @@ async function importSubscriptions(token){
       if(!r.ok){toast('取得失敗: HTTP '+r.status);return;}
       const j=await r.json();
       for(const it of j.items||[]){const cid=it.snippet.resourceId.channelId,title=it.snippet.title;if(!cid)continue;
+        fetched.add(cid);
         if(state.channels[cid]){state.channels[cid].title=title||state.channels[cid].title;kept++;}
         else{state.channels[cid]={title:title||cid,tags:[],muted:false,lastViewedAt:null,channelUrl:'https://www.youtube.com/channel/'+cid};added++;}
         await saveChannel(cid);}
       pageToken=j.nextPageToken||'';
     }while(pageToken);
-    toast(`取り込み完了: 新規${added}/既存${kept}`);renderFeed();renderChannels();refreshStatus();
+    // 登録解除されたチャンネル（取得結果に無い）を削除
+    let removed=0;
+    if(fetched.size){for(const cid of Object.keys(state.channels)){if(!fetched.has(cid)){await deleteChannel(cid);removed++;}}}
+    toast(`取り込み完了: 新規${added}/既存${kept}/解除${removed}`);renderFeed();renderChannels();refreshStatus();
   }catch(e){toast('取り込み中にエラー');console.warn(e);}
 }
 
@@ -902,6 +911,30 @@ async function importSubscriptions(token){
 async function loadJson(path){try{const r=await fetch(path+'?t='+Math.floor(now()/60000));if(!r.ok)return null;return await r.json();}catch(e){return null;}}
 async function loadVideos(){const j=await loadJson('./data/videos.json');state.videos=(j&&j.videos)||[];return j&&j.updatedAt;}
 async function loadDiscover(){const j=await loadJson('./data/discover.json');state.discover=(j&&j.videos)||[];}
+// 配信予定/配信中の動画だけ、開いた時点の最新ライブ状態にAPIで更新（リアルタイム反映）
+async function refreshLiveStatus(){
+  if(!CFG.youtubeApiKey)return;
+  const ids=[...new Set(state.videos.filter(v=>v.live||v.upcoming).map(v=>v.id))].slice(0,50);
+  if(!ids.length)return;
+  try{
+    const r=await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,liveStreamingDetails&id=${ids.join(',')}&key=${CFG.youtubeApiKey}`);
+    if(!r.ok)return; const j=await r.json();
+    const byId=new Map((j.items||[]).map(it=>[it.id,it]));
+    let changed=false;
+    for(const v of state.videos){
+      if(!(v.live||v.upcoming))continue;
+      const it=byId.get(v.id); if(!it)continue;
+      const bc=it.snippet&&it.snippet.liveBroadcastContent, lsd=it.liveStreamingDetails||{};
+      const nl=bc==='live', nu=bc==='upcoming';
+      if(nl!==!!v.live||nu!==!!v.upcoming)changed=true;
+      v.live=nl; v.upcoming=nu;
+      if(nl&&lsd.actualStartTime)v.p=lsd.actualStartTime;
+      else if(nu&&lsd.scheduledStartTime)v.p=lsd.scheduledStartTime;
+      else if(!nl&&!nu&&lsd.actualStartTime)v.p=lsd.actualStartTime; // 終了→通常動画
+    }
+    if(changed){const on=document.querySelector('.pg.on');if(!on||on.id==='pg-feed')renderFeed();}
+  }catch(e){}
+}
 
 // ---- タブ・状態 ----
 function scrollTop(){window.scrollTo({top:0,behavior:'smooth'});document.body.classList.remove('hdhide');}
@@ -995,6 +1028,7 @@ async function init(){
   setHdh();window.addEventListener('resize',setHdh);window.addEventListener('orientationchange',()=>setTimeout(setHdh,300));
   initLogin();
   renderFeed();refreshStatus();
+  refreshLiveStatus();
 }
 init();
 </script>
