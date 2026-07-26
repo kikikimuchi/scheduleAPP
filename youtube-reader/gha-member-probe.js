@@ -31,25 +31,31 @@ function extractYtInitialData(html) {
   return null;
 }
 
-// videoRenderer/richItemRenderer 系ノードを走査し、メンバーバッジ付きの動画を集める
-function collectMembers(root) {
+// 文字列ベース: JSON全体で「メンバー限定」の各出現位置から、直前の "videoId":"..." を紐づける
+function collectMembersByString(root) {
+  const json = JSON.stringify(root);
+  const marks = [];
+  const re = /メンバー限定|Members only/gi;
+  let m; while ((m = re.exec(json))) marks.push(m.index);
+  const vidRe = /"videoId":"([\w-]{11})"/g;
+  // 各出現の直前の videoId を探す
   const out = []; const seen = new Set();
-  (function walk(n) {
-    if (!n || typeof n !== 'object') return;
-    if (Array.isArray(n)) { for (const x of n) walk(x); return; }
-    if (n.videoId && (n.title || n.headline || n.thumbnailOverlays || n.badges)) {
-      const s = JSON.stringify(n);
-      const isMem = /BADGE_STYLE_TYPE_MEMBERS_ONLY/.test(s) || /MEMBERS_ONLY/.test(s) || /メンバー(限定|シップ)/.test(s) || /"Members only"/i.test(s);
-      if (isMem && !seen.has(n.videoId)) {
-        seen.add(n.videoId);
-        const title = (n.title?.runs?.[0]?.text) || (n.title?.simpleText) || (n.headline?.simpleText) || '';
-        const when = (n.publishedTimeText?.simpleText) || '';
-        out.push({ id: n.videoId, t: title, when });
-      }
-    }
-    for (const k in n) walk(n[k]);
-  })(root);
+  const vids = []; let vm; while ((vm = vidRe.exec(json))) vids.push({ i: vm.index, id: vm[1] });
+  for (const pos of marks) {
+    let best = null;
+    for (const v of vids) { if (v.i < pos) best = v; else break; }
+    if (best && !seen.has(best.id)) { seen.add(best.id); out.push(best.id); }
+  }
   return out;
+}
+// 「メンバー限定」出現周辺のJSONを少し見せる（構造確認用）
+function dumpContext(root, max = 2) {
+  const json = JSON.stringify(root);
+  const re = /メンバー限定/g; let m; let c = 0;
+  while ((m = re.exec(json)) && c < max) { c++;
+    const a = Math.max(0, m.index - 300), b = Math.min(json.length, m.index + 60);
+    console.log(`   …ctx${c}: ${json.slice(a, b)}`);
+  }
 }
 
 // 全 videoId の数（グリッドがそもそも入っているかの指標）
@@ -86,9 +92,10 @@ async function probe(ref) {
       const data = extractYtInitialData(html);
       if (!data) { console.log('→ ytInitialData 取り出し失敗'); continue; }
       const total = countVideoIds(data);
-      const mem = collectMembers(data);
-      console.log(`ytInitialData: 全videoId=${total} / メンバー検出=${mem.length}`);
-      mem.slice(0, 8).forEach((m) => console.log(`   🔒 ${m.id}  ${m.when}  ${m.t.slice(0, 40)}`));
+      const mem = collectMembersByString(data);
+      console.log(`ytInitialData: 全videoId=${total} / メンバー検出(文字列)=${mem.length}`);
+      mem.slice(0, 12).forEach((id) => console.log(`   🔒 ${id}`));
+      dumpContext(data, 2);
     } catch (e) { console.log('取得エラー:', e.message); }
   }
 }
