@@ -478,6 +478,7 @@ body.fs-lock{overflow:hidden;}
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script>
 const CFG = window.YTR_CONFIG || {};
+const APP_VER = 'pip-v6'; // 更新確認用。設定>状態 に表示
 const CH_COL='schedule_ytChannels', META_DOC=['schedule_ytMeta','app'], MEM_DOC=['schedule_ytMeta','members'];
 const REDISCOVER={W_STALE:1.0,W_FRESH:0.6,FRESH_CAP_DAYS:30,NEVER_VIEWED_DAYS:400};
 const DAY=86400000, now=()=>Date.now(), nowIso=()=>new Date().toISOString();
@@ -1380,7 +1381,8 @@ function tab(name){['feed','hist','ch','set'].forEach(p=>$('#pg-'+p).classList.t
 function refreshStatus(){const total=Object.keys(state.channels).length,un=Object.values(state.channels).filter(c=>!(c.tags&&c.tags.length)).length;
   $('#statusLine').innerHTML=`保存先: <b>${state.fb?'Firestore（クラウド同期）':'この端末のみ'}</b><br>`
     +`チャンネル: ${total} / タグ未設定: ${un} / 登録動画: ${state.videos.length} / 発見: ${state.discover.length}<br>`
-    +`ログイン取り込み: ${CFG.oauthClientId?'有効':'未設定'} / コメント表示: ${CFG.youtubeApiKey?'有効':'未設定'}`;
+    +`ログイン取り込み: ${CFG.oauthClientId?'有効':'未設定'} / コメント表示: ${CFG.youtubeApiKey?'有効':'未設定'}<br>`
+    +`<b>バージョン: ${APP_VER}</b>`;
   const ms=$('#memStat');if(ms)ms.textContent=(state.memberVideos||[]).length;}
 function setHdh(){const h=$('#header').offsetHeight;document.documentElement.style.setProperty('--hdh',(h||64)+'px');}
 
