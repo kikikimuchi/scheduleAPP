@@ -282,6 +282,8 @@ body.fs-lock{overflow:hidden;}
 #toast.on{opacity:1;}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;}}
 .vthumb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+.vprog{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(255,255,255,.28);z-index:2;}
+.vprog i{display:block;height:100%;background:#f00;}
 .pl-badge{position:absolute;right:6px;bottom:6px;z-index:2;font-family:var(--mono);font-size:10px;font-weight:800;color:#fff;background:rgba(0,0,0,.78);padding:3px 7px;border-radius:4px;}
 .pl-head{display:flex;align-items:center;gap:10px;padding:2px 2px 12px;}
 .pl-head .btn{height:34px;flex:0 0 auto;font-size:12px;padding:0 12px;}
@@ -473,9 +475,12 @@ const LS={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d;}catch(e){r
 function hue(cid){let h=0;for(let i=0;i<(cid||'').length;i++)h=(h*31+cid.charCodeAt(i))%360;return h;}
 function thumbHtml(id,cid,title){
   const h=hue(cid||id),c1=`hsl(${h},52%,52%)`,c2=`hsl(${(h+40)%360},50%,38%)`;
+  const p=state.pos&&state.pos[id];
+  const pct=(p&&p.dur&&p.t)?Math.max(2,Math.min(100,Math.round(p.t/p.dur*100))):0;
+  const bar=pct?`<div class="vprog"><i style="width:${pct}%"></i></div>`:'';
   return `<div class="vthumb" style="background:linear-gradient(135deg,${c1},${c2})">`
     +`<span class="init">${esc((title||'?').trim().charAt(0))}</span>`
-    +`<img class="vthumb-img" loading="lazy" src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" onerror="this.remove()"></div>`;
+    +`<img class="vthumb-img" loading="lazy" src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" onerror="this.remove()">${bar}</div>`;
 }
 function pub(v){return Date.parse(v.p)||0;}
 function isFuture(v){return pub(v)>now();}
@@ -780,7 +785,7 @@ function goFullscreen(){
   if(req){ try{ const r=req.call(el); if(r&&r.catch)r.catch(()=>cssFsToggle()); return; }catch(e){} }
   cssFsToggle();
 }
-function minimizePlayer(){ const np=$('#np'); if(np.classList.contains('on')){ cssFsToggle(false); np.classList.add('mini'); $('#npMin').textContent='△'; } }
+function minimizePlayer(){ const np=$('#np'); if(np.classList.contains('on')){ cssFsToggle(false); np.classList.add('mini'); $('#npMin').textContent='△'; flushPos(); updateCardProgress(state.currentVideo&&state.currentVideo.id); } }
 function expandPlayer(){ const np=$('#np'); np.classList.remove('mini'); $('#npMin').textContent='▽'; $('#npInfo').scrollTop=0; }
 function closeMini(){ $('#np').classList.remove('mini'); }
 function shuffleDiscover(){ const a=state.discover; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} }
@@ -836,6 +841,17 @@ function savePos(id,t,dur){
   if(!state._posFlush||nt-state._posFlush>4000){state._posFlush=nt;LS.set(LSK_POS,state.pos);} // 書き込みは間引く
 }
 function flushPos(){ if(state.pos)LS.set(LSK_POS,state.pos); }
+function updateCardProgress(id){ // 視聴後に該当カードの赤バーを即更新（再描画せずスクロール維持）
+  if(!id)return;
+  const p=state.pos&&state.pos[id];
+  const pct=(p&&p.dur&&p.t)?Math.max(2,Math.min(100,Math.round(p.t/p.dur*100))):0;
+  document.querySelectorAll(`.vid[data-id="${id}"] .vthumb`).forEach(th=>{
+    let bar=th.querySelector('.vprog');
+    if(!pct){if(bar)bar.remove();return;}
+    if(!bar){bar=document.createElement('div');bar.className='vprog';bar.innerHTML='<i></i>';th.appendChild(bar);}
+    bar.querySelector('i').style.width=pct+'%';
+  });
+}
 function clearPos(id){ if(id&&state.pos&&state.pos[id]){delete state.pos[id];LS.set(LSK_POS,state.pos);} }
 function resumeAt(id){ const p=state.pos&&state.pos[id]; if(!p)return 0; if(p.dur&&p.t>=p.dur-15)return 0; return p.t>10?p.t:0; } // 10秒超〜終盤15秒手前のみ再開
 // 字幕を強制オフ（プレーヤー準備タイミングを取り逃さないよう数回送る）
@@ -864,7 +880,7 @@ async function loadComments(id){
       else ct.classList.remove('clamp'); });
   }catch(e){box.innerHTML=`<p class="cmt-note">コメント取得でエラーが発生しました。</p>`;}
 }
-function closeNp(){flushPos();const np=$('#np');np.classList.remove('on','mini','fs');document.body.classList.remove('fs-lock');$('#playerBox').innerHTML='';}
+function closeNp(){flushPos();updateCardProgress(state.currentVideo&&state.currentVideo.id);const np=$('#np');np.classList.remove('on','mini','fs');document.body.classList.remove('fs-lock');$('#playerBox').innerHTML='';}
 // ブラウザバックでアプリを抜けず、プレーヤー/オーバーレイを閉じる
 function ovlOpen(){return $('#np').classList.contains('on')||$('#searchPanel').classList.contains('on')||$('#chView').classList.contains('on')||$('#tagPick').classList.contains('on');}
 function histCapture(){ if(!state._hist){ try{history.pushState({ovl:1},'');}catch(e){} state._hist=true; } }
