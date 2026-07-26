@@ -18,9 +18,11 @@ const FS_KEY = process.env.FIRESTORE_API_KEY || 'AIzaSyC4kuVMrD1iKBxsX8V12n8OHzP
 const YT_KEY = process.env.YOUTUBE_API_KEY || '';
 const CH_COL = 'schedule_ytChannels';
 
-const MAX_CATEGORIES = Number(process.env.DISCOVER_MAX_CATEGORIES || 8); // クォータ抑制
-const PER_CATEGORY = Number(process.env.DISCOVER_PER_CATEGORY || 12);
+const MAX_CATEGORIES = Number(process.env.DISCOVER_MAX_CATEGORIES || 16); // クォータ抑制
+const PER_CATEGORY = Number(process.env.DISCOVER_PER_CATEGORY || 20);
 const PUBLISHED_AFTER_DAYS = Number(process.env.DISCOVER_DAYS || 45);
+// タグに関係なく必ず入れる特別フィード（お気に入り）
+const PINNED = [{ cat: '湊あくあ切り抜き', q: '湊あくあ 切り抜き' }];
 
 async function listChannels() {
   const base = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/${CH_COL}?key=${FS_KEY}&pageSize=300`;
@@ -41,10 +43,10 @@ async function listChannels() {
   return out;
 }
 
-async function searchCategory(cat, subscribed) {
+async function searchCategory(cat, query, subscribed) {
   const publishedAfter = new Date(Date.now() - PUBLISHED_AFTER_DAYS * 86400_000).toISOString();
   const params = new URLSearchParams({
-    part: 'snippet', type: 'video', q: cat, maxResults: '25', order: 'relevance',
+    part: 'snippet', type: 'video', q: query, maxResults: '40', order: 'relevance',
     regionCode: 'JP', relevanceLanguage: 'ja', publishedAfter, key: YT_KEY,
   });
   const res = await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`);
@@ -73,18 +75,20 @@ async function main() {
   }
   const channels = await listChannels();
   const subscribed = new Set(channels.map((c) => c.channelId));
-  const cats = [...new Set(channels.flatMap((c) => c.tags))].slice(0, MAX_CATEGORIES);
-  if (!cats.length) {
-    console.log('カテゴリ(タグ)が無いため発見フィードはスキップします。チャンネルにタグを付けてください。');
+  const tagCats = [...new Set(channels.flatMap((c) => c.tags))].slice(0, MAX_CATEGORIES);
+  // 特別フィード(PINNED)は必ず先頭に。以降はタグ由来のカテゴリ。
+  const queries = [...PINNED, ...tagCats.map((cat) => ({ cat, q: cat }))];
+  if (queries.length === 0) {
+    console.log('カテゴリが無いため発見フィードはスキップします。');
     return;
   }
-  console.log(`カテゴリ ${cats.length} 件を検索: ${cats.join(', ')}（各最大${PER_CATEGORY}）`);
+  console.log(`カテゴリ ${queries.length} 件を検索: ${queries.map((x) => x.cat).join(', ')}（各最大${PER_CATEGORY}）`);
 
   const all = [];
   const seen = new Set();
-  for (const cat of cats) {
+  for (const { cat, q } of queries) {
     try {
-      const items = await searchCategory(cat, subscribed);
+      const items = await searchCategory(cat, q, subscribed);
       for (const it of items) {
         const key = it.cat + '|' + it.id;
         if (seen.has(key)) continue;
@@ -98,7 +102,7 @@ async function main() {
 
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, JSON.stringify({ updatedAt: new Date().toISOString(), count: all.length, videos: all }) + '\n', 'utf8');
-  console.log(`→ ${OUT}（${all.length}本 / ${cats.length}カテゴリ）`);
+  console.log(`→ ${OUT}（${all.length}本 / ${queries.length}カテゴリ）`);
 }
 
 main().catch((e) => { console.error('discover 失敗:', e.message); process.exit(1); });
