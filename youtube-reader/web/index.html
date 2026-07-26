@@ -168,7 +168,9 @@ select.as{font-family:var(--mono);font-size:10.5px;border:1.5px dashed var(--lin
 .cmt .av{width:30px;height:30px;flex:0 0 auto;border-radius:50%;background:var(--panel2);border:1.5px solid var(--line2);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;color:var(--sky);}
 .cmt .cb{min-width:0;}
 .cmt .cu{font-family:var(--mono);font-size:10.5px;color:var(--ink-mute);margin-bottom:2px;}
-.cmt .ct{font-size:12.5px;line-height:1.5;}
+.cmt .ct{font-size:12.5px;line-height:1.6;overflow-wrap:anywhere;}
+.cmt .ct .ts{color:var(--sky);cursor:pointer;font-weight:700;}
+.cmt .ct .ts:active{opacity:.6;}
 
 #tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:var(--maxw);
   background:#0C1226;border-top:3px solid #060B18;display:flex;z-index:9999;padding:9px 0 max(env(safe-area-inset-bottom,0px),14px);}
@@ -429,7 +431,7 @@ function renderHistory(){
 function openVideo(o){
   const ch=o.ch||chTitle(o);
   $('#sTitle').textContent=o.t||'(動画)';$('#sCh').textContent=ch;
-  $('#playerBox').innerHTML=`<iframe class="ytif" src="https://www.youtube.com/embed/${encodeURIComponent(o.id)}?autoplay=1&playsinline=1&rel=0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
+  $('#playerBox').innerHTML=`<iframe class="ytif" src="https://www.youtube.com/embed/${encodeURIComponent(o.id)}?autoplay=1&playsinline=1&rel=0&enablejsapi=1" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
   loadComments(o.id);
   const yt=`https://www.youtube.com/watch?v=${o.id}`;
   $('#openYt').onclick=()=>window.open(yt,'_blank','noopener');
@@ -439,6 +441,21 @@ function openVideo(o){
   state.history=[{id:o.id,at:nowIso(),cid:o.cid||'',t:o.t||'',ch:ch},...state.history.filter(h=>h.id!==o.id)].slice(0,200);
   LS.set(LSK_HIST,state.history);
   $('#sheet').classList.add('on');
+}
+// コメント整形: 改行を保持し、タイムスタンプ(H:MM:SS / M:SS)を頭出しリンクにする
+function fmtComment(t){
+  let h=esc(t||'');
+  h=h.replace(/(\d{1,2}):([0-5]\d)(?::([0-5]\d))?/g,(m,a,b,c)=>{
+    const sec=c!==undefined?(+a)*3600+(+b)*60+(+c):(+a)*60+(+b);
+    return `<span class="ts" data-s="${sec}">${m}</span>`;
+  });
+  return h.replace(/\n/g,'<br>');
+}
+function seekTo(sec){
+  const f=$('#playerBox iframe'); if(!f||!f.contentWindow) return;
+  const post=(func,args)=>f.contentWindow.postMessage(JSON.stringify({event:'command',func,args}),'*');
+  post('seekTo',[sec,true]); post('playVideo',[]);
+  const panel=$('#sheet .panel'); if(panel) panel.scrollTo({top:0,behavior:'smooth'});
 }
 async function loadComments(id){
   const box=$('#cmtList');
@@ -451,7 +468,7 @@ async function loadComments(id){
     const j=await r.json();
     const items=(j.items||[]).map(it=>it.snippet.topLevelComment.snippet);
     if(!items.length){box.innerHTML=`<p class="cmt-note">コメントはまだありません。</p>`;return;}
-    box.innerHTML=items.map(s=>`<div class="cmt"><div class="av">${esc((s.authorDisplayName||'?').replace(/^@/,'').charAt(0))}</div><div class="cb"><div class="cu">${esc(s.authorDisplayName||'')}</div><div class="ct">${esc(s.textDisplay||'')}</div></div></div>`).join('');
+    box.innerHTML=items.map(s=>`<div class="cmt"><div class="av">${esc((s.authorDisplayName||'?').replace(/^@/,'').charAt(0))}</div><div class="cb"><div class="cu">${esc(s.authorDisplayName||'')}</div><div class="ct">${fmtComment(s.textDisplay||'')}</div></div></div>`).join('');
   }catch(e){box.innerHTML=`<p class="cmt-note">コメント取得でエラーが発生しました。</p>`;}
 }
 function closeSheet(){$('#sheet').classList.remove('on');$('#playerBox').innerHTML='';renderFeed();}
@@ -617,6 +634,7 @@ async function init(){
   $('#exportBtn').onclick=exportChannels;$('#importJson').addEventListener('change',importChannels);
   $('#sheetClose').onclick=closeSheet;$('#scrim').onclick=closeSheet;
   $('#reloadBtn').onclick=()=>location.reload();
+  $('#cmtList').addEventListener('click',e=>{const el=e.target.closest('.ts');if(el)seekTo(+el.dataset.s);});
   initLogin();
   renderFeed();refreshStatus();
 }
