@@ -231,6 +231,7 @@ body.fs-lock{overflow:hidden;}
 .acts .btn{height:40px;font-size:12px;flex:1;min-width:104px;display:flex;align-items:center;justify-content:center;gap:6px;}
 .acts .npb{flex:0 0 auto;min-width:48px;max-width:52px;font-size:16px;}
 #relatedBtn.on{background:var(--sky);color:#04122b;border-color:var(--sky);}
+#actPip.on{background:var(--sky);color:#04122b;border-color:var(--sky);}
 #relatedBox{margin:-4px 0 14px;}
 .lnk{color:var(--sky);cursor:pointer;text-decoration:underline;word-break:break-all;}
 .cmt .cu .clike{margin-left:8px;color:var(--ink-faint);}
@@ -776,16 +777,11 @@ function openVideo(o){
   $('#descBox').innerHTML='';
   const startAt=(o.live||o.upcoming)?0:resumeAt(o.id); // 途中まで見た動画は続きから（ライブは除く）
   state._curTime=startAt;
-  const pip=useIosPip(); // iOSネイティブ再生（スワイプPiP）モードか
-  const params=pip
-    ? `playsinline=0&rel=0&fs=1${startAt?`&start=${startAt}`:''}` // 自動再生なし・ネイティブ全画面→スワイプPiP
-    : `autoplay=1&playsinline=1&rel=0&enablejsapi=1&cc_load_policy=0&cc_lang_pref=none${startAt?`&start=${startAt}`:''}`;
-  $('#playerBox').innerHTML=`<iframe src="https://www.youtube.com/embed/${encodeURIComponent(o.id)}?${params}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
-  { const pb=$('#actPip'); if(pb)pb.style.display=(IS_IOS&&!pip)?'':'none'; } // ネイティブ既定なら📺は不要
-  if(pip)toast('▶をタップで全画面再生。ホームへスワイプでPiP（他アプリの上に浮かせる）');
+  const pip=useIosPip(); // iOSネイティブ再生（スワイプPiP）を既定にするか
+  applyPlayer(o,pip,startAt);
+  { const pb=$('#actPip'); if(pb)pb.style.display=IS_IOS?'':'none'; } // iOSは常に📺トグル表示
+  if(pip)toast('▶をタップで全画面再生→ホームへスワイプでPiP。📺でインラインに戻せます');
   else if(startAt){const m=Math.floor(startAt/60),s=startAt%60;toast(`${m>0?m+'分':''}${s}秒から再開`);}
-  const f=$('#playerBox iframe');
-  f.addEventListener('load',()=>{ try{f.contentWindow.postMessage(JSON.stringify({event:'listening',id:1,channel:'widget'}),'*');}catch(e){} captionsOff(); });
   loadDesc(o.id);
   loadComments(o.id);
   // 関連動画は毎回たたみ直す（前の動画の結果を残さない）
@@ -799,13 +795,24 @@ function openVideo(o){
   state._playing=true; $('#miniPlay').classList.remove('paused'); $('#npMin').textContent='▽';
   $('#npInfo').scrollTop=0;
 }
-// iOSネイティブプレーヤーで再生し直す（playsinlineを付けない）→ ホーム画面/他アプリの上に浮かせるPiPが使える
-function playNativePiP(){
-  const o=state.currentVideo||{}; if(!o.id)return;
-  const t=Math.floor(state._curTime||0);
-  // playsinline無し・autoplay無し → 表示される▶を自分でタップするとiOSネイティブプレーヤーで再生され、PiPが使える
-  $('#playerBox').innerHTML=`<iframe src="https://www.youtube.com/embed/${encodeURIComponent(o.id)}?rel=0&playsinline=0&fs=1${t>1?`&start=${t}`:''}" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
-  toast('中央の▶を指でタップ→全画面で再生されます。そのままホームへスワイプ、またはPiPボタンで浮かせられます');
+// プレーヤーを指定モードで（再）生成。native=true→playsinline無し(全画面・スワイプPiP)、false→インライン
+function applyPlayer(o,native,startAt){
+  const s=startAt?`&start=${startAt}`:'';
+  const params=native
+    ? `playsinline=0&rel=0&fs=1&enablejsapi=1${s}`
+    : `autoplay=1&playsinline=1&rel=0&enablejsapi=1&cc_load_policy=0&cc_lang_pref=none${s}`;
+  $('#playerBox').innerHTML=`<iframe src="https://www.youtube.com/embed/${encodeURIComponent(o.id)}?${params}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
+  const f=$('#playerBox iframe');
+  if(f)f.addEventListener('load',()=>{ try{f.contentWindow.postMessage(JSON.stringify({event:'listening',id:1,channel:'widget'}),'*');}catch(e){} if(!native)captionsOff(); });
+  state._nativeMode=native;
+  const pb=$('#actPip'); if(pb)pb.classList.toggle('on',native); // ネイティブ時はボタン点灯
+}
+// 📺トグル: ネイティブ⇄インラインを切替（現在の再生位置から）
+function toggleNativePlayer(){
+  const o=state.currentVideo; if(!o)return;
+  const t=Math.floor(state._curTime||0), toNative=!state._nativeMode;
+  applyPlayer(o,toNative,t>1?t:0);
+  toast(toNative?'ネイティブ再生（▶→全画面→ホームへスワイプでPiP）':'インライン再生に戻しました');
 }
 function showPlayerError(code){
   const o=state.currentVideo||{}; if(!o.id)return;
@@ -1404,7 +1411,7 @@ async function init(){
   $('#npMin').onclick=()=>$('#np').classList.contains('mini')?expandPlayer():minimizePlayer();
   $('#actFull').onclick=goFullscreen;
   $('#relatedBtn').onclick=toggleRelated;
-  { const p=$('#actPip'); if(p)p.onclick=playNativePiP; } // 表示可否はopenVideoで制御（ネイティブ既定なら不要なので隠す）
+  { const p=$('#actPip'); if(p)p.onclick=toggleNativePlayer; } // 📺トグル。表示可否はopenVideoで制御
   if(IS_IOS){ $('#pipSec').style.display=''; $('#pipCard').style.display=''; const t=$('#iosPipToggle');
     t.checked=(state.meta.iosPip===true); // 既定OFF（インライン）
     t.onchange=()=>{ state.meta.iosPip=t.checked; saveMeta(); toast(t.checked?'ネイティブ再生: ON（全画面・スワイプPiP）':'インライン再生: ON（全画面にしない）'); }; }
