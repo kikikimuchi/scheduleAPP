@@ -420,6 +420,7 @@ body.fs-lock{overflow:hidden;}
     <div class="acts">
       <button class="btn" id="openYt">▶ YouTubeで開く</button>
       <button class="btn" id="relatedBtn">🔎 関連動画</button>
+      <button class="btn ghost npb" id="actPip" title="PiP（他アプリの上に浮かせる）" style="display:none">📺</button>
       <button class="btn ghost npb" id="actFull" title="全画面">⛶</button>
       <button class="btn ghost npb" id="actMin" title="小窓化">▽</button>
       <button class="btn ghost npb" id="actClose" title="閉じる">✕</button>
@@ -784,6 +785,15 @@ function openVideo(o){
   const np=$('#np'); np.classList.remove('mini'); resetNpPos(); np.classList.add('on');
   state._playing=true; $('#miniPlay').classList.remove('paused'); $('#npMin').textContent='▽';
   $('#npInfo').scrollTop=0;
+}
+// iOSネイティブプレーヤーで再生し直す（playsinlineを付けない）→ ホーム画面/他アプリの上に浮かせるPiPが使える
+function playNativePiP(){
+  const o=state.currentVideo||{}; if(!o.id)return;
+  const t=Math.floor(state._curTime||0);
+  $('#playerBox').innerHTML=`<iframe src="https://www.youtube.com/embed/${encodeURIComponent(o.id)}?autoplay=1&rel=0&enablejsapi=1&cc_load_policy=0&cc_lang_pref=none${t>1?`&start=${t}`:''}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
+  const f=$('#playerBox iframe');
+  if(f)f.addEventListener('load',()=>{ try{f.contentWindow.postMessage(JSON.stringify({event:'listening',id:1,channel:'widget'}),'*');}catch(e){} });
+  toast('ネイティブ再生に切替。全画面で再生し、PiPボタン/ホームへスワイプで浮かせられます');
 }
 function showPlayerError(code){
   const o=state.currentVideo||{}; if(!o.id)return;
@@ -1380,6 +1390,7 @@ async function init(){
   $('#npMin').onclick=()=>$('#np').classList.contains('mini')?expandPlayer():minimizePlayer();
   $('#actFull').onclick=goFullscreen;
   $('#relatedBtn').onclick=toggleRelated;
+  { const IS_IOS=/iP(hone|od|ad)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1); const p=$('#actPip'); if(p&&IS_IOS){ p.style.display=''; p.onclick=playNativePiP; } } // PiPボタンはiOSのみ表示
   $('#fsExit').onclick=()=>history.back();
   window.addEventListener('popstate',histClose);
   // プレーヤーからの再生位置を受信（公式アプリへその時間で飛ぶため）
