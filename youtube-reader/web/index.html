@@ -176,6 +176,9 @@ body.fs-lock{overflow:hidden;}
 #np.mini{left:auto;right:10px;transform:none;top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 100px);width:190px;max-width:190px;height:auto;}
 #np.mini #npInfo{display:none;}
 #np.mini #npPlayer{border:2px solid var(--sky);box-shadow:4px 4px 0 rgba(0,0,0,.5);}
+#miniDrag{display:none;}
+#np.mini #miniDrag{display:block;position:absolute;inset:0;z-index:2;cursor:move;touch-action:none;} /* 小窓時だけiframe上に出してドラッグ受け（ボタンはz-index3で操作可）*/
+#np.mini.dragging{transition:none!important;}
 #np:not(.mini) #npPlayer .np-btn{display:none;} /* 全画面時はプレーヤー上のボタンを出さない(YouTubeで開くの横に移動) */
 #np.mini .np-btn{width:30px;height:26px;top:3px;font-size:15px;}
 #np.mini #miniPlay{left:4px;background:rgba(10,16,34,.82);}
@@ -404,6 +407,7 @@ body.fs-lock{overflow:hidden;}
 <div id="np">
   <div id="npPlayer">
     <div id="playerBox"></div>
+    <div id="miniDrag" title="ドラッグで移動 / タップで拡大"></div>
     <button class="np-btn" id="miniPlay" title="再生/一時停止"></button>
     <button class="np-btn" id="npMin" title="小窓化">▽</button>
     <button class="np-btn" id="npClose" title="閉じる">✕</button>
@@ -777,7 +781,7 @@ function openVideo(o){
   if(o.cid&&state.channels[o.cid]){state.channels[o.cid].lastViewedAt=nowIso();saveChannel(o.cid);}
   state.history=[{id:o.id,at:nowIso(),cid:o.cid||'',t:o.t||'',ch:ch},...state.history.filter(h=>h.id!==o.id)].slice(0,200);
   LS.set(LSK_HIST,state.history);
-  const np=$('#np'); np.classList.remove('mini'); np.classList.add('on');
+  const np=$('#np'); np.classList.remove('mini'); resetNpPos(); np.classList.add('on');
   state._playing=true; $('#miniPlay').classList.remove('paused'); $('#npMin').textContent='▽';
   $('#npInfo').scrollTop=0;
 }
@@ -884,7 +888,8 @@ function goFullscreen(){
   cssFsToggle();
 }
 function minimizePlayer(){ const np=$('#np'); if(np.classList.contains('on')){ cssFsToggle(false); np.classList.add('mini'); $('#npMin').textContent='△'; flushPos(); updateCardProgress(state.currentVideo&&state.currentVideo.id); } }
-function expandPlayer(){ const np=$('#np'); np.classList.remove('mini'); $('#npMin').textContent='▽'; $('#npInfo').scrollTop=0; }
+function resetNpPos(){ const np=$('#np'); np.style.left=''; np.style.top=''; np.style.right=''; np.style.bottom=''; } // ドラッグで付けた位置を消す
+function expandPlayer(){ const np=$('#np'); np.classList.remove('mini'); resetNpPos(); $('#npMin').textContent='▽'; $('#npInfo').scrollTop=0; }
 function closeMini(){ $('#np').classList.remove('mini'); }
 function shuffleDiscover(){ const a=state.discover; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} }
 async function refreshData(){
@@ -981,7 +986,7 @@ async function loadComments(id){
       else ct.classList.remove('clamp'); });
   }catch(e){box.innerHTML=`<p class="cmt-note">コメント取得でエラーが発生しました。</p>`;}
 }
-function closeNp(){flushPos();updateCardProgress(state.currentVideo&&state.currentVideo.id);const np=$('#np');np.classList.remove('on','mini','fs');document.body.classList.remove('fs-lock');$('#playerBox').innerHTML='';}
+function closeNp(){flushPos();updateCardProgress(state.currentVideo&&state.currentVideo.id);const np=$('#np');np.classList.remove('on','mini','fs');resetNpPos();document.body.classList.remove('fs-lock');$('#playerBox').innerHTML='';}
 // ブラウザバックでアプリを抜けず、プレーヤー/オーバーレイを閉じる
 function ovlOpen(){return $('#np').classList.contains('on')||$('#searchPanel').classList.contains('on')||$('#chView').classList.contains('on')||$('#tagPick').classList.contains('on');}
 function histCapture(){ if(!state._hist){ try{history.pushState({ovl:1},'');}catch(e){} state._hist=true; } }
@@ -1427,6 +1432,19 @@ async function init(){
     info.addEventListener('touchstart',e=>{drag=!np.classList.contains('mini')&&info.scrollTop<=0;sy=e.touches[0].clientY;},{passive:true});
     info.addEventListener('touchmove',e=>{if(!drag)return;const dy=e.touches[0].clientY-sy;if(dy<=0)return;e.preventDefault();const k=Math.min(dy,300)/300;np.style.transition='none';np.style.transformOrigin='100% 100%';np.style.transform=`translateX(-50%) translateY(${dy*0.25}px) scale(${1-k*0.2})`;},{passive:false});
     info.addEventListener('touchend',e=>{if(!drag)return;drag=false;const dy=e.changedTouches[0].clientY-sy;np.style.transition='';np.style.transform='';np.style.transformOrigin='';if(dy>55)minimizePlayer();},{passive:true});
+  })();
+  // 小窓をドラッグで移動（PiP風）。移動せずタップなら拡大。
+  (function(){const np=$('#np'),h=$('#miniDrag');if(!h)return;let on=false,moved=false,sx=0,sy=0,ox=0,oy=0;
+    const setPos=(x,y)=>{const w=np.offsetWidth,ht=np.offsetHeight;x=Math.max(4,Math.min(window.innerWidth-w-4,x));y=Math.max(4,Math.min(window.innerHeight-ht-4,y));np.style.left=x+'px';np.style.top=y+'px';np.style.right='auto';np.style.bottom='auto';};
+    const start=(x,y)=>{if(!np.classList.contains('mini'))return;on=true;moved=false;sx=x;sy=y;const r=np.getBoundingClientRect();ox=r.left;oy=r.top;np.classList.add('dragging');};
+    const move=(x,y)=>{if(!on)return;const dx=x-sx,dy=y-sy;if(Math.abs(dx)>4||Math.abs(dy)>4)moved=true;setPos(ox+dx,oy+dy);};
+    const end=()=>{if(!on)return;on=false;np.classList.remove('dragging');if(!moved)expandPlayer();};
+    h.addEventListener('touchstart',e=>start(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
+    h.addEventListener('touchmove',e=>{if(on)move(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
+    h.addEventListener('touchend',end,{passive:true});
+    h.addEventListener('mousedown',e=>{e.preventDefault();start(e.clientX,e.clientY);});
+    window.addEventListener('mousemove',e=>move(e.clientX,e.clientY));
+    window.addEventListener('mouseup',end);
   })();
   // 一番上で下に引っぱって更新
   (function(){let sy=0,pull=false;
