@@ -790,10 +790,9 @@ function openVideo(o){
 function playNativePiP(){
   const o=state.currentVideo||{}; if(!o.id)return;
   const t=Math.floor(state._curTime||0);
-  $('#playerBox').innerHTML=`<iframe src="https://www.youtube.com/embed/${encodeURIComponent(o.id)}?autoplay=1&rel=0&enablejsapi=1&cc_load_policy=0&cc_lang_pref=none${t>1?`&start=${t}`:''}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
-  const f=$('#playerBox iframe');
-  if(f)f.addEventListener('load',()=>{ try{f.contentWindow.postMessage(JSON.stringify({event:'listening',id:1,channel:'widget'}),'*');}catch(e){} });
-  toast('ネイティブ再生に切替。全画面で再生し、PiPボタン/ホームへスワイプで浮かせられます');
+  // playsinline無し・autoplay無し → 表示される▶を自分でタップするとiOSネイティブプレーヤーで再生され、PiPが使える
+  $('#playerBox').innerHTML=`<iframe src="https://www.youtube.com/embed/${encodeURIComponent(o.id)}?rel=0&playsinline=0&fs=1${t>1?`&start=${t}`:''}" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
+  toast('中央の▶を指でタップ→全画面で再生されます。そのままホームへスワイプ、またはPiPボタンで浮かせられます');
 }
 function showPlayerError(code){
   const o=state.currentVideo||{}; if(!o.id)return;
