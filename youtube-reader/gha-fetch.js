@@ -85,7 +85,7 @@ function collectMembersFromData(data, cid) {
   })(data);
   return out;
 }
-const MEMBER_MAX_PAGES = Number(process.env.MEMBER_MAX_PAGES || 25); // continuationの最大ページ数（1ページ≒30件）
+const MEMBER_MAX_PAGES = Number(process.env.MEMBER_MAX_PAGES || 70); // continuationの最大ページ数（1ページ≒30件）
 // continuation(次ページ)トークンを探す
 function findContinuation(obj) {
   let token = null;
