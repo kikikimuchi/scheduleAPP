@@ -500,7 +500,7 @@ function syncTags(){
 }
 function tagCount(t){return Object.values(state.channels).filter(c=>!c.muted&&(c.tags||[]).includes(t)).length;}
 function channelsForTag(t){return Object.entries(state.channels).filter(([,c])=>!c.muted&&(t==='__all__'||(c.tags||[]).includes(t))).map(([cid])=>cid);}
-function modeFor(t){let m=state.meta.modes&&state.meta.modes[t];if(m==='one-per-channel')m='shorts';return m||(t==='__all__'?'fav':'newest');}
+function modeFor(t){let m=state.meta.modes&&state.meta.modes[t];if(m==='one-per-channel'||m==='shorts')m='newest';return m||(t==='__all__'?'fav':'newest');}
 function discCats(){
   const set=[...new Set(state.discover.map(d=>d.cat).filter(Boolean))];
   const pin='湊あくあ切り抜き';
@@ -660,7 +660,7 @@ function renderSort(){
     bar.querySelectorAll('button').forEach(b=>{b.classList.toggle('on',b.dataset.d===state.discMode);b.onclick=()=>{state.discMode=b.dataset.d;renderFeed();};});
   }else{
     const mode=modeFor(state.activeTag);
-    bar.innerHTML=`<button data-mode="fav" title="お気に入り">⭐<small>お気に入り</small></button><button data-mode="newest">新着順<small>公開が新しい順</small></button><button data-mode="shorts">ショート<small>短尺を新着順</small></button><button data-mode="rediscover">再発見<small>ご無沙汰CH優先</small></button>`;
+    bar.innerHTML=`<button data-mode="fav" title="お気に入り">⭐<small>お気に入り</small></button><button data-mode="newest">新着順<small>公開が新しい順</small></button><button data-mode="reco">おすすめ<small>あなたへの発見</small></button><button data-mode="rediscover">再発見<small>ご無沙汰CH優先</small></button>`;
     bar.querySelectorAll('button').forEach(b=>{b.classList.toggle('on',b.dataset.mode===mode);
       b.onclick=()=>{state.meta.modes=state.meta.modes||{};state.meta.modes[state.activeTag]=b.dataset.mode;saveMeta();renderFeed();};});
   }
@@ -672,6 +672,7 @@ function renderFeed(){
   renderChips();renderSort();
   const list=$('#feedList');
   list.classList.toggle('shortsview',!isDisc&&modeFor(state.activeTag)==='shorts');
+  if(!isDisc&&modeFor(state.activeTag)==='reco'){ renderRecoFeed(list); return; }
   if(isDisc){
     if(!state.discover.length){list.innerHTML=`<div class="empty"><div class="m"></div>発見フィードはまだ空です。<br>YouTube APIキーを設定し、取得係が動くと表示されます。<br>（SETUP参照）</div>`;return;}
     const cat=state.activeTag;
@@ -695,6 +696,17 @@ function renderFeed(){
   bindCards(list);
 }
 
+function renderRecoFeed(list){
+  // 「おすすめ」= 発見フィード(あなたのタグでYouTube検索した登録外チャンネルの動画)。選択中タグで絞る。
+  const cat=state.activeTag;
+  let items=state.discover.filter(d=>cat==='__all__'||d.cat===cat);
+  if(!items.length){
+    list.innerHTML=`<div class="empty"><div class="m"></div>おすすめはまだありません。<br>${cat==='__all__'?'設定でYouTube APIキーを入れ、取得係が動くと表示されます。':'このタグのおすすめはまだありません。'}</div>`;
+    return;
+  }
+  list.innerHTML=items.map(d=>cardHtml(d,`<span class="badge rec">おすすめ</span>`,d.why)).join('');
+  bindCards(list);
+}
 function renderHistory(){
   const list=$('#histList');
   if(!state.history.length){list.innerHTML=`<div class="empty"><div class="m"></div>まだ履歴がありません。<br>動画を開くとここに記録されます。</div>`;return;}
