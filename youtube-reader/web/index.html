@@ -505,7 +505,7 @@ function videosForTag(tag,mode){
   let cids=new Set(channelsForTag(tag));
   if(mode==='fav')cids=new Set([...cids].filter(cid=>state.channels[cid]&&state.channels[cid].fav));
   let v=state.videos.filter(x=>cids.has(x.cid));
-  if(state.memberVideos&&state.memberVideos.length)v=v.concat(state.memberVideos.filter(x=>cids.has(x.cid))); // メンバー限定も日付順で混ぜる
+  if(state.memberVideos&&state.memberVideos.length)v=v.concat(state.memberVideos.filter(x=>tag==='__all__'||cids.has(x.cid))); // メンバー限定は「すべて」では登録有無を問わず表示・日付順で混ぜる
   const _s=new Set();v=v.filter(x=>_s.has(x.id)?false:(_s.add(x.id),true)); // 重複除去
   if(mode==='shorts'){ v=v.filter(isShortV).sort(newestCmp); }
   else{
