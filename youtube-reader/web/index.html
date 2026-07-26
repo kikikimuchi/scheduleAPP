@@ -418,7 +418,7 @@ const state={ videos:[], discover:[], channels:{}, meta:{tags:[],modes:{}}, hist
 
 const $=(s,r=document)=>r.querySelector(s);
 const esc=(s='')=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove('on'),2200);}
+function toast(m,ms){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove('on'),ms||2200);}
 const LS={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d;}catch(e){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
 
 function hue(cid){let h=0;for(let i=0;i<(cid||'').length;i++)h=(h*31+cid.charCodeAt(i))%360;return h;}
@@ -947,28 +947,38 @@ async function importSubscriptions(token){
     importMemberVideos(token); // メンバー限定動画（本人権限でアップロード一覧を取得）
   }catch(e){toast('取り込み中にエラー');console.warn(e);}
 }
-// あなたのメンバー権限で各チャンネルのアップロード一覧を取得し、RSS(=公開)に無いもの＝メンバー限定として拾う
+// あなたのメンバー権限で各チャンネルのアップロード一覧を取得し、RSS(=公開)に無いもの＝メンバー限定として拾う。
+// 診断のため各段の件数をトーストで出す（どこで0になるか特定用）。
 async function importMemberVideos(token){
   toast('メンバー限定を確認中…');
   const rssIds=new Set(state.videos.map(v=>v.id));
-  const cids=Object.keys(state.channels), mem=[], seen=new Set();
-  // 直近だけ対象（古い公開動画がRSS枠外にある誤検出を避ける）
-  const cutoff=now()-90*DAY;
-  for(const cid of cids){
-    if(cid.length<3)continue; const up='UU'+cid.slice(2);
-    try{
-      const r=await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=15&playlistId=${up}`,{headers:{Authorization:'Bearer '+token}});
-      if(!r.ok)continue; const j=await r.json();
-      for(const it of j.items||[]){const s=it.snippet||{},vid=s.resourceId&&s.resourceId.videoId;if(!vid)continue;
-        if(rssIds.has(vid)||seen.has(vid))continue; // RSSにある=公開 / 重複
-        if((Date.parse(s.publishedAt)||0)<cutoff)continue; // 直近のみ
-        seen.add(vid);
-        mem.push({id:vid,cid,t:s.title||'',p:s.publishedAt||'',ch:(state.channels[cid]||{}).title||'',mem:true});}
-    }catch(e){}
+  const cids=Object.keys(state.channels).filter(c=>c.length>=3);
+  const cutoff=now()-120*DAY;
+  let okCh=0, errCh=0, seenItems=0, notInRss=0, lastErr='';
+  const mem=[], seen=new Set();
+  let i=0;
+  async function worker(){
+    while(i<cids.length){
+      const cid=cids[i++], up='UU'+cid.slice(2);
+      try{
+        const r=await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=20&playlistId=${encodeURIComponent(up)}`,{headers:{Authorization:'Bearer '+token}});
+        if(!r.ok){errCh++;lastErr='HTTP'+r.status;continue;} okCh++;
+        const j=await r.json();
+        for(const it of j.items||[]){seenItems++;const s=it.snippet||{},vid=s.resourceId&&s.resourceId.videoId;if(!vid)continue;
+          if(rssIds.has(vid))continue; // RSSにある=公開
+          notInRss++;
+          if(seen.has(vid))continue;
+          if((Date.parse(s.publishedAt)||0)<cutoff)continue; // 直近のみ
+          seen.add(vid);
+          mem.push({id:vid,cid,t:s.title||'',p:s.publishedAt||'',ch:(state.channels[cid]||{}).title||'',mem:true});}
+      }catch(e){errCh++;lastErr=(e&&e.message)||'err';}
+    }
   }
+  await Promise.all(Array.from({length:8},()=>worker()));
   state.memberVideos=mem;LS.set(LSK_MEM,mem);
-  toast(mem.length?`メンバー限定: ${mem.length}本を追加`:'メンバー限定は見つかりませんでした');
-  renderFeed();
+  console.log('member-check',{channels:cids.length,okCh,errCh,seenItems,notInRss,added:mem.length,lastErr});
+  renderFeed();refreshStatus();
+  toast(`成功${okCh}/失敗${errCh}ch・一覧${seenItems}・非RSS${notInRss}・追加${mem.length}${errCh?'・'+lastErr:''}`,6000);
 }
 
 // ---- データ読み込み ----
