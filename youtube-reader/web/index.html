@@ -225,8 +225,10 @@ body.fs-lock{overflow:hidden;}
 .sheet-ch:active{opacity:.6;}
 .vstats{font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-bottom:12px;}
 .acts{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
-.acts .btn{height:40px;font-size:12px;flex:1;min-width:130px;display:flex;align-items:center;justify-content:center;gap:6px;}
-.acts .npb{flex:0 0 auto;min-width:52px;max-width:56px;font-size:16px;}
+.acts .btn{height:40px;font-size:12px;flex:1;min-width:104px;display:flex;align-items:center;justify-content:center;gap:6px;}
+.acts .npb{flex:0 0 auto;min-width:48px;max-width:52px;font-size:16px;}
+#relatedBtn.on{background:var(--sky);color:#04122b;border-color:var(--sky);}
+#relatedBox{margin:-4px 0 14px;}
 .lnk{color:var(--sky);cursor:pointer;text-decoration:underline;word-break:break-all;}
 .cmt .cu .clike{margin-left:8px;color:var(--ink-faint);}
 .desc.open{max-height:none;}
@@ -412,10 +414,12 @@ body.fs-lock{overflow:hidden;}
     <div class="vstats" id="vStats"></div>
     <div class="acts">
       <button class="btn" id="openYt">▶ YouTubeで開く</button>
+      <button class="btn" id="relatedBtn">🔎 関連動画</button>
       <button class="btn ghost npb" id="actFull" title="全画面">⛶</button>
       <button class="btn ghost npb" id="actMin" title="小窓化">▽</button>
       <button class="btn ghost npb" id="actClose" title="閉じる">✕</button>
     </div>
+    <div id="relatedBox" style="display:none"></div>
     <button class="hist-link" id="chatBtn" style="display:none">💬 チャットリプレイを表示</button>
     <div id="chatBox" style="display:none"></div>
     <div class="sec-h" style="margin-top:2px">概要（タップで開閉）</div>
@@ -736,6 +740,8 @@ function openVideo(o){
   f.addEventListener('load',()=>{ try{f.contentWindow.postMessage(JSON.stringify({event:'listening',id:1,channel:'widget'}),'*');}catch(e){} captionsOff(); });
   loadDesc(o.id);
   loadComments(o.id);
+  // 関連動画は毎回たたみ直す（前の動画の結果を残さない）
+  const rb=$('#relatedBox'); if(rb){rb.style.display='none';rb.innerHTML='';rb.dataset.loaded='';} $('#relatedBtn')&&$('#relatedBtn').classList.remove('on');
   // 公式アプリへは「その時の再生位置」で開く
   $('#openYt').onclick=()=>{const t=Math.floor(state._curTime||0);window.open(`https://www.youtube.com/watch?v=${o.id}${t>1?`&t=${t}s`:''}`,'_blank','noopener');};
   if(o.cid&&state.channels[o.cid]){state.channels[o.cid].lastViewedAt=nowIso();saveChannel(o.cid);}
@@ -753,6 +759,34 @@ function showPlayerError(code){
   div.innerHTML=`<div class="pl-err-in"><p>アプリ内で再生できませんでした${o.mem?'（メンバー限定）':''}。<br><small>この端末のブラウザでYouTubeにログインすると再生できる場合があります。</small></p><button class="btn" id="plErrOpen">▶ YouTube／公式アプリで開く</button></div>`;
   box.appendChild(div);
   const b=div.querySelector('#plErrOpen'); if(b)b.onclick=()=>window.open(`https://www.youtube.com/watch?v=${o.id}${t>1?`&t=${t}s`:''}`,'_blank','noopener');
+}
+// 関連動画（relatedToVideoIdは廃止済みのため、タイトルのキーワードで検索して近い動画を出す）
+function relQuery(o){
+  let t=(o.t||'').replace(/[【\[(（].*?[】\])）]/g,' ').replace(/[#｜|/]/g,' ').replace(/\s+/g,' ').trim();
+  const words=t.split(' ').filter(Boolean).slice(0,6).join(' ');
+  return (words||o.ch||o.t||'').slice(0,80);
+}
+async function toggleRelated(){
+  const box=$('#relatedBox'), btn=$('#relatedBtn'), o=state.currentVideo||{};
+  if(!box)return;
+  if(box.style.display==='block'){box.style.display='none';btn&&btn.classList.remove('on');return;}
+  box.style.display='block'; btn&&btn.classList.add('on');
+  box.scrollIntoView&&box.scrollIntoView({behavior:'smooth',block:'nearest'});
+  if(box.dataset.loaded==='1')return; // 読み込み済みは再取得しない
+  if(!CFG.youtubeApiKey){box.innerHTML='<div class="empty">関連動画の取得にはAPIキー設定が必要です</div>';return;}
+  box.innerHTML='<div class="empty">関連動画を読み込み中…</div>';
+  try{
+    const params=new URLSearchParams({part:'snippet',type:'video',q:relQuery(o),maxResults:'20',order:'relevance',regionCode:'JP',relevanceLanguage:'ja',key:CFG.youtubeApiKey});
+    const r=await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`);
+    if(state.currentVideo!==o||box.style.display!=='block')return; // 別動画に切替/閉じた
+    if(!r.ok){box.innerHTML='<div class="empty">関連動画の取得に失敗しました（クォータ超過の可能性）</div>';return;}
+    const j=await r.json();
+    const seen=new Set();
+    const vids=(j.items||[]).map(it=>({id:it.id?.videoId,cid:it.snippet?.channelId||'',t:_htmlDec(it.snippet?.title||''),ch:_htmlDec(it.snippet?.channelTitle||''),p:it.snippet?.publishedAt||''}))
+      .filter(v=>v.id&&v.id!==o.id&&(seen.has(v.id)?false:(seen.add(v.id),true)));
+    box.innerHTML=vids.length?`<div class="vgrid">`+vids.map(v=>cardHtml(v)).join('')+`</div>`:'<div class="empty">関連動画が見つかりませんでした</div>';
+    bindCards(box); box.dataset.loaded='1';
+  }catch(e){box.innerHTML='<div class="empty">関連動画エラー</div>';}
 }
 function numJa(n){n=+n;if(!isFinite(n))return'';if(n>=1e8)return (n/1e8).toFixed(1).replace(/\.0$/,'')+'億';if(n>=1e4)return (n/1e4).toFixed(1).replace(/\.0$/,'')+'万';return n.toLocaleString('ja-JP');}
 async function loadDesc(id){
@@ -1261,6 +1295,7 @@ async function init(){
   $('#npClose').onclick=()=>history.back();
   $('#npMin').onclick=()=>$('#np').classList.contains('mini')?expandPlayer():minimizePlayer();
   $('#actFull').onclick=goFullscreen;
+  $('#relatedBtn').onclick=toggleRelated;
   $('#fsExit').onclick=()=>history.back();
   window.addEventListener('popstate',histClose);
   // プレーヤーからの再生位置を受信（公式アプリへその時間で飛ぶため）
