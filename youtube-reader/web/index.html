@@ -105,6 +105,7 @@ body.hdhide #feedTop{top:0;}
 .badge{display:inline-block;font-family:var(--mono);font-size:8.5px;font-weight:800;padding:2px 6px;border-radius:4px;margin-right:6px;vertical-align:1px;letter-spacing:.04em;}
 .badge.live{background:#3A1E24;color:var(--red);border:1px solid #5a2a30;}
 .badge.onair{background:var(--red);color:#fff;border:1px solid #7a1520;}
+.badge.mem{background:#153A22;color:#5fe08a;border:1px solid #24603a;}
 .badge.stale{background:#2A2450;color:var(--lav);border:1px solid #3a3468;}
 .badge.hist{background:#123045;color:var(--sky);border:1px solid #1d4a63;}
 .badge.rec{background:#3A3410;color:var(--yellow);border:1px solid #5A5220;}
@@ -400,7 +401,7 @@ const CFG = window.YTR_CONFIG || {};
 const CH_COL='schedule_ytChannels', META_DOC=['schedule_ytMeta','app'];
 const REDISCOVER={W_STALE:1.0,W_FRESH:0.6,FRESH_CAP_DAYS:30,NEVER_VIEWED_DAYS:400};
 const DAY=86400000, now=()=>Date.now(), nowIso=()=>new Date().toISOString();
-const LSK_CH='ytr_channels', LSK_META='ytr_meta', LSK_HIST='ytr_history';
+const LSK_CH='ytr_channels', LSK_META='ytr_meta', LSK_HIST='ytr_history', LSK_MEM='ytr_member';
 const state={ videos:[], discover:[], channels:{}, meta:{tags:[],modes:{}}, history:[],
   activeTag:'__all__', chFilter:'all', feedMode:'subs', discMode:'recommended', fb:null };
 
@@ -452,6 +453,7 @@ function videosForTag(tag,mode){
   let cids=new Set(channelsForTag(tag));
   if(mode==='fav')cids=new Set([...cids].filter(cid=>state.channels[cid]&&state.channels[cid].fav));
   let v=state.videos.filter(x=>cids.has(x.cid));
+  if(state.memberVideos&&state.memberVideos.length)v=v.concat(state.memberVideos.filter(x=>cids.has(x.cid))); // メンバー限定も混ぜる
   if(mode==='shorts'){ v=v.filter(isShortV).sort(newestCmp); }
   else{
     v=v.filter(x=>!isShortV(x)); // ショートは通常フィードから除外
@@ -479,7 +481,7 @@ function openChannel(cid){
   if(c.thumb){th.style.backgroundImage=`url(${c.thumb})`;th.style.display='';}else{th.style.display='none';}
   $('#chvOpen').onclick=()=>window.open(chUrl(cid),'_blank','noopener');
   const seen=new Set(),vids=[];
-  state.videos.concat(state.discover).forEach(v=>{if(v.cid===cid&&!seen.has(v.id)){seen.add(v.id);vids.push(v);}});
+  state.videos.concat(state.discover).concat(state.memberVideos||[]).forEach(v=>{if(v.cid===cid&&!seen.has(v.id)){seen.add(v.id);vids.push(v);}});
   vids.sort((a,b)=>pub(b)-pub(a));
   const list=$('#chvList');
   list.innerHTML=vids.length?`<div class="s-sec">動画 ${vids.length}本</div><div class="vgrid">`+vids.map(v=>cardHtml(v)).join('')+`</div>`
@@ -489,13 +491,15 @@ function openChannel(cid){
   $('#chView').classList.add('on');
 }
 function cardHtml(o,badge,why){
-  const ch=chTitle(o);
-  return `<div class="vid" data-id="${esc(o.id)}" data-cid="${esc(o.cid||'')}" data-t="${esc(o.t||'')}" data-ch="${esc(ch)}">${thumbHtml(o.id,o.cid||'',ch)}`
+  const ch=chTitle(o), memB=o.mem?`<span class="badge mem">🔒 メンバー</span>`:'';
+  return `<div class="vid" data-id="${esc(o.id)}" data-cid="${esc(o.cid||'')}" data-t="${esc(o.t||'')}" data-ch="${esc(ch)}" data-mem="${o.mem?'1':''}">${thumbHtml(o.id,o.cid||'',ch)}`
     +`<div class="vmeta"><div class="vtitle">${esc(o.t||'(無題)')}</div><div class="vch" data-cid="${esc(o.cid||'')}">${esc(ch)}</div>`
-    +`<div class="vtime">${badge||''}${o.p?timeAgo(o.p):''}</div>${why?`<div class="vwhy">✨ ${esc(why)}</div>`:''}</div></div>`;
+    +`<div class="vtime">${memB}${badge||''}${o.p?timeAgo(o.p):''}</div>${why?`<div class="vwhy">✨ ${esc(why)}</div>`:''}</div></div>`;
 }
 function bindCards(root){
-  root.querySelectorAll('.vid').forEach(el=>el.onclick=()=>openVideo({id:el.dataset.id,cid:el.dataset.cid,t:el.dataset.t,ch:el.dataset.ch}));
+  root.querySelectorAll('.vid').forEach(el=>el.onclick=()=>{
+    if(el.dataset.mem==='1'){window.open('https://www.youtube.com/watch?v='+el.dataset.id,'_blank','noopener');return;} // メンバー限定は公式アプリへ
+    openVideo({id:el.dataset.id,cid:el.dataset.cid,t:el.dataset.t,ch:el.dataset.ch});});
   root.querySelectorAll('.vch[data-cid]').forEach(el=>el.onclick=(e)=>{e.stopPropagation();if(el.dataset.cid)openChannel(el.dataset.cid);});
 }
 
@@ -904,7 +908,34 @@ async function importSubscriptions(token){
     let removed=0;
     if(fetched.size){for(const cid of Object.keys(state.channels)){if(!fetched.has(cid)){await deleteChannel(cid);removed++;}}}
     toast(`取り込み完了: 新規${added}/既存${kept}/解除${removed}`);renderFeed();renderChannels();refreshStatus();
+    importMemberVideos(token); // メンバー限定動画（実験的）
   }catch(e){toast('取り込み中にエラー');console.warn(e);}
+}
+// 実験: 各チャンネルのアップロード一覧を本人トークンで取得し、公開フィードに無い＝メンバー限定候補として拾う
+async function importMemberVideos(token){
+  if(!CFG.youtubeApiKey)return; // 公開判定に公開APIキーが必要
+  toast('メンバー限定を確認中…');
+  const cids=Object.keys(state.channels), found=[];
+  for(const cid of cids){
+    if(cid.length<3)continue; const up='UU'+cid.slice(2); // アップロード再生リストID
+    try{
+      const r=await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=15&playlistId=${up}`,{headers:{Authorization:'Bearer '+token}});
+      if(!r.ok)continue; const j=await r.json();
+      for(const it of j.items||[]){const s=it.snippet||{},vid=s.resourceId&&s.resourceId.videoId;if(!vid)continue;
+        found.push({id:vid,cid,t:s.title||'',p:s.publishedAt||'',ch:(state.channels[cid]||{}).title||''});}
+    }catch(e){}
+  }
+  const ids=[...new Set(found.map(v=>v.id))];
+  // 公開キーで見えるもの＝公開動画。見えない＝メンバー限定（or 非公開）
+  const pub=new Set();
+  for(let i=0;i<ids.length;i+=50){const batch=ids.slice(i,i+50);
+    try{const r=await fetch(`https://www.googleapis.com/youtube/v3/videos?part=id&id=${batch.join(',')}&key=${CFG.youtubeApiKey}`);
+      if(r.ok){const j=await r.json();for(const it of j.items||[])pub.add(it.id);}}catch(e){}}
+  const seen=new Set(),mem=[];
+  for(const v of found){if(pub.has(v.id)||seen.has(v.id))continue;seen.add(v.id);mem.push({...v,mem:true});}
+  state.memberVideos=mem;LS.set(LSK_MEM,mem);
+  toast(mem.length?`メンバー限定: ${mem.length}本を追加`:'メンバー限定は取得できませんでした');
+  renderFeed();
 }
 
 // ---- データ読み込み ----
@@ -959,6 +990,7 @@ function setHdh(){const h=$('#header').offsetHeight;document.documentElement.sty
 async function init(){
   state.fb=await initFirestore();
   state.history=LS.get(LSK_HIST,[]);
+  state.memberVideos=LS.get(LSK_MEM,[]);
   const [updatedAt]=await Promise.all([loadVideos(),loadDiscover(),loadChannels()]);
   state._updatedAt=updatedAt; shuffleDiscover();
   if(!state.meta.modes)state.meta.modes={};
