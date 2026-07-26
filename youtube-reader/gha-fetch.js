@@ -64,6 +64,37 @@ async function markMeta(list) {
   console.log(`ライブ判定: 配信中 ${live} / 配信予定 ${upcoming}`);
 }
 
+// メンバー限定候補: 各チャンネルのアップロード再生リスト(公開キーで取得可)にあって、
+// RSS(=通常公開)に無く、かつRSSの新しさ範囲内の動画。RSSはメンバー限定を載せないことが多いので、
+// その差分がメンバー限定候補。再生はできないのでアプリ側は公式アプリへ誘導する（mem:true）。
+async function fetchMemberCandidates(targets, rssVideos) {
+  if (!YT_KEY) return [];
+  const byCh = new Map();
+  for (const v of rssVideos) {
+    let e = byCh.get(v.cid); if (!e) { e = { ids: new Set(), minP: Infinity }; byCh.set(v.cid, e); }
+    e.ids.add(v.id); const t = Date.parse(v.p) || 0; if (t && t < e.minP) e.minP = t;
+  }
+  const out = [];
+  await mapPool(targets, config.concurrency, async (c) => {
+    const cid = c.channelId; if (!cid || cid.length < 3) return;
+    const up = 'UU' + cid.slice(2); // アップロード再生リストID
+    try {
+      const r = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=20&playlistId=${up}&key=${YT_KEY}`);
+      if (!r.ok) return;
+      const j = await r.json();
+      const e = byCh.get(cid) || { ids: new Set(), minP: 0 };
+      for (const it of j.items || []) {
+        const s = it.snippet || {}, vid = s.resourceId && s.resourceId.videoId; if (!vid) continue;
+        if (e.ids.has(vid)) continue; // RSSにある=通常公開なのでスキップ
+        const t = Date.parse(s.publishedAt) || 0;
+        if (e.minP && e.minP !== Infinity && t < e.minP) continue; // RSSの窓より古い=ただの旧動画
+        out.push({ id: vid, cid, t: s.title || '', p: s.publishedAt || '', u: s.publishedAt || '', mem: true });
+      }
+    } catch (e) {}
+  });
+  return out;
+}
+
 async function listChannels() {
   const base = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/${CH_COL}?key=${API_KEY}&pageSize=300`;
   const channels = [];
@@ -152,6 +183,14 @@ async function main() {
   await markMeta(toCheck);
   const shortCount = toCheck.filter((v) => v.short).length;
   console.log(`ショート判定: ${toCheck.length}本中 ${shortCount}本がショート`);
+
+  // メンバー限定候補を追加（RSSに載らない差分）
+  const members = await fetchMemberCandidates(targets, videos);
+  const known = new Set(trimmed.map((v) => v.id));
+  const memAdd = members.filter((v) => !known.has(v.id) && (known.add(v.id), true));
+  for (const v of memAdd) trimmed.push(v);
+  trimmed.sort((a, b) => key(b) - key(a));
+  console.log(`メンバー限定候補: ${memAdd.length}本`);
 
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, JSON.stringify({ updatedAt: now(), count: trimmed.length, videos: trimmed }) + '\n', 'utf8');

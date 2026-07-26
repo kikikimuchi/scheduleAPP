@@ -453,7 +453,6 @@ function videosForTag(tag,mode){
   let cids=new Set(channelsForTag(tag));
   if(mode==='fav')cids=new Set([...cids].filter(cid=>state.channels[cid]&&state.channels[cid].fav));
   let v=state.videos.filter(x=>cids.has(x.cid));
-  if(state.memberVideos&&state.memberVideos.length)v=v.concat(state.memberVideos.filter(x=>cids.has(x.cid))); // メンバー限定も混ぜる
   if(mode==='shorts'){ v=v.filter(isShortV).sort(newestCmp); }
   else{
     v=v.filter(x=>!isShortV(x)); // ショートは通常フィードから除外
@@ -481,7 +480,7 @@ function openChannel(cid){
   if(c.thumb){th.style.backgroundImage=`url(${c.thumb})`;th.style.display='';}else{th.style.display='none';}
   $('#chvOpen').onclick=()=>window.open(chUrl(cid),'_blank','noopener');
   const seen=new Set(),vids=[];
-  state.videos.concat(state.discover).concat(state.memberVideos||[]).forEach(v=>{if(v.cid===cid&&!seen.has(v.id)){seen.add(v.id);vids.push(v);}});
+  state.videos.concat(state.discover).forEach(v=>{if(v.cid===cid&&!seen.has(v.id)){seen.add(v.id);vids.push(v);}});
   vids.sort((a,b)=>pub(b)-pub(a));
   const list=$('#chvList');
   list.innerHTML=vids.length?`<div class="s-sec">動画 ${vids.length}本</div><div class="vgrid">`+vids.map(v=>cardHtml(v)).join('')+`</div>`
@@ -908,34 +907,7 @@ async function importSubscriptions(token){
     let removed=0;
     if(fetched.size){for(const cid of Object.keys(state.channels)){if(!fetched.has(cid)){await deleteChannel(cid);removed++;}}}
     toast(`取り込み完了: 新規${added}/既存${kept}/解除${removed}`);renderFeed();renderChannels();refreshStatus();
-    importMemberVideos(token); // メンバー限定動画（実験的）
   }catch(e){toast('取り込み中にエラー');console.warn(e);}
-}
-// 実験: 各チャンネルのアップロード一覧を本人トークンで取得し、公開フィードに無い＝メンバー限定候補として拾う
-async function importMemberVideos(token){
-  if(!CFG.youtubeApiKey)return; // 公開判定に公開APIキーが必要
-  toast('メンバー限定を確認中…');
-  const cids=Object.keys(state.channels), found=[];
-  for(const cid of cids){
-    if(cid.length<3)continue; const up='UU'+cid.slice(2); // アップロード再生リストID
-    try{
-      const r=await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=15&playlistId=${up}`,{headers:{Authorization:'Bearer '+token}});
-      if(!r.ok)continue; const j=await r.json();
-      for(const it of j.items||[]){const s=it.snippet||{},vid=s.resourceId&&s.resourceId.videoId;if(!vid)continue;
-        found.push({id:vid,cid,t:s.title||'',p:s.publishedAt||'',ch:(state.channels[cid]||{}).title||''});}
-    }catch(e){}
-  }
-  const ids=[...new Set(found.map(v=>v.id))];
-  // 公開キーで見えるもの＝公開動画。見えない＝メンバー限定（or 非公開）
-  const pub=new Set();
-  for(let i=0;i<ids.length;i+=50){const batch=ids.slice(i,i+50);
-    try{const r=await fetch(`https://www.googleapis.com/youtube/v3/videos?part=id&id=${batch.join(',')}&key=${CFG.youtubeApiKey}`);
-      if(r.ok){const j=await r.json();for(const it of j.items||[])pub.add(it.id);}}catch(e){}}
-  const seen=new Set(),mem=[];
-  for(const v of found){if(pub.has(v.id)||seen.has(v.id))continue;seen.add(v.id);mem.push({...v,mem:true});}
-  state.memberVideos=mem;LS.set(LSK_MEM,mem);
-  toast(mem.length?`メンバー限定: ${mem.length}本を追加`:'メンバー限定は取得できませんでした');
-  renderFeed();
 }
 
 // ---- データ読み込み ----
@@ -990,7 +962,6 @@ function setHdh(){const h=$('#header').offsetHeight;document.documentElement.sty
 async function init(){
   state.fb=await initFirestore();
   state.history=LS.get(LSK_HIST,[]);
-  state.memberVideos=LS.get(LSK_MEM,[]);
   const [updatedAt]=await Promise.all([loadVideos(),loadDiscover(),loadChannels()]);
   state._updatedAt=updatedAt; shuffleDiscover();
   if(!state.meta.modes)state.meta.modes={};
