@@ -19,28 +19,39 @@ const PROJECT_ID = process.env.FIRESTORE_PROJECT_ID || 'keiriauto-6f8f1';
 const API_KEY = process.env.FIRESTORE_API_KEY || 'AIzaSyC4kuVMrD1iKBxsX8V12n8OHzPBW2xA0Ew';
 const CH_COL = 'schedule_ytChannels';
 const MAX_VIDEOS = Number(process.env.MAX_VIDEOS || 5000);
-const SHORT_CHECK_MAX = Number(process.env.SHORT_CHECK_MAX || 1200); // ショート判定する新しい動画の上限
+const SHORT_CHECK_MAX = Number(process.env.SHORT_CHECK_MAX || 1500); // ショート判定する新しい動画の上限
+const YT_KEY = process.env.YOUTUBE_API_KEY || '';
+const SHORT_MAX_SEC = Number(process.env.SHORT_MAX_SEC || 60); // この秒数以下をショート扱い
 
 const now = () => new Date().toISOString();
 
-// ショート判定: youtube.com/shorts/ID は、ショートなら 200、通常動画なら watch へリダイレクト。
-async function isShort(id) {
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), config.requestTimeoutMs);
+function isoDurToSec(iso) {
+  const m = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(iso || '');
+  if (!m) return null;
+  return (+(m[1] || 0)) * 3600 + (+(m[2] || 0)) * 60 + (+(m[3] || 0));
+}
+
+// ショート判定: #shorts タグ、または YouTube Data API の尺が SHORT_MAX_SEC 以下。
+// （データセンターIPからは shorts/ID リダイレクト法が同意ページで不安定なため API 尺で判定）
+async function markShorts(list) {
+  for (const v of list) if (/#shorts?\b/i.test(v.t || '')) v.short = true;
+  if (!YT_KEY) {
+    console.log('YOUTUBE_API_KEY 未設定のため、尺によるショート判定はスキップ（#shortsタグのみ）。');
+    return;
+  }
+  for (let i = 0; i < list.length; i += 50) {
+    const batch = list.slice(i, i + 50);
+    const ids = batch.map((v) => v.id).join(',');
     try {
-      const res = await fetch(`https://www.youtube.com/shorts/${encodeURIComponent(id)}`, {
-        signal: ctrl.signal,
-        headers: { 'User-Agent': config.userAgent, Accept: 'text/html' },
-      });
-      const finalUrl = res.url || '';
-      res.body?.cancel?.();
-      return /\/shorts\//.test(finalUrl);
-    } finally {
-      clearTimeout(timer);
+      const r = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${ids}&maxResults=50&key=${YT_KEY}`);
+      if (!r.ok) { console.error(`videos.list HTTP ${r.status}: ${await r.text()}`); continue; }
+      const j = await r.json();
+      const dur = new Map();
+      for (const it of j.items || []) dur.set(it.id, isoDurToSec(it.contentDetails?.duration));
+      for (const v of batch) { const s = dur.get(v.id); if (s != null && s <= SHORT_MAX_SEC) v.short = true; }
+    } catch (e) {
+      console.error('videos.list 失敗:', e.message);
     }
-  } catch (e) {
-    return false;
   }
 }
 
@@ -129,11 +140,8 @@ async function main() {
 
   // 新しい動画からショート判定（フィードの「ショート」表示と通常フィードの除外に使う）
   const toCheck = trimmed.slice(0, SHORT_CHECK_MAX);
-  let shortCount = 0;
-  await mapPool(toCheck, config.concurrency, async (v) => {
-    v.short = await isShort(v.id);
-    if (v.short) shortCount++;
-  });
+  await markShorts(toCheck);
+  const shortCount = toCheck.filter((v) => v.short).length;
   console.log(`ショート判定: ${toCheck.length}本中 ${shortCount}本がショート`);
 
   mkdirSync(dirname(OUT), { recursive: true });

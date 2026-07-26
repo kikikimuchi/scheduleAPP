@@ -155,6 +155,14 @@ select.as{font-family:var(--mono);font-size:10.5px;border:1.5px dashed var(--lin
 #npPlayer{position:relative;width:100%;aspect-ratio:16/9;background:#000;flex:0 0 auto;}
 #playerBox{position:absolute;inset:0;}
 #playerBox iframe{width:100%;height:100%;border:0;display:block;}
+/* 疑似全画面: iPhoneで自動回転オフでもCSS回転で横向きフル表示 */
+#fsExit{display:none;}
+#np.fs #npInfo{display:none;}
+#np.fs #npPlayer{position:fixed;left:0;top:-100vw;width:100vh;height:100vw;
+  transform-origin:bottom left;transform:rotate(90deg);z-index:10010;aspect-ratio:auto;background:#000;border:0;}
+#np.fs #fsExit{display:block;position:absolute;top:10px;right:12px;z-index:10011;
+  background:rgba(10,16,34,.82);border:2px solid var(--line2);color:#fff;font-size:12px;font-weight:700;padding:8px 11px;cursor:pointer;}
+body.fs-lock{overflow:hidden;}
 .np-btn{position:absolute;top:8px;z-index:3;background:rgba(10,16,34,.72);border:2px solid var(--line2);color:#fff;width:36px;height:30px;font-size:14px;cursor:pointer;}
 #npClose{right:8px;} #npMin{right:50px;}
 #npInfo{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:14px 14px calc(30px + env(safe-area-inset-bottom,0px));}
@@ -339,6 +347,7 @@ select.as{font-family:var(--mono);font-size:10.5px;border:1.5px dashed var(--lin
     <button class="np-btn" id="miniPlay" title="再生/一時停止"></button>
     <button class="np-btn" id="npMin" title="小窓化">▽</button>
     <button class="np-btn" id="npClose" title="閉じる">✕</button>
+    <button id="fsExit" title="全画面を終了">✕ 全画面終了</button>
   </div>
   <div id="npInfo">
     <div class="sheet-title" id="sTitle"></div>
@@ -585,17 +594,25 @@ async function loadDesc(id){
     box.innerHTML=fmtRich(d.description||'');
     const vc=st.viewCount?`👁 ${numJa(st.viewCount)}回`:'', lc=st.likeCount?`👍 ${numJa(st.likeCount)}`:'';
     $('#vStats').textContent=[vc,lc].filter(Boolean).join('　');
-    if(it.liveStreamingDetails&&it.liveStreamingDetails.actualEndTime){ $('#chatBtn').style.display=''; $('#chatBtn').dataset.id=id; }
+    if(it.liveStreamingDetails){ const live=d.liveBroadcastContent==='live'; const cb=$('#chatBtn');
+      cb.style.display=''; cb.dataset.id=id; cb.dataset.label=live?'💬 ライブチャットを表示':'💬 チャットリプレイを表示'; cb.textContent=cb.dataset.label; }
   }catch(e){}
 }
 // ミニプレーヤー: iframeは動かさず #np のクラスだけで大/小を切替（＝再生シームレス）
-function goFullscreen(){
-  const f=$('#playerBox iframe'), el=f||$('#npPlayer');
-  const req=el.requestFullscreen||el.webkitRequestFullscreen||el.webkitEnterFullscreen||el.mozRequestFullScreen||el.msRequestFullscreen;
-  if(req){ try{ const r=req.call(el); if(r&&r.catch)r.catch(()=>toast('全画面はiPhoneを横向きにしてください')); return; }catch(e){} }
-  toast('全画面はiPhoneを横向きにしてください');
+const IS_IPHONE=/iP(hone|od)/.test(navigator.userAgent);
+function cssFsToggle(force){
+  const np=$('#np'), on=(force!==undefined)?force:!np.classList.contains('fs');
+  np.classList.toggle('fs',on); document.body.classList.toggle('fs-lock',on);
 }
-function minimizePlayer(){ const np=$('#np'); if(np.classList.contains('on')){ np.classList.add('mini'); $('#npMin').textContent='△'; } }
+function goFullscreen(){
+  // iPhoneはiframe/要素の全画面APIが使えないのでCSS回転で横向きフル表示（自動回転オフでもOK）
+  if(IS_IPHONE){ cssFsToggle(); return; }
+  const f=$('#playerBox iframe'), el=f||$('#npPlayer');
+  const req=el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen||el.msRequestFullscreen;
+  if(req){ try{ const r=req.call(el); if(r&&r.catch)r.catch(()=>cssFsToggle()); return; }catch(e){} }
+  cssFsToggle();
+}
+function minimizePlayer(){ const np=$('#np'); if(np.classList.contains('on')){ cssFsToggle(false); np.classList.add('mini'); $('#npMin').textContent='△'; } }
 function expandPlayer(){ const np=$('#np'); np.classList.remove('mini'); $('#npMin').textContent='▽'; $('#npInfo').scrollTop=0; }
 function closeMini(){ $('#np').classList.remove('mini'); }
 function shuffleDiscover(){ const a=state.discover; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} }
@@ -660,7 +677,7 @@ async function loadComments(id){
       else ct.classList.remove('clamp'); });
   }catch(e){box.innerHTML=`<p class="cmt-note">コメント取得でエラーが発生しました。</p>`;}
 }
-function closeNp(){const np=$('#np');np.classList.remove('on','mini');$('#playerBox').innerHTML='';}
+function closeNp(){const np=$('#np');np.classList.remove('on','mini','fs');document.body.classList.remove('fs-lock');$('#playerBox').innerHTML='';}
 function updHdUpd(){ $('#hdUpd').textContent = state._updatedAt?`更新: ${timeAgo(state._updatedAt)}`:''; }
 // カテゴリ一覧（「すべて」長押し）
 function openTagPick(isDisc){
@@ -928,6 +945,7 @@ async function init(){
   $('#npClose').onclick=closeNp;
   $('#npMin').onclick=()=>$('#np').classList.contains('mini')?expandPlayer():minimizePlayer();
   $('#actFull').onclick=goFullscreen;
+  $('#fsExit').onclick=()=>cssFsToggle(false);
   $('#actMin').onclick=minimizePlayer;
   $('#actClose').onclick=closeNp;
   // 小窓の再生/一時停止（YouTubeロゴを踏まずに操作できるように）
@@ -937,13 +955,13 @@ async function init(){
     f.contentWindow.postMessage(JSON.stringify({event:'command',func:play?'playVideo':'pauseVideo',args:[]}),'*');
     state._playing=play; $('#miniPlay').classList.toggle('paused',!play);
   };
-  // チャットリプレイ（アーカイブ配信のみ）
+  // ライブチャット / チャットリプレイ
   $('#chatBtn').onclick=()=>{
-    const box=$('#chatBox'), id=$('#chatBtn').dataset.id, hidden=(box.style.display==='none'||!box.style.display);
-    if(hidden){
+    const cb=$('#chatBtn'), box=$('#chatBox'), id=cb.dataset.id, base=cb.dataset.label||'💬 チャットを表示', shown=(box.style.display==='block');
+    if(!shown){
       if(!box.querySelector('iframe'))box.innerHTML=`<iframe src="https://www.youtube.com/live_chat?v=${encodeURIComponent(id)}&embed_domain=${location.hostname}" allow="autoplay"></iframe>`;
-      box.style.display='';$('#chatBtn').textContent='💬 チャットリプレイを隠す';
-    }else{ box.style.display='none';$('#chatBtn').textContent='💬 チャットリプレイを表示'; }
+      box.style.display='block';cb.textContent=base.replace('を表示','を隠す');
+    }else{ box.style.display='none';cb.textContent=base; }
   };
   // 概要/コメント: タイムスタンプ頭出し・URLリンク（YouTube動画はアプリ内）・概要タップで開閉
   $('#npInfo').addEventListener('click',e=>{
