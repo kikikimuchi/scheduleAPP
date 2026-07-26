@@ -140,7 +140,7 @@ async function fetchMemberVideos() {
   const byId = new Map();
   for (const ref of MEMBER_CHANNELS) {
     const base = ref.startsWith('@') ? `https://www.youtube.com/${encodeURIComponent(ref)}` : `https://www.youtube.com/channel/${ref}`;
-    for (const tab of ['/videos', '/streams']) await scrapeChannelTab(base, tab, byId);
+    for (const tab of ['/videos', '/streams', '/shorts', '']) await scrapeChannelTab(base, tab, byId); // 動画/ライブ/ショート/ホーム(配信予定など)
   }
   const out = [...byId.values()];
   console.error(`  → メンバー合計 ${out.length}本`);
