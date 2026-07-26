@@ -973,8 +973,9 @@ async function saveMemberVideos(){
 }
 // YouTubeで拾ってコピーしたデータ（[{id,t,cid,ch,p}]）を貼り付けて取り込む
 async function importMemberPaste(){
-  const ta=$('#memPaste'); let arr;
-  try{ arr=JSON.parse((ta.value||'').trim()); }catch(e){ toast('データの形式が不正です'); return; }
+  const ta=$('#memPaste'); let arr, s=(ta.value||'').trim();
+  const i=s.indexOf('['), j=s.lastIndexOf(']'); if(i>=0&&j>i)s=s.slice(i,j+1); // 前後のゴミを除去
+  try{ arr=JSON.parse(s); }catch(e){ toast('データの形式が不正です（コピーし直してください）'); return; }
   if(!Array.isArray(arr)||!arr.length){ toast('データが空です'); return; }
   const byId=new Map((state.memberVideos||[]).map(v=>[v.id,v]));
   let added=0;
