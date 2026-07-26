@@ -313,7 +313,12 @@ body.fs-lock{overflow:hidden;}
   <div id="pg-set" class="pg">
     <div class="sec-h">メンバー限定動画</div>
     <div class="card">
-      <p>PC側のスクレイパー（member-scraper）が、あなたがログイン中のChromeでメンバー限定動画を拾ってクラウドに保存します。ここには<b id="memStat">—</b>本登録されています。フィードの「すべて」に🔒付きで自動表示されます。</p>
+      <p style="margin-bottom:10px">PCのYouTubeでチャンネルの「動画」→「メンバー限定」を開き、専用コードを実行してコピーしたデータをここに貼り付けて「追加」。現在 <b id="memStat">—</b> 本。フィードの「すべて」に🔒付きで表示されます（タップで公式アプリ）。</p>
+      <textarea class="fi" id="memPaste" placeholder="コピーしたデータを貼り付け（[{...}] 形式）" style="width:100%;height:60px;font-family:var(--mono);font-size:11px;"></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn" id="memPasteBtn">追加</button>
+        <button class="btn ghost" id="memClearBtn">全部消す</button>
+      </div>
     </div>
     <div class="sec-h">タグの管理</div>
     <div class="card">
@@ -962,6 +967,26 @@ async function loadMemberVideos(){
   else state.memberVideos=LS.get(LSK_MEM,[]);
   renderFeed();
 }
+// YouTubeで拾ってコピーしたデータ（[{id,t,cid,ch}]）を貼り付けて取り込む
+async function importMemberPaste(){
+  const ta=$('#memPaste'); let arr;
+  try{ arr=JSON.parse((ta.value||'').trim()); }catch(e){ toast('データの形式が不正です'); return; }
+  if(!Array.isArray(arr)||!arr.length){ toast('データが空です'); return; }
+  const byId=new Map((state.memberVideos||[]).map(v=>[v.id,v]));
+  let added=0;
+  for(const v of arr){ if(!v||!v.id)continue; const o={id:v.id,cid:v.cid||'',t:v.t||'メンバー限定動画',p:v.p||nowIso(),ch:v.ch||'',mem:true};
+    if(!byId.has(v.id))added++; byId.set(v.id,o);
+    if(state.fb){try{await state.fb.setDoc(state.fb.doc(state.fb.db,MEM_COL,v.id),{...o,updatedAt:nowIso()},{merge:true});}catch(e){}}}
+  state.memberVideos=[...byId.values()]; LS.set(LSK_MEM,state.memberVideos);
+  ta.value=''; renderFeed(); refreshStatus();
+  toast(`メンバー動画 ${added}本追加（計${state.memberVideos.length}本）`);
+}
+async function clearMembers(){
+  if(!confirm('メンバー限定動画を全部消しますか？'))return;
+  const cur=state.memberVideos||[]; state.memberVideos=[]; LS.set(LSK_MEM,[]);
+  if(state.fb){for(const v of cur){try{await state.fb.deleteDoc(state.fb.doc(state.fb.db,MEM_COL,v.id));}catch(e){}}}
+  renderFeed(); refreshStatus(); toast('消しました');
+}
 
 // ---- データ読み込み ----
 async function loadJson(path){try{const r=await fetch(path+'?t='+Math.floor(now()/60000));if(!r.ok)return null;return await r.json();}catch(e){return null;}}
@@ -1033,6 +1058,8 @@ async function init(){
   $('#reloadBtn').onclick=refreshData;
   $('#logoBtn').onclick=goHome;
   $('#chSearch').addEventListener('input',e=>{state.chQuery=e.target.value;renderChannels();});
+  $('#memPasteBtn').onclick=importMemberPaste;
+  $('#memClearBtn').onclick=clearMembers;
   $('#npClose').onclick=()=>history.back();
   $('#npMin').onclick=()=>$('#np').classList.contains('mini')?expandPlayer():minimizePlayer();
   $('#actFull').onclick=goFullscreen;
