@@ -760,11 +760,19 @@ function showPlayerError(code){
   box.appendChild(div);
   const b=div.querySelector('#plErrOpen'); if(b)b.onclick=()=>window.open(`https://www.youtube.com/watch?v=${o.id}${t>1?`&t=${t}s`:''}`,'_blank','noopener');
 }
-// 関連動画（relatedToVideoIdは廃止済みのため、タイトルのキーワードで検索して近い動画を出す）
-function relQuery(o){
-  let t=(o.t||'').replace(/[【\[(（].*?[】\])）]/g,' ').replace(/[#｜|/]/g,' ').replace(/\s+/g,' ').trim();
-  const words=t.split(' ').filter(Boolean).slice(0,6).join(' ');
-  return (words||o.ch||o.t||'').slice(0,80);
+// 関連動画（relatedToVideoIdは廃止済みのため、タイトル語＋チャンネル名で検索して近い動画を出す）
+function relTitleWords(o){
+  const t=(o.t||'').replace(/[【\[(（][^】\])）]*[】\])）]/g,' ').replace(/[#｜|/]/g,' ').replace(/[!?！？、。･・]/g,' ').replace(/\s+/g,' ').trim();
+  return t.split(' ').filter(w=>w.length>=2).slice(0,4).join(' ');
+}
+async function relFetch(q,o){
+  const params=new URLSearchParams({part:'snippet',type:'video',q,maxResults:'25',order:'relevance',regionCode:'JP',relevanceLanguage:'ja',key:CFG.youtubeApiKey});
+  const r=await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`);
+  if(!r.ok){const e=new Error('http');e.status=r.status;throw e;}
+  const j=await r.json();
+  const seen=new Set();
+  return (j.items||[]).map(it=>({id:it.id?.videoId,cid:it.snippet?.channelId||'',t:_htmlDec(it.snippet?.title||''),ch:_htmlDec(it.snippet?.channelTitle||''),p:it.snippet?.publishedAt||''}))
+    .filter(v=>v.id&&v.id!==o.id&&(seen.has(v.id)?false:(seen.add(v.id),true)));
 }
 async function toggleRelated(){
   const box=$('#relatedBox'), btn=$('#relatedBtn'), o=state.currentVideo||{};
@@ -775,18 +783,23 @@ async function toggleRelated(){
   if(box.dataset.loaded==='1')return; // 読み込み済みは再取得しない
   if(!CFG.youtubeApiKey){box.innerHTML='<div class="empty">関連動画の取得にはAPIキー設定が必要です</div>';return;}
   box.innerHTML='<div class="empty">関連動画を読み込み中…</div>';
+  // 検索ワード候補（順に試す）: チャンネル名+タイトル語 → チャンネル名 → タイトル語
+  const words=relTitleWords(o);
+  const cands=[[o.ch,words].filter(Boolean).join(' '), o.ch||'', words||'', o.t||''].map(s=>(s||'').trim()).filter(Boolean);
+  const tried=new Set();
   try{
-    const params=new URLSearchParams({part:'snippet',type:'video',q:relQuery(o),maxResults:'20',order:'relevance',regionCode:'JP',relevanceLanguage:'ja',key:CFG.youtubeApiKey});
-    const r=await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`);
-    if(state.currentVideo!==o||box.style.display!=='block')return; // 別動画に切替/閉じた
-    if(!r.ok){box.innerHTML='<div class="empty">関連動画の取得に失敗しました（クォータ超過の可能性）</div>';return;}
-    const j=await r.json();
-    const seen=new Set();
-    const vids=(j.items||[]).map(it=>({id:it.id?.videoId,cid:it.snippet?.channelId||'',t:_htmlDec(it.snippet?.title||''),ch:_htmlDec(it.snippet?.channelTitle||''),p:it.snippet?.publishedAt||''}))
-      .filter(v=>v.id&&v.id!==o.id&&(seen.has(v.id)?false:(seen.add(v.id),true)));
+    let vids=[];
+    for(const q of cands){
+      if(tried.has(q))continue; tried.add(q);
+      vids=await relFetch(q,o);
+      if(state.currentVideo!==o||box.style.display!=='block')return; // 別動画に切替/閉じた
+      if(vids.length)break;
+    }
     box.innerHTML=vids.length?`<div class="vgrid">`+vids.map(v=>cardHtml(v)).join('')+`</div>`:'<div class="empty">関連動画が見つかりませんでした</div>';
     bindCards(box); box.dataset.loaded='1';
-  }catch(e){box.innerHTML='<div class="empty">関連動画エラー</div>';}
+  }catch(e){
+    box.innerHTML=`<div class="empty">${e.status===403||e.status===429?'関連動画の取得に失敗（APIクォータ超過の可能性）':'関連動画の取得に失敗しました'}</div>`;
+  }
 }
 function numJa(n){n=+n;if(!isFinite(n))return'';if(n>=1e8)return (n/1e8).toFixed(1).replace(/\.0$/,'')+'億';if(n>=1e4)return (n/1e4).toFixed(1).replace(/\.0$/,'')+'万';return n.toLocaleString('ja-JP');}
 async function loadDesc(id){
