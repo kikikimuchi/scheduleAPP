@@ -429,7 +429,7 @@ function renderHistory(){
 function openVideo(o){
   const ch=o.ch||chTitle(o);
   $('#sTitle').textContent=o.t||'(動画)';$('#sCh').textContent=ch;
-  $('#playerBox').innerHTML=`<iframe class="ytif" src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(o.id)}?autoplay=1&playsinline=1&rel=0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+  $('#playerBox').innerHTML=`<iframe class="ytif" src="https://www.youtube.com/embed/${encodeURIComponent(o.id)}?autoplay=1&playsinline=1&rel=0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
   loadComments(o.id);
   const yt=`https://www.youtube.com/watch?v=${o.id}`;
   $('#openYt').onclick=()=>window.open(yt,'_blank','noopener');
