@@ -311,6 +311,15 @@ body.fs-lock{overflow:hidden;}
 
   <!-- SETTINGS -->
   <div id="pg-set" class="pg">
+    <div class="sec-h">メンバー限定（プレイリスト連携）</div>
+    <div class="card">
+      <p style="margin-bottom:10px">YouTubeで「<b>限定公開</b>」のプレイリストを作り、メンバー限定動画を「保存」で入れて、そのプレイリストURLを登録してください。以降は自動で🔒付き表示（タップで公式アプリ）。追加すれば自動で増えます。</p>
+      <div style="display:flex;gap:8px;">
+        <input class="fi" id="memPlUrl" placeholder="プレイリストのURL（…list=… ）">
+        <button class="btn" id="memPlAddBtn">登録</button>
+      </div>
+      <div id="memPlList" style="margin-top:8px;"></div>
+    </div>
     <div class="sec-h">タグの管理</div>
     <div class="card">
       <div style="display:flex;gap:8px;">
@@ -412,7 +421,7 @@ const CFG = window.YTR_CONFIG || {};
 const CH_COL='schedule_ytChannels', META_DOC=['schedule_ytMeta','app'];
 const REDISCOVER={W_STALE:1.0,W_FRESH:0.6,FRESH_CAP_DAYS:30,NEVER_VIEWED_DAYS:400};
 const DAY=86400000, now=()=>Date.now(), nowIso=()=>new Date().toISOString();
-const LSK_CH='ytr_channels', LSK_META='ytr_meta', LSK_HIST='ytr_history', LSK_MEM='ytr_member';
+const LSK_CH='ytr_channels', LSK_META='ytr_meta', LSK_HIST='ytr_history', LSK_MEM='ytr_member', LSK_MEMPL='ytr_member_pl';
 const state={ videos:[], discover:[], channels:{}, meta:{tags:[],modes:{}}, history:[],
   activeTag:'__all__', chFilter:'all', feedMode:'subs', discMode:'recommended', fb:null };
 
@@ -646,7 +655,7 @@ async function refreshData(){
     state._updatedAt=u; shuffleDiscover(); updHdUpd();
     const on=document.querySelector('.pg.on'); const cur=on?on.id.replace('pg-',''):'feed';
     if(cur==='feed')renderFeed(); else if(cur==='hist')renderHistory(); else if(cur==='ch')renderChannels(); else {renderTagMgr();refreshStatus();}
-    refreshLiveStatus();
+    refreshLiveStatus(); fetchMemberPlaylists();
     toast('更新しました');
   }catch(e){ toast('更新に失敗しました'); }
   btn.textContent=old; btn.disabled=false;
@@ -944,41 +953,52 @@ async function importSubscriptions(token){
     let removed=0;
     if(fetched.size){for(const cid of Object.keys(state.channels)){if(!fetched.has(cid)){await deleteChannel(cid);removed++;}}}
     toast(`取り込み完了: 新規${added}/既存${kept}/解除${removed}`);renderFeed();renderChannels();refreshStatus();
-    importMemberVideos(token); // メンバー限定動画（本人権限でアップロード一覧を取得）
   }catch(e){toast('取り込み中にエラー');console.warn(e);}
 }
-// あなたのメンバー権限で各チャンネルのアップロード一覧を取得し、RSS(=公開)に無いもの＝メンバー限定として拾う。
-// 診断のため各段の件数をトーストで出す（どこで0になるか特定用）。
-async function importMemberVideos(token){
-  toast('メンバー限定を確認中…');
-  const rssIds=new Set(state.videos.map(v=>v.id));
-  const cids=Object.keys(state.channels).filter(c=>c.length>=3);
-  const cutoff=now()-120*DAY;
-  let okCh=0, errCh=0, seenItems=0, notInRss=0, lastErr='';
-  const mem=[], seen=new Set();
-  let i=0;
-  async function worker(){
-    while(i<cids.length){
-      const cid=cids[i++], up='UU'+cid.slice(2);
-      try{
-        const r=await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=15&playlistId=${encodeURIComponent(up)}`,{headers:{Authorization:'Bearer '+token}});
-        if(!r.ok){errCh++;lastErr='HTTP'+r.status;continue;} okCh++;
-        const j=await r.json();
-        for(const it of j.items||[]){seenItems++;const s=it.snippet||{},vid=s.resourceId&&s.resourceId.videoId;if(!vid)continue;
-          if(rssIds.has(vid))continue; // RSSにある=公開
-          notInRss++;
-          if(seen.has(vid))continue;
-          if((Date.parse(s.publishedAt)||0)<cutoff)continue; // 直近のみ
+// メンバー限定＝プレイリスト連携。限定公開プレイリストに保存した動画を、公開キーで読み込む（ログイン不要・自動）。
+function parsePlaylistId(url){url=(url||'').trim();
+  let m=url.match(/[?&]list=([\w-]+)/);if(m)return m[1];
+  m=url.match(/^((?:PL|UU|FL|LL|OL)[\w-]+)$/);if(m)return m[1];
+  return null;}
+async function fetchMemberPlaylists(){
+  const pls=LS.get(LSK_MEMPL,[]);
+  if(!pls.length||!CFG.youtubeApiKey)return;
+  const mem=[],seen=new Set();
+  for(const pid of pls){
+    let pageToken='',guard=0;
+    try{
+      do{
+        const r=await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${encodeURIComponent(pid)}${pageToken?`&pageToken=${pageToken}`:''}&key=${CFG.youtubeApiKey}`);
+        if(!r.ok)break; const j=await r.json();
+        for(const it of j.items||[]){const s=it.snippet||{},vid=s.resourceId&&s.resourceId.videoId;if(!vid||seen.has(vid))continue;
+          if(s.title==='Private video'||s.title==='Deleted video')continue;
           seen.add(vid);
-          mem.push({id:vid,cid,t:s.title||'',p:s.publishedAt||'',ch:(state.channels[cid]||{}).title||'',mem:true});}
-      }catch(e){errCh++;lastErr=(e&&e.message)||'err';}
-    }
+          mem.push({id:vid,cid:s.videoOwnerChannelId||'',t:s.title||'メンバー限定動画',p:s.publishedAt||nowIso(),ch:s.videoOwnerChannelTitle||'',mem:true});}
+        pageToken=j.nextPageToken||'';
+      }while(pageToken&&++guard<10);
+    }catch(e){}
   }
-  await Promise.all(Array.from({length:8},()=>worker()));
   state.memberVideos=mem;LS.set(LSK_MEM,mem);
-  console.log('member-check',{channels:cids.length,okCh,errCh,seenItems,notInRss,added:mem.length,lastErr});
-  renderFeed();refreshStatus();
-  toast(`成功${okCh}/失敗${errCh}ch・一覧${seenItems}・非RSS${notInRss}・追加${mem.length}${errCh?'・'+lastErr:''}`,6000);
+  renderFeed();
+}
+async function addMemberPlaylist(){
+  const inp=$('#memPlUrl'), pid=parsePlaylistId(inp.value);
+  if(!pid){toast('プレイリストのURLを入れてください');return;}
+  const pls=LS.get(LSK_MEMPL,[]);
+  if(!pls.includes(pid))pls.push(pid);
+  LS.set(LSK_MEMPL,pls); inp.value=''; renderMemberPlaylists();
+  toast('登録しました。読み込み中…'); await fetchMemberPlaylists(); refreshStatus();
+  toast(`メンバー動画: ${(state.memberVideos||[]).length}本`);
+}
+function removeMemberPlaylist(pid){
+  LS.set(LSK_MEMPL,LS.get(LSK_MEMPL,[]).filter(x=>x!==pid));
+  renderMemberPlaylists(); fetchMemberPlaylists(); refreshStatus();
+}
+function renderMemberPlaylists(){
+  const el=$('#memPlList');if(!el)return;
+  const pls=LS.get(LSK_MEMPL,[]);
+  el.innerHTML=pls.length?pls.map(pid=>`<div class="crow" style="justify-content:space-between"><span style="font-family:var(--mono);font-size:11px;overflow:hidden;text-overflow:ellipsis">${esc(pid)}</span><button class="btn ghost" data-pid="${esc(pid)}" style="min-width:44px">削除</button></div>`).join(''):`<p style="font-size:11px;color:var(--ink-mute)">登録なし</p>`;
+  el.querySelectorAll('button[data-pid]').forEach(b=>b.onclick=()=>removeMemberPlaylist(b.dataset.pid));
 }
 
 // ---- データ読み込み ----
@@ -1050,6 +1070,9 @@ async function init(){
   $('#reloadBtn').onclick=refreshData;
   $('#logoBtn').onclick=goHome;
   $('#chSearch').addEventListener('input',e=>{state.chQuery=e.target.value;renderChannels();});
+  $('#memPlAddBtn').onclick=addMemberPlaylist;
+  $('#memPlUrl').addEventListener('keydown',e=>{if(e.key==='Enter')addMemberPlaylist();});
+  renderMemberPlaylists();
   $('#npClose').onclick=()=>history.back();
   $('#npMin').onclick=()=>$('#np').classList.contains('mini')?expandPlayer():minimizePlayer();
   $('#actFull').onclick=goFullscreen;
@@ -1110,6 +1133,7 @@ async function init(){
   initLogin();
   renderFeed();refreshStatus();
   refreshLiveStatus();
+  fetchMemberPlaylists();
 }
 init();
 </script>
