@@ -162,6 +162,7 @@ select.as{font-family:var(--mono);font-size:10.5px;border:1.5px dashed var(--lin
 #np.mini #npPlayer{border:2px solid var(--sky);box-shadow:4px 4px 0 rgba(0,0,0,.5);}
 #np:not(.mini) #npPlayer .np-btn{display:none;} /* 全画面時はプレーヤー上のボタンを出さない(YouTubeで開くの横に移動) */
 #np.mini .np-btn{width:30px;height:26px;top:3px;font-size:15px;}
+#np.mini #miniPlay{left:4px;background:rgba(10,16,34,.82);}
 #np.mini #npMin{right:36px;}
 #np.mini #npClose{right:4px;}
 @media (orientation:landscape){
@@ -314,6 +315,7 @@ select.as{font-family:var(--mono);font-size:10.5px;border:1.5px dashed var(--lin
 <div id="np">
   <div id="npPlayer">
     <div id="playerBox"></div>
+    <button class="np-btn" id="miniPlay" title="再生/一時停止">▶</button>
     <button class="np-btn" id="npMin" title="小窓化">▽</button>
     <button class="np-btn" id="npClose" title="閉じる">✕</button>
   </div>
@@ -512,6 +514,7 @@ function openVideo(o){
   state.history=[{id:o.id,at:nowIso(),cid:o.cid||'',t:o.t||'',ch:ch},...state.history.filter(h=>h.id!==o.id)].slice(0,200);
   LS.set(LSK_HIST,state.history);
   const np=$('#np'); np.classList.remove('mini'); np.classList.add('on');
+  state._playing=true; $('#miniPlay').textContent='⏸';
   $('#npInfo').scrollTop=0;
 }
 function numJa(n){n=+n;if(!isFinite(n))return'';if(n>=1e8)return (n/1e8).toFixed(1).replace(/\.0$/,'')+'億';if(n>=1e4)return (n/1e4).toFixed(1).replace(/\.0$/,'')+'万';return n.toLocaleString('ja-JP');}
@@ -835,11 +838,18 @@ async function init(){
   $('#npMin').onclick=()=>$('#np').classList.contains('mini')?expandPlayer():minimizePlayer();
   $('#actMin').onclick=minimizePlayer;
   $('#actClose').onclick=closeNp;
+  // 小窓の再生/一時停止（YouTubeロゴを踏まずに操作できるように）
+  $('#miniPlay').onclick=()=>{
+    const f=$('#playerBox iframe'); if(!f||!f.contentWindow)return;
+    const play=!state._playing;
+    f.contentWindow.postMessage(JSON.stringify({event:'command',func:play?'playVideo':'pauseVideo',args:[]}),'*');
+    state._playing=play; $('#miniPlay').textContent=play?'⏸':'▶';
+  };
   // チャットリプレイ（アーカイブ配信のみ）
   $('#chatBtn').onclick=()=>{
     const box=$('#chatBox'), id=$('#chatBtn').dataset.id, hidden=(box.style.display==='none'||!box.style.display);
     if(hidden){
-      if(!box.querySelector('iframe'))box.innerHTML=`<iframe src="https://www.youtube.com/live_chat?v=${encodeURIComponent(id)}&embed_domain=${location.hostname}" allow="autoplay"></iframe>`;
+      if(!box.querySelector('iframe'))box.innerHTML=`<iframe src="https://www.youtube.com/live_chat_replay?v=${encodeURIComponent(id)}&embed_domain=${location.hostname}" allow="autoplay"></iframe>`;
       box.style.display='';$('#chatBtn').textContent='💬 チャットリプレイを隠す';
     }else{ box.style.display='none';$('#chatBtn').textContent='💬 チャットリプレイを表示'; }
   };
