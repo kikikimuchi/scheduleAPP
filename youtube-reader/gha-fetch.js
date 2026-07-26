@@ -112,13 +112,42 @@ async function scrapeChannelTab(base, tab, byId) {
   const data = extractYtInitialData(html);
   if (!data) { console.error(`  member ${base}${tab}: ytInitialData取得失敗`); return; }
   cid = extractChannelId(data);
-  let n0 = byId.size;
+  const n0 = byId.size;
   for (const v of collectMembersFromData(data, cid)) if (!byId.has(v.id)) byId.set(v.id, v);
   // InnerTube(次ページAPI)のキー・クライアント版を取り出す
   const key = (html.match(/"INNERTUBE_API_KEY":"([^"]+)"/) || [])[1];
   const cver = (html.match(/"INNERTUBE_CONTEXT_CLIENT_VERSION":"([^"]+)"/) || html.match(/"clientVersion":"([^"]+)"/) || [])[1] || '2.20240101.00.00';
-  let token = findContinuation(data);
-  let pages = 1;
+  // 「メンバー限定」フィルタチップがあれば、それで絞って取得（全動画をめくるより確実・効率的）
+  const chip = findMemberChipToken(data);
+  if (chip) {
+    const pages = await browseLoop(key, cver, chip, cid, byId);
+    if (byId.size > n0) { console.error(`  member ${base}${tab}: +${byId.size - n0}本 / chip ${pages}ページ (cid=${cid})`); return; }
+  }
+  // チップが無い/効かない場合は通常の全ページ送りにフォールバック
+  const pages = await browseLoop(key, cver, findContinuation(data), cid, byId);
+  console.error(`  member ${base}${tab}: +${byId.size - n0}本 / full ${pages}ページ (cid=${cid})`);
+}
+// 「メンバー限定」フィルタチップの continuation トークンを探す
+function findMemberChipToken(root) {
+  let token = null;
+  (function walk(n) {
+    if (!n || typeof n !== 'object' || token) return;
+    if (Array.isArray(n)) { for (const x of n) { walk(x); if (token) return; } return; }
+    const chip = n.chipCloudChipRenderer;
+    if (chip) {
+      const txt = (chip.text && (chip.text.simpleText || (chip.text.runs || []).map((r) => r.text).join(''))) || '';
+      if (/メンバー限定|Members only/i.test(txt)) {
+        const t = chip.navigationEndpoint && chip.navigationEndpoint.continuationCommand && chip.navigationEndpoint.continuationCommand.token;
+        if (t) { token = t; return; }
+      }
+    }
+    for (const k in n) { walk(n[k]); if (token) return; }
+  })(root);
+  return token;
+}
+// continuationトークンから最後まで browse で辿り、メンバー動画を byId に集める
+async function browseLoop(key, cver, token, cid, byId) {
+  let pages = 0;
   while (token && key && pages < MEMBER_MAX_PAGES) {
     pages++;
     try {
@@ -127,13 +156,13 @@ async function scrapeChannelTab(base, tab, byId) {
         headers: { ...MEMBER_HEADERS, 'Content-Type': 'application/json' },
         body: JSON.stringify({ context: { client: { clientName: 'WEB', clientVersion: cver, hl: 'ja', gl: 'JP' } }, continuation: token }),
       });
-      if (!cr.ok) { console.error(`  member ${base}${tab}: continuation HTTP ${cr.status}`); break; }
+      if (!cr.ok) { console.error(`  continuation HTTP ${cr.status}`); break; }
       const cj = await cr.json();
       for (const v of collectMembersFromData(cj, cid)) if (!byId.has(v.id)) byId.set(v.id, v);
       token = findContinuation(cj);
-    } catch (e) { console.error(`  member ${base}${tab}: continuation ${e.message}`); break; }
+    } catch (e) { console.error(`  continuation ${e.message}`); break; }
   }
-  console.error(`  member ${base}${tab}: +${byId.size - n0}本 / ${pages}ページ (cid=${cid})`);
+  return pages;
 }
 async function fetchMemberVideos() {
   if (!MEMBER_CHANNELS.length) return [];
