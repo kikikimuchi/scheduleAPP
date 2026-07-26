@@ -217,10 +217,21 @@ body.fs-lock{overflow:hidden;}
   #pg-feed.on #sortBar{margin:2px 0 12px;}
   #feedList,#histList,.vgrid,#chvList{grid-template-columns:repeat(auto-fill,minmax(400px,1fr))!important;}
   #searchList{grid-template-columns:1fr 1fr;}
-  /* 再生ページは全画面（プレーヤーは横幅いっぱい・シアター表示、情報は下） */
-  #np.on:not(.mini){max-width:100%;left:0;transform:none;}
-  #np.on:not(.mini) #npPlayer{aspect-ratio:auto;width:100%;height:min(56.25vw,80vh);}
-  #np.on:not(.mini) #npInfo{display:block;max-width:1100px;margin:0 auto;}
+  /* 再生ページ（PC）: 既定=左に再生+下にタイトル/概要、右にコメント(ライブ中はチャット) */
+  #np.on:not(.mini):not(.fs){max-width:100%;left:0;transform:none;display:grid;overflow-y:auto;align-content:start;
+    gap:0 22px;padding:18px 24px calc(30px + env(safe-area-inset-bottom,0px));
+    grid-template-columns:minmax(0,1.9fr) minmax(300px,1fr);
+    grid-template-rows:auto auto;grid-template-areas:"player comments" "main comments";}
+  #np.on:not(.mini):not(.fs) #npInfo{display:contents;} /* 子(npMain/npComments/npRelated)を#npのグリッドに参加させる */
+  #np.on:not(.mini):not(.fs) #npPlayer{grid-area:player;aspect-ratio:16/9;height:auto;width:100%;}
+  #np.on:not(.mini):not(.fs) #npMain{grid-area:main;min-width:0;}
+  #np.on:not(.mini):not(.fs) #npComments{grid-area:comments;min-width:0;}
+  #np.on:not(.mini):not(.fs) #npRelated{display:none;}
+  /* シアターモード: 再生フル幅・下を左右2分割（左=タイトル/概要/コメント、右=関連） */
+  body.theater #np.on:not(.mini):not(.fs){grid-template-columns:1fr 1fr;
+    grid-template-rows:auto auto auto;grid-template-areas:"player player" "main related" "comments related";}
+  body.theater #np.on:not(.mini):not(.fs) #npPlayer{grid-area:player;aspect-ratio:auto;height:min(56.25vw,82vh);}
+  body.theater #np.on:not(.mini):not(.fs) #npRelated{display:block;grid-area:related;min-width:0;}
   #searchPanel,#tagPick,#chView{max-width:1000px;}
 }
 .sheet-title{font-size:15px;font-weight:800;line-height:1.4;margin-bottom:4px;}
@@ -232,6 +243,7 @@ body.fs-lock{overflow:hidden;}
 .acts .npb{flex:0 0 auto;min-width:48px;max-width:52px;font-size:16px;}
 #relatedBtn.on{background:var(--sky);color:#04122b;border-color:var(--sky);}
 #actPip.on{background:var(--sky);color:#04122b;border-color:var(--sky);}
+#actTheater.on{background:var(--sky);color:#04122b;border-color:var(--sky);}
 #relatedBox{margin:-4px 0 14px;}
 .lnk{color:var(--sky);cursor:pointer;text-decoration:underline;word-break:break-all;}
 .cmt .cu .clike{margin-left:8px;color:var(--ink-faint);}
@@ -422,26 +434,31 @@ body.fs-lock{overflow:hidden;}
     <button id="fsExit" title="全画面を終了">✕</button>
   </div>
   <div id="npInfo">
-    <div class="sheet-title" id="sTitle"></div>
-    <div class="sheet-ch" id="sCh" title="チャンネルを開く"></div>
-    <div class="vstats" id="vStats"></div>
-    <div class="acts">
-      <button class="btn" id="openYt">▶ YouTubeで開く</button>
-      <button class="btn" id="relatedBtn">🔎 関連動画</button>
-      <button class="btn ghost npb" id="actPip" title="PiP（他アプリの上に浮かせる）" style="display:none">📺</button>
-      <button class="btn ghost npb" id="actFull" title="全画面">⛶</button>
-      <button class="btn ghost npb" id="actMin" title="小窓化">▽</button>
-      <button class="btn ghost npb" id="actClose" title="閉じる">✕</button>
+    <div id="npMain">
+      <div class="sheet-title" id="sTitle"></div>
+      <div class="sheet-ch" id="sCh" title="チャンネルを開く"></div>
+      <div class="vstats" id="vStats"></div>
+      <div class="acts">
+        <button class="btn" id="openYt">▶ YouTubeで開く</button>
+        <button class="btn" id="relatedBtn">🔎 関連動画</button>
+        <button class="btn ghost npb" id="actTheater" title="シアターモード" style="display:none">🖥</button>
+        <button class="btn ghost npb" id="actPip" title="PiP（他アプリの上に浮かせる）" style="display:none">📺</button>
+        <button class="btn ghost npb" id="actFull" title="全画面">⛶</button>
+        <button class="btn ghost npb" id="actMin" title="小窓化">▽</button>
+        <button class="btn ghost npb" id="actClose" title="閉じる">✕</button>
+      </div>
+      <div class="sec-h" style="margin-top:2px">概要（タップで開閉）</div>
+      <div id="descBox" class="desc"></div>
     </div>
-    <div id="relatedBox" style="display:none"></div>
-    <button class="hist-link" id="chatBtn" style="display:none">💬 チャットリプレイを表示</button>
-    <div id="chatBox" style="display:none"></div>
-    <div class="sec-h" style="margin-top:2px">概要（タップで開閉）</div>
-    <div id="descBox" class="desc"></div>
-    <div class="sec-h">コメント（表示のみ）</div>
-    <div id="cmtList"></div>
-    <p style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);margin-top:10px;line-height:1.6;">
-      ※ ▽で小窓化して継続再生。iPhoneを横にすると全画面。</p>
+    <div id="npComments">
+      <button class="hist-link" id="chatBtn" style="display:none">💬 チャットリプレイを表示</button>
+      <div id="chatBox" style="display:none"></div>
+      <div class="sec-h">コメント（表示のみ）</div>
+      <div id="cmtList"></div>
+      <p style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);margin-top:10px;line-height:1.6;">
+        ※ ▽で小窓化して継続再生。iPhoneを横にすると全画面。</p>
+    </div>
+    <div id="npRelated"><div id="relatedBox" style="display:none"></div></div>
   </div>
 </div>
 
@@ -478,7 +495,7 @@ body.fs-lock{overflow:hidden;}
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script>
 const CFG = window.YTR_CONFIG || {};
-const APP_VER = 'pip-v7'; // 更新確認用。設定>状態 に表示
+const APP_VER = 'pc-layout-v8'; // 更新確認用。設定>状態 に表示
 const CH_COL='schedule_ytChannels', META_DOC=['schedule_ytMeta','app'], MEM_DOC=['schedule_ytMeta','members'];
 const REDISCOVER={W_STALE:1.0,W_FRESH:0.6,FRESH_CAP_DAYS:30,NEVER_VIEWED_DAYS:400};
 const DAY=86400000, now=()=>Date.now(), nowIso=()=>new Date().toISOString();
@@ -787,6 +804,7 @@ function openVideo(o){
   loadComments(o.id);
   // 関連動画は毎回たたみ直す（前の動画の結果を残さない）
   const rb=$('#relatedBox'); if(rb){rb.style.display='none';rb.innerHTML='';rb.dataset.loaded='';} $('#relatedBtn')&&$('#relatedBtn').classList.remove('on');
+  if(document.body.classList.contains('theater'))setTimeout(()=>toggleRelated(true),0); // シアター中は関連を展開したまま
   // 公式アプリへは「その時の再生位置」で開く
   $('#openYt').onclick=()=>{const t=Math.floor(state._curTime||0);window.open(`https://www.youtube.com/watch?v=${o.id}${t>1?`&t=${t}s`:''}`,'_blank','noopener');};
   if(o.cid&&state.channels[o.cid]){state.channels[o.cid].lastViewedAt=nowIso();saveChannel(o.cid);}
@@ -857,12 +875,12 @@ async function relFetch(q,o){
   return (j.items||[]).map(it=>({id:it.id?.videoId,cid:it.snippet?.channelId||'',t:_htmlDec(it.snippet?.title||''),ch:_htmlDec(it.snippet?.channelTitle||''),p:it.snippet?.publishedAt||''}))
     .filter(v=>v.id&&v.id!==o.id&&(seen.has(v.id)?false:(seen.add(v.id),true)));
 }
-async function toggleRelated(){
+async function toggleRelated(forceOpen){
   const box=$('#relatedBox'), btn=$('#relatedBtn'), o=state.currentVideo||{};
   if(!box)return;
-  if(box.style.display==='block'){box.style.display='none';btn&&btn.classList.remove('on');return;}
+  if(box.style.display==='block'&&forceOpen!==true){box.style.display='none';btn&&btn.classList.remove('on');return;}
   box.style.display='block'; btn&&btn.classList.add('on');
-  box.scrollIntoView&&box.scrollIntoView({behavior:'smooth',block:'nearest'});
+  if(forceOpen!==true)box.scrollIntoView&&box.scrollIntoView({behavior:'smooth',block:'nearest'});
   if(box.dataset.loaded==='1')return; // 読み込み済みは再取得しない
   if(!CFG.youtubeApiKey){box.innerHTML='<div class="empty">関連動画の取得にはAPIキー設定が必要です</div>';return;}
   box.innerHTML='<div class="empty">関連動画を読み込み中…</div>';
@@ -1414,6 +1432,8 @@ async function init(){
   $('#actFull').onclick=goFullscreen;
   $('#relatedBtn').onclick=toggleRelated;
   { const p=$('#actPip'); if(p)p.onclick=toggleNativePlayer; } // 📺トグル。表示可否はopenVideoで制御
+  { const IS_PC=window.matchMedia('(min-width:1000px) and (pointer:fine)').matches; const tb=$('#actTheater');
+    if(tb&&IS_PC){ tb.style.display=''; tb.onclick=()=>{ const on=document.body.classList.toggle('theater'); tb.classList.toggle('on',on); if(on)toggleRelated(true); }; } } // シアター切替(PCのみ)
   if(IS_IOS){ $('#pipSec').style.display=''; $('#pipCard').style.display=''; const t=$('#iosPipToggle');
     t.checked=(state.meta.iosPip===true); // 既定OFF（インライン）
     t.onchange=()=>{ state.meta.iosPip=t.checked; saveMeta(); toast(t.checked?'ネイティブ再生: ON（全画面・スワイプPiP）':'インライン再生: ON（全画面にしない）'); }; }
