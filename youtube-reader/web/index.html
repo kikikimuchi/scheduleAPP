@@ -278,6 +278,10 @@ body.fs-lock{overflow:hidden;}
 #toast.on{opacity:1;}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;}}
 .vthumb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+.pl-badge{position:absolute;right:6px;bottom:6px;z-index:2;font-family:var(--mono);font-size:10px;font-weight:800;color:#fff;background:rgba(0,0,0,.78);padding:3px 7px;border-radius:4px;}
+.pl-head{display:flex;align-items:center;gap:10px;padding:2px 2px 12px;}
+.pl-head .btn{height:34px;flex:0 0 auto;font-size:12px;padding:0 12px;}
+.pl-title{font-size:14px;font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .cmt-note{font-family:var(--mono);font-size:11px;color:var(--ink-mute);line-height:1.7;padding:10px 2px;}
 .hidden{display:none!important;}
 .crow .cthumb{width:38px;height:38px;flex:0 0 auto;border-radius:50%;background:#0b1226 center/cover no-repeat;border:2px solid var(--line2);cursor:pointer;}
@@ -542,11 +546,7 @@ function openChannel(cid){
 function renderChvTab(){
   const cid=state.chvCid, tab=state.chvTab||'all';
   const list=$('#chvList'); list.scrollTop=0;
-  if(tab==='pl'){
-    list.innerHTML=`<div class="empty">再生リストはアプリ内では取得できません。<br><button class="btn ghost" id="chvPlBtn" style="margin-top:10px">▶ YouTubeで再生リストを見る</button></div>`;
-    $('#chvPlBtn').onclick=()=>window.open('https://www.youtube.com/channel/'+cid+'/playlists','_blank','noopener');
-    return;
-  }
+  if(tab==='pl'){ loadChvPlaylists(cid,list); return; }
   const seen=new Set(),pool=[];
   state.videos.concat(state.discover).concat(state.memberVideos||[]).forEach(v=>{if(v.cid===cid&&!seen.has(v.id)){seen.add(v.id);pool.push(v);}});
   let vids;
@@ -558,6 +558,66 @@ function renderChvTab(){
   const label={all:'動画',mem:'メンバー限定',short:'ショート',live:'ライブ／配信予定'}[tab]||'動画';
   list.innerHTML=vids.length?`<div class="s-sec">${label} ${vids.length}本</div><div class="vgrid ${tab==='short'?'shortsview':''}">`+vids.map(v=>cardHtml(v)).join('')+`</div>`
     :`<div class="empty">${label}は見つかりませんでした。</div>`;
+  bindCards(list);
+}
+async function loadChvPlaylists(cid,list){
+  if(!CFG.youtubeApiKey){
+    list.innerHTML=`<div class="empty">再生リストの取得にはYouTube APIキー設定が必要です。<br><button class="btn ghost" id="chvPlBtn" style="margin-top:10px">▶ YouTubeで再生リストを見る</button></div>`;
+    const b=$('#chvPlBtn');if(b)b.onclick=()=>window.open('https://www.youtube.com/channel/'+cid+'/playlists','_blank','noopener');
+    return;
+  }
+  list.innerHTML=`<div class="empty">再生リストを読み込み中…</div>`;
+  state.chvPlCache=state.chvPlCache||{};
+  let pls=state.chvPlCache[cid];
+  if(!pls){
+    pls=[];
+    try{
+      let pageToken='';
+      do{
+        const r=await fetch(`https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails&channelId=${encodeURIComponent(cid)}&maxResults=50&key=${CFG.youtubeApiKey}${pageToken?'&pageToken='+pageToken:''}`);
+        if(!r.ok)break;
+        const j=await r.json();
+        for(const it of j.items||[]){const s=it.snippet||{};
+          pls.push({plid:it.id,t:s.title||'',thumb:(s.thumbnails?.medium||s.thumbnails?.default||{}).url||'',n:it.contentDetails?.itemCount||0,p:s.publishedAt||''});}
+        pageToken=j.nextPageToken||'';
+      }while(pageToken);
+      state.chvPlCache[cid]=pls;
+    }catch(e){}
+  }
+  if(state.chvTab!=='pl'||state.chvCid!==cid)return; // タブ切替後なら描画しない
+  if(!pls.length){list.innerHTML=`<div class="empty">再生リストは見つかりませんでした。</div>`;return;}
+  list.scrollTop=0;
+  list.innerHTML=`<div class="s-sec">再生リスト ${pls.length}件</div><div class="vgrid">`+pls.map(plCardHtml).join('')+`</div>`;
+  list.querySelectorAll('.plcard').forEach(el=>el.onclick=()=>openPlaylist(el.dataset.plid,el.dataset.t));
+}
+function plCardHtml(p){
+  const th=p.thumb
+    ?`<div class="vthumb"><img class="vthumb-img" loading="lazy" src="${esc(p.thumb)}" onerror="this.remove()"><span class="pl-badge">☰ ${p.n}</span></div>`
+    :`${thumbHtml(p.plid,p.plid,p.t).replace('</div>',`<span class="pl-badge">☰ ${p.n}</span></div>`)}`;
+  return `<div class="vid plcard" data-plid="${esc(p.plid)}" data-t="${esc(p.t)}">${th}`
+    +`<div class="vmeta"><div class="vtitle">${esc(p.t||'(無題)')}</div><div class="vtime">${p.n}本</div></div></div>`;
+}
+async function openPlaylist(plid,title){
+  const list=$('#chvList'); list.scrollTop=0;
+  list.innerHTML=`<div class="pl-head"><button class="btn ghost" id="plBack">‹ 再生リスト</button><div class="pl-title">${esc(title||'')}</div></div><div class="empty">読み込み中…</div>`;
+  $('#plBack').onclick=()=>renderChvTab();
+  const items=[];
+  try{
+    let pageToken='';
+    do{
+      const r=await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${encodeURIComponent(plid)}&maxResults=50&key=${CFG.youtubeApiKey}${pageToken?'&pageToken='+pageToken:''}`);
+      if(!r.ok)break;
+      const j=await r.json();
+      for(const it of j.items||[]){const s=it.snippet||{};
+        const vid=it.contentDetails?.videoId||s.resourceId?.videoId; if(!vid)continue;
+        if(s.title==='Private video'||s.title==='Deleted video')continue;
+        items.push({id:vid,cid:s.videoOwnerChannelId||state.chvCid||'',t:s.title||'',ch:s.videoOwnerChannelTitle||'',p:it.contentDetails?.videoPublishedAt||s.publishedAt||''});}
+      pageToken=j.nextPageToken||'';
+    }while(pageToken&&items.length<200);
+  }catch(e){}
+  const head=`<div class="pl-head"><button class="btn ghost" id="plBack">‹ 再生リスト</button><div class="pl-title">${esc(title||'')}</div></div>`;
+  list.innerHTML=head+(items.length?`<div class="s-sec">${items.length}本</div><div class="vgrid">`+items.map(v=>cardHtml(v)).join('')+`</div>`:`<div class="empty">動画がありません。</div>`);
+  $('#plBack').onclick=()=>renderChvTab();
   bindCards(list);
 }
 function cardHtml(o,badge,why){
