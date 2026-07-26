@@ -34,26 +34,37 @@ jobs:
         run: node youtube-reader/gha-fetch.js
 
       - name: Fetch discover (YouTube search) -> discover.json
-        # おすすめは検索APIでクォータ消費が大きいので6時間ごと(UTC 0,6,12,18時)だけ実行。
-        # 手動実行(workflow_dispatch)時は常に実行。
+        # おすすめは検索APIのクォータ消費が大きい(1回100・1日上限100回)ので6時間ごと(UTC 0,6,12,18時)だけ実行。
+        # 手動実行では走らせない（クォータ節約）。
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: |
           H=$(date -u +%H)
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ $((10#$H % 6)) -eq 0 ]; then
+          if [ $((10#$H % 6)) -eq 0 ]; then
             node youtube-reader/gha-discover.js
           else
-            echo "discover はこの時間帯はスキップ（6時間ごとに実行）。"
+            echo "discover はこの時間帯はスキップ（6時間ごと・手動では走りません）。"
           fi
 
       - name: Commit if changed
+        # 毎時スケジュールと手動実行が重なるとpushが競合するので、最新mainの上に生成物を載せ直して再試行。
         run: |
           if git diff --quiet -- youtube-reader/web/data/videos.json youtube-reader/web/data/discover.json; then
             echo "変更なし。コミットしません。"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add youtube-reader/web/data/videos.json youtube-reader/web/data/discover.json
-            git commit -m "chore: refresh YouTube feeds (videos/discover)"
-            git push
+            exit 0
           fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add youtube-reader/web/data/videos.json youtube-reader/web/data/discover.json
+          git commit -m "chore: refresh YouTube feeds (videos/discover)"
+          for i in 1 2 3 4 5; do
+            if git push; then echo "pushed"; exit 0; fi
+            echo "push rejected — 最新mainに載せ直して再試行 ($i)"
+            git fetch origin main
+            git reset --soft origin/main
+            git add youtube-reader/web/data/videos.json youtube-reader/web/data/discover.json
+            git commit -m "chore: refresh YouTube feeds (videos/discover)" || true
+            sleep $((i * 3))
+          done
+          echo "push failed after retries" >&2
+          exit 1
