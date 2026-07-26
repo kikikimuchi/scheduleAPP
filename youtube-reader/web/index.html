@@ -287,6 +287,7 @@ body.fs-lock{overflow:hidden;}
 .vprog{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(255,255,255,.28);z-index:2;}
 .vprog i{display:block;height:100%;background:#f00;}
 .pl-badge{position:absolute;right:6px;bottom:6px;z-index:2;font-family:var(--mono);font-size:10px;font-weight:800;color:#fff;background:rgba(0,0,0,.78);padding:3px 7px;border-radius:4px;}
+.yt-seg{margin:8px 2px 10px;}.yt-seg button{flex:0 0 auto;padding:0 16px;}
 .pl-head{display:flex;align-items:center;gap:10px;padding:2px 2px 12px;}
 .pl-head .btn{height:34px;flex:0 0 auto;font-size:12px;padding:0 12px;}
 .pl-title{font-size:14px;font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -560,18 +561,47 @@ function renderChvTab(){
   const cid=state.chvCid, tab=state.chvTab||'all';
   const list=$('#chvList'); list.scrollTop=0;
   if(tab==='pl'){ loadChvPlaylists(cid,list); return; }
-  const seen=new Set(),pool=[];
-  state.videos.concat(state.discover).concat(state.memberVideos||[]).forEach(v=>{if(v.cid===cid&&!seen.has(v.id)){seen.add(v.id);pool.push(v);}});
+  state.chvVidCache=state.chvVidCache||{};
+  const uploads=state.chvVidCache[cid];
+  const byId=new Map();
+  [].concat(state.videos,state.discover,state.memberVideos||[],uploads||[]).forEach(v=>{
+    if(v.cid!==cid)return; const ex=byId.get(v.id);
+    if(!ex)byId.set(v.id,{...v}); else ['short','live','upcoming','wasLive','mem'].forEach(k=>{if(v[k])ex[k]=v[k];}); // 分類フラグをマージ
+  });
+  const pool=[...byId.values()];
   let vids;
   if(tab==='mem')vids=pool.filter(v=>v.mem);
   else if(tab==='short')vids=pool.filter(v=>v.short);
-  else if(tab==='live')vids=pool.filter(v=>v.live||v.upcoming);
+  else if(tab==='live')vids=pool.filter(v=>v.live||v.upcoming||v.wasLive); // ライブ配信中/予定/アーカイブ
   else vids=pool.filter(v=>!v.short); // 動画（ショート以外・メンバー含む）
   vids.sort((a,b)=>pub(b)-pub(a));
-  const label={all:'動画',mem:'メンバー限定',short:'ショート',live:'ライブ／配信予定'}[tab]||'動画';
-  list.innerHTML=vids.length?`<div class="s-sec">${label} ${vids.length}本</div><div class="vgrid ${tab==='short'?'shortsview':''}">`+vids.map(v=>cardHtml(v)).join('')+`</div>`
-    :`<div class="empty">${label}は見つかりませんでした。</div>`;
+  const loading=(uploads===undefined&&cid&&/^UC/.test(cid)&&CFG.youtubeApiKey);
+  const label={all:'動画',mem:'メンバー限定',short:'ショート',live:'ライブ'}[tab]||'動画';
+  const note=loading?`<div class="empty" style="padding:10px">すべて読み込み中…</div>`:'';
+  list.innerHTML=(vids.length?`<div class="s-sec">${label} ${vids.length}本</div><div class="vgrid ${tab==='short'?'shortsview':''}">`+vids.map(v=>cardHtml(v)).join('')+`</div>`
+    :(loading?'':`<div class="empty">${label}は見つかりませんでした。</div>`))+note;
   bindCards(list);
+  // 初回はチャンネルの全アップロードをAPIで取得して全タブを充実させる
+  if(uploads===undefined&&cid&&/^UC/.test(cid)&&CFG.youtubeApiKey){
+    loadChannelUploads(cid).then(()=>{ if(state.chvCid===cid&&$('#chView').classList.contains('on')) renderChvTab(); });
+  }
+}
+async function loadChannelUploads(cid){
+  state.chvVidCache=state.chvVidCache||{};
+  const up='UU'+cid.slice(2); // アップロード再生リスト
+  const out=[]; let token='';
+  try{
+    do{
+      const r=await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${up}&maxResults=50&key=${CFG.youtubeApiKey}${token?'&pageToken='+token:''}`);
+      if(!r.ok)break; const j=await r.json();
+      for(const it of j.items||[]){const s=it.snippet||{}; const vid=it.contentDetails?.videoId||s.resourceId?.videoId; if(!vid)continue;
+        if(s.title==='Private video'||s.title==='Deleted video')continue;
+        out.push({id:vid,cid,t:s.title||'',ch:s.channelTitle||'',p:it.contentDetails?.videoPublishedAt||s.publishedAt||''});}
+      token=j.nextPageToken||'';
+    }while(token&&out.length<120);
+    await classifyVids(out);
+  }catch(e){}
+  state.chvVidCache[cid]=out;
 }
 async function loadChvPlaylists(cid,list){
   if(!CFG.youtubeApiKey){
@@ -760,6 +790,25 @@ function showPlayerError(code){
   box.appendChild(div);
   const b=div.querySelector('#plErrOpen'); if(b)b.onclick=()=>window.open(`https://www.youtube.com/watch?v=${o.id}${t>1?`&t=${t}s`:''}`,'_blank','noopener');
 }
+// 動画IDから尺・ライブ種別を取得してショート/ライブ/ライブアーカイブを分類（検索結果はsnippetに尺が無いため）
+function _isoSec(iso){const m=/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(iso||'');if(!m)return null;return (+(m[1]||0))*3600+(+(m[2]||0))*60+(+(m[3]||0));}
+async function classifyVids(vids){
+  if(!CFG.youtubeApiKey||!vids||!vids.length)return vids;
+  const byId=new Map(vids.map(v=>[v.id,v])); const ids=[...byId.keys()];
+  for(let i=0;i<ids.length;i+=50){
+    try{
+      const r=await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet,liveStreamingDetails&id=${ids.slice(i,i+50).join(',')}&maxResults=50&key=${CFG.youtubeApiKey}`);
+      if(!r.ok)continue; const j=await r.json();
+      for(const it of j.items||[]){const v=byId.get(it.id); if(!v)continue;
+        const bc=it.snippet?.liveBroadcastContent, sec=_isoSec(it.contentDetails?.duration);
+        if(bc==='live')v.live=true; else if(bc==='upcoming')v.upcoming=true;
+        else if(it.liveStreamingDetails&&it.liveStreamingDetails.actualEndTime)v.wasLive=true; // ライブアーカイブ
+        if((sec!=null&&sec>0&&sec<=60)||/#shorts?\b/i.test(v.t||''))v.short=true;
+      }
+    }catch(e){}
+  }
+  return vids;
+}
 // 関連動画（relatedToVideoIdは廃止済みのため、タイトル語＋チャンネル名で検索して近い動画を出す）
 function relTitleWords(o){
   const t=(o.t||'').replace(/[【\[(（][^】\])）]*[】\])）]/g,' ').replace(/[#｜|/]/g,' ').replace(/[!?！？、。･・]/g,' ').replace(/\s+/g,' ').trim();
@@ -795,6 +844,8 @@ async function toggleRelated(){
       if(state.currentVideo!==o||box.style.display!=='block')return; // 別動画に切替/閉じた
       if(vids.length)break;
     }
+    await classifyVids(vids); vids=vids.filter(v=>!v.short); // ショートは除外
+    if(state.currentVideo!==o||box.style.display!=='block')return;
     box.innerHTML=vids.length?`<div class="vgrid">`+vids.map(v=>cardHtml(v)).join('')+`</div>`:'<div class="empty">関連動画が見つかりませんでした</div>';
     bindCards(box); box.dataset.loaded='1';
   }catch(e){
@@ -1003,11 +1054,23 @@ async function ytSearch(){
     const known=new Set();
     const vids=(j.items||[]).map(it=>({id:it.id?.videoId,cid:it.snippet?.channelId||'',t:_htmlDec(it.snippet?.title||''),ch:_htmlDec(it.snippet?.channelTitle||''),p:it.snippet?.publishedAt||''}))
       .filter(v=>v.id&&!known.has(v.id)&&(known.add(v.id),true));
-    box.innerHTML=vids.length
-      ?`<div class="s-sec">YouTube検索結果</div><div class="vgrid">`+vids.map(v=>cardHtml(v)).join('')+`</div>`
-      :`<div class="s-sec">YouTube検索結果</div><div class="empty">「${esc(q)}」は見つかりませんでした</div>`;
-    bindCards(box);
+    await classifyVids(vids);
+    if(!$('#ytSearchSec')||state._sq!==q.toLowerCase())return;
+    state._ytRes={q,all:vids.filter(v=>!v.short),shorts:vids.filter(v=>v.short)};
+    state._ytMode='video';
+    renderYtResults();
   }catch(e){const b=$('#ytSearchSec');if(b)b.innerHTML=`<div class="s-sec">YouTube検索結果</div><div class="empty">検索エラー</div>`;}
+}
+function renderYtResults(){
+  const box=$('#ytSearchSec'); if(!box||!state._ytRes)return;
+  const {all,shorts}=state._ytRes, mode=state._ytMode||'video';
+  const listv=mode==='shorts'?shorts:all;
+  const seg=`<div class="seg yt-seg"><button data-m="video" class="${mode==='video'?'on':''}">動画${all.length?` ${all.length}`:''}</button><button data-m="shorts" class="${mode==='shorts'?'on':''}">ショート${shorts.length?` ${shorts.length}`:''}</button></div>`;
+  box.innerHTML=`<div class="s-sec">YouTube検索結果</div>${seg}`+(listv.length
+    ?`<div class="vgrid ${mode==='shorts'?'shortsview':''}">`+listv.map(v=>cardHtml(v)).join('')+`</div>`
+    :`<div class="empty">${mode==='shorts'?'ショートは':'動画は'}見つかりませんでした</div>`);
+  box.querySelectorAll('.yt-seg button').forEach(b=>b.onclick=()=>{state._ytMode=b.dataset.m;renderYtResults();});
+  bindCards(box);
 }
 function chFilterMatch(c){
   if(state.chFilter==='untagged')return !(c.tags&&c.tags.length);
