@@ -1,0 +1,16 @@
+name: Member probe (diagnostic)
+
+# メンバー限定動画のサーバー側スクレイプ診断。手動実行のみ。
+on:
+  workflow_dispatch: {}
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Probe member pages
+        run: node youtube-reader/gha-member-probe.js
