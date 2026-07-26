@@ -799,7 +799,7 @@ function openVideo(o){
 function applyPlayer(o,native,startAt){
   const s=startAt?`&start=${startAt}`:'';
   const params=native
-    ? `playsinline=0&rel=0&fs=1&enablejsapi=1${s}`
+    ? `autoplay=1&playsinline=0&rel=0&fs=1&enablejsapi=1${s}` // autoplayで全画面再生まで一気に（iOSがブロックしたら▶タップ）
     : `autoplay=1&playsinline=1&rel=0&enablejsapi=1&cc_load_policy=0&cc_lang_pref=none${s}`;
   $('#playerBox').innerHTML=`<iframe src="https://www.youtube.com/embed/${encodeURIComponent(o.id)}?${params}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
   const f=$('#playerBox iframe');
@@ -1427,7 +1427,14 @@ async function init(){
     }catch(_){}
   });
   window.addEventListener('pagehide',flushPos);
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushPos();});
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='hidden'){ flushPos(); if(state._nativeMode&&$('#np').classList.contains('on'))state._pipHidden=true; }
+    else if(document.visibilityState==='visible'){
+      if(state._pipHidden&&state._nativeMode&&state.currentVideo&&$('#np').classList.contains('on')){
+        state._pipHidden=false; const t=Math.floor(state._curTime||0); applyPlayer(state.currentVideo,false,t>1?t:0); // アプリに戻ったら自動でインラインへ
+      } else state._pipHidden=false;
+    }
+  });
   $('#actMin').onclick=minimizePlayer;
   $('#actClose').onclick=()=>history.back();
   // 小窓の再生/一時停止（YouTubeロゴを踏まずに操作できるように）
