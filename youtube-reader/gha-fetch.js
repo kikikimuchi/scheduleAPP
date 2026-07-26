@@ -43,54 +43,69 @@ function extractYtInitialData(html) {
   }
   return null;
 }
-// ytInitialData を走査し、メンバー限定バッジ付きの動画IDを集める
-function collectMemberVideoIds(root) {
-  const ids = new Set();
+// 本物のブラウザとしてチャンネルページを取得（ボットUAだとメンバー動画入りのページが返らない）
+const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+const MEMBER_HEADERS = {
+  'User-Agent': BROWSER_UA,
+  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
+  Cookie: 'SOCS=CAISEwgDEgk0ODE3Nzk3MjQaAmphIAEaBgiAo_myBg; CONSENT=YES+cb; PREF=hl=ja&gl=JP',
+};
+// 「N日前」等の相対表記をISO日時に変換
+function agoToIso(text) {
+  const m = (text || '').match(/(\d+)\s*(秒|分|時間|日|週間|か月|ヶ月|年)\s*前/);
+  if (!m) return new Date().toISOString();
+  const ms = { 秒: 1e3, 分: 6e4, 時間: 36e5, 日: 864e5, 週間: 6048e5, か月: 2592e6, ヶ月: 2592e6, 年: 31536e6 }[m[2]] || 0;
+  return new Date(Date.now() - (+m[1]) * ms).toISOString();
+}
+function extractChannelId(data) {
+  return data?.metadata?.channelMetadataRenderer?.externalId
+    || data?.header?.c4TabbedHeaderRenderer?.channelId || '';
+}
+// ytInitialData を走査し、lockupViewModel + メンバーバッジ(BADGE_MEMBERS_ONLY)の動画を集める
+function collectMembersFromData(data, cid) {
+  const out = []; const seen = new Set();
   (function walk(n) {
     if (!n || typeof n !== 'object') return;
     if (Array.isArray(n)) { for (const x of n) walk(x); return; }
-    if (n.videoId && (n.title || n.headline)) {
-      const s = JSON.stringify(n);
-      if (/MEMBERS_ONLY/.test(s) || /メンバー(限定|シップ)/.test(s) || /"Members only"/i.test(s)) ids.add(n.videoId);
+    const lv = n.lockupViewModel;
+    if (lv && lv.contentId) {
+      const s = JSON.stringify(lv);
+      if (/BADGE_MEMBERS_ONLY/.test(s) || /メンバー限定/.test(s)) {
+        const id = lv.contentId;
+        const meta = lv.metadata && lv.metadata.lockupMetadataViewModel;
+        const title = (meta && meta.title && meta.title.content) || 'メンバー限定動画';
+        let when = '';
+        const rows = (meta && meta.metadata && meta.metadata.contentMetadataViewModel && meta.metadata.contentMetadataViewModel.metadataRows) || [];
+        for (const row of rows) { for (const part of (row.metadataParts || [])) { const t = part.text && part.text.content; if (t && /前/.test(t)) { when = t; break; } } if (when) break; }
+        if (id && !seen.has(id)) { seen.add(id); out.push({ id, cid, t: title, p: agoToIso(when), u: '', mem: true, ...(/配信|ライブ/.test(when) ? { wasLive: true } : {}) }); }
+      }
     }
     for (const k in n) walk(n[k]);
-  })(root);
-  return [...ids];
+  })(data);
+  return out;
 }
 async function fetchMemberVideos() {
   if (!MEMBER_CHANNELS.length) return [];
-  const ids = new Set();
+  const byId = new Map();
   for (const ref of MEMBER_CHANNELS) {
-    const url = ref.startsWith('@')
-      ? `https://www.youtube.com/${encodeURIComponent(ref)}/videos`
-      : `https://www.youtube.com/channel/${ref}/videos`;
-    try {
-      const r = await fetch(url, { headers: { 'User-Agent': config.userAgent, 'Accept-Language': 'ja,en;q=0.8', Cookie: 'SOCS=CAI; CONSENT=YES+cb' } });
-      if (!r.ok) { console.error(`  member HTML ${ref}: HTTP ${r.status}`); continue; }
-      const html = await r.text();
-      const data = extractYtInitialData(html);
-      if (!data) { console.error(`  member ${ref}: ytInitialData取得失敗（同意ページ等の可能性）`); continue; }
-      const found = collectMemberVideoIds(data);
-      console.error(`  member ${ref}: メンバー限定 ${found.length}本`);
-      found.forEach((id) => ids.add(id));
-    } catch (e) { console.error(`  member ${ref}: ${e.message}`); }
+    const base = ref.startsWith('@') ? `https://www.youtube.com/${encodeURIComponent(ref)}` : `https://www.youtube.com/channel/${ref}`;
+    for (const tab of ['/videos', '/streams']) { // 通常動画タブとライブタブ両方を見る
+      try {
+        const r = await fetch(base + tab, { headers: MEMBER_HEADERS, redirect: 'follow' });
+        if (!r.ok) { console.error(`  member ${ref}${tab}: HTTP ${r.status}`); continue; }
+        const html = await r.text();
+        const data = extractYtInitialData(html);
+        if (!data) { console.error(`  member ${ref}${tab}: ytInitialData取得失敗`); continue; }
+        const cid = (ref.startsWith('@') ? extractChannelId(data) : ref) || extractChannelId(data);
+        const found = collectMembersFromData(data, cid);
+        for (const v of found) if (!byId.has(v.id)) byId.set(v.id, v);
+        console.error(`  member ${ref}${tab}: メンバー ${found.length}本 (cid=${cid})`);
+      } catch (e) { console.error(`  member ${ref}${tab}: ${e.message}`); }
+    }
   }
-  if (!ids.size || !YT_KEY) return [];
-  // videos.list で正確なタイトル・公開日・チャンネルIDを取得
-  const out = [];
-  const arr = [...ids];
-  for (let i = 0; i < arr.length; i += 50) {
-    const batch = arr.slice(i, i + 50);
-    try {
-      const r = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${batch.join(',')}&maxResults=50&key=${YT_KEY}`);
-      if (!r.ok) continue;
-      const j = await r.json();
-      for (const it of j.items || []) {
-        const s = it.snippet || {};
-        out.push({ id: it.id, cid: s.channelId || '', t: s.title || 'メンバー限定動画', p: s.publishedAt || new Date().toISOString(), u: s.publishedAt || '', mem: true });
-      }
-    } catch (e) {}
-  }
+  const out = [...byId.values()];
+  console.error(`  → メンバー合計 ${out.length}本`);
   return out;
 }
 
