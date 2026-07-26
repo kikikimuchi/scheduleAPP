@@ -97,6 +97,7 @@ body.hdhide #feedTop{top:0;}
   cursor:pointer;box-shadow:3px 3px 0 rgba(0,0,0,.35);overflow:hidden;}
 .vid:active{transform:translate(1px,1px);box-shadow:2px 2px 0 rgba(0,0,0,.35);}
 .vthumb{width:100%;aspect-ratio:16/9;position:relative;overflow:hidden;background:#0b1226;border-bottom:2px solid rgba(0,0,0,.35);}
+#feedList.shortsview .vthumb{aspect-ratio:9/16;}
 .vthumb .init{position:absolute;left:5px;top:4px;font-family:var(--mono);font-size:10px;font-weight:800;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5);z-index:1;}
 .vmeta{min-width:0;display:flex;flex-direction:column;gap:4px;padding:8px 8px 0;}
 .vtitle{font-size:12px;font-weight:700;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
@@ -162,8 +163,8 @@ select.as{font-family:var(--mono);font-size:10.5px;border:1.5px dashed var(--lin
 #np.fs #npInfo{display:none;}
 #np.fs #npPlayer{position:fixed;left:0;top:-100vw;width:100vh;height:100vw;
   transform-origin:bottom left;transform:rotate(90deg);z-index:10010;aspect-ratio:auto;background:#000;border:0;}
-#np.fs #fsExit{display:block;position:absolute;top:10px;right:12px;z-index:10011;
-  background:rgba(10,16,34,.82);border:2px solid var(--line2);color:#fff;font-size:12px;font-weight:700;padding:8px 11px;cursor:pointer;}
+#np.fs #fsExit{display:flex;align-items:center;justify-content:center;position:absolute;top:10px;right:12px;z-index:10011;
+  width:36px;height:36px;padding:0;background:rgba(10,16,34,.82);border:2px solid var(--line2);color:#fff;font-size:16px;font-weight:700;cursor:pointer;}
 body.fs-lock{overflow:hidden;}
 .np-btn{position:absolute;top:8px;z-index:3;background:rgba(10,16,34,.72);border:2px solid var(--line2);color:#fff;width:36px;height:30px;font-size:14px;cursor:pointer;}
 #npClose{right:8px;} #npMin{right:50px;}
@@ -349,7 +350,7 @@ body.fs-lock{overflow:hidden;}
     <button class="np-btn" id="miniPlay" title="再生/一時停止"></button>
     <button class="np-btn" id="npMin" title="小窓化">▽</button>
     <button class="np-btn" id="npClose" title="閉じる">✕</button>
-    <button id="fsExit" title="全画面を終了">✕ 全画面終了</button>
+    <button id="fsExit" title="全画面を終了">✕</button>
   </div>
   <div id="npInfo">
     <div class="sheet-title" id="sTitle"></div>
@@ -536,6 +537,7 @@ function renderFeed(){
   updHdUpd();
   renderChips();renderSort();
   const list=$('#feedList');
+  list.classList.toggle('shortsview',!isDisc&&modeFor(state.activeTag)==='shorts');
   if(isDisc){
     if(!state.discover.length){list.innerHTML=`<div class="empty"><div class="m"></div>発見フィードはまだ空です。<br>YouTube APIキーを設定し、取得係が動くと表示されます。<br>（SETUP参照）</div>`;return;}
     const cat=state.activeTag;
@@ -574,11 +576,14 @@ function openVideo(o){
   $('#sTitle').textContent=o.t||'(動画)';$('#sCh').textContent=ch;
   $('#sCh').onclick=()=>{ if(o.cid) openChannel(o.cid); };
   $('#descBox').innerHTML='';
+  state._curTime=0;
   $('#playerBox').innerHTML=`<iframe src="https://www.youtube.com/embed/${encodeURIComponent(o.id)}?autoplay=1&playsinline=1&rel=0&enablejsapi=1&cc_load_policy=0&cc_lang_pref=none" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
+  const f=$('#playerBox iframe');
+  f.addEventListener('load',()=>{ try{f.contentWindow.postMessage(JSON.stringify({event:'listening',id:1,channel:'widget'}),'*');}catch(e){} captionsOff(); });
   loadDesc(o.id);
   loadComments(o.id);
-  const yt=`https://www.youtube.com/watch?v=${o.id}`;
-  $('#openYt').onclick=()=>window.open(yt,'_blank','noopener');
+  // 公式アプリへは「その時の再生位置」で開く
+  $('#openYt').onclick=()=>{const t=Math.floor(state._curTime||0);window.open(`https://www.youtube.com/watch?v=${o.id}${t>1?`&t=${t}s`:''}`,'_blank','noopener');};
   if(o.cid&&state.channels[o.cid]){state.channels[o.cid].lastViewedAt=nowIso();saveChannel(o.cid);}
   state.history=[{id:o.id,at:nowIso(),cid:o.cid||'',t:o.t||'',ch:ch},...state.history.filter(h=>h.id!==o.id)].slice(0,200);
   LS.set(LSK_HIST,state.history);
@@ -663,6 +668,13 @@ function seekTo(sec){
   const f=$('#playerBox iframe'); if(!f||!f.contentWindow) return;
   const post=(func,args)=>f.contentWindow.postMessage(JSON.stringify({event:'command',func,args}),'*');
   post('seekTo',[sec,true]); post('playVideo',[]);
+}
+// 字幕を強制オフ（プレーヤー準備タイミングを取り逃さないよう数回送る）
+function captionsOff(){
+  const send=()=>{const f=$('#playerBox iframe'); if(!f||!f.contentWindow)return;
+    const post=(func,args)=>f.contentWindow.postMessage(JSON.stringify({event:'command',func,args}),'*');
+    post('setOption',['captions','track',{}]); post('unloadModule',['captions']); post('unloadModule',['cc']);};
+  [600,1600,3200].forEach(ms=>setTimeout(send,ms));
 }
 async function loadComments(id){
   const box=$('#cmtList');
@@ -982,6 +994,11 @@ async function init(){
   $('#npMin').onclick=()=>$('#np').classList.contains('mini')?expandPlayer():minimizePlayer();
   $('#actFull').onclick=goFullscreen;
   $('#fsExit').onclick=()=>cssFsToggle(false);
+  // プレーヤーからの再生位置を受信（公式アプリへその時間で飛ぶため）
+  window.addEventListener('message',e=>{
+    if(typeof e.data!=='string'||(''+e.origin).indexOf('youtube')<0)return;
+    try{const d=JSON.parse(e.data);if(d&&d.info&&typeof d.info.currentTime==='number')state._curTime=d.info.currentTime;}catch(_){}
+  });
   $('#actMin').onclick=minimizePlayer;
   $('#actClose').onclick=closeNp;
   // 小窓の再生/一時停止（YouTubeロゴを踏まずに操作できるように）
