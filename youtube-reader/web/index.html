@@ -461,7 +461,7 @@ const CFG = window.YTR_CONFIG || {};
 const CH_COL='schedule_ytChannels', META_DOC=['schedule_ytMeta','app'], MEM_DOC=['schedule_ytMeta','members'];
 const REDISCOVER={W_STALE:1.0,W_FRESH:0.6,FRESH_CAP_DAYS:30,NEVER_VIEWED_DAYS:400};
 const DAY=86400000, now=()=>Date.now(), nowIso=()=>new Date().toISOString();
-const LSK_CH='ytr_channels', LSK_META='ytr_meta', LSK_HIST='ytr_history', LSK_MEM='ytr_member', LSK_MEMPL='ytr_member_pl';
+const LSK_CH='ytr_channels', LSK_META='ytr_meta', LSK_HIST='ytr_history', LSK_MEM='ytr_member', LSK_MEMPL='ytr_member_pl', LSK_POS='ytr_pos';
 const state={ videos:[], discover:[], channels:{}, meta:{tags:[],modes:{}}, history:[],
   activeTag:'__all__', chFilter:'all', feedMode:'subs', discMode:'recommended', fb:null };
 
@@ -723,8 +723,10 @@ function openVideo(o){
   $('#sTitle').textContent=o.t||'(動画)';$('#sCh').textContent=ch;
   $('#sCh').onclick=()=>{ if(o.cid) openChannel(o.cid); };
   $('#descBox').innerHTML='';
-  state._curTime=0;
-  $('#playerBox').innerHTML=`<iframe src="https://www.youtube.com/embed/${encodeURIComponent(o.id)}?autoplay=1&playsinline=1&rel=0&enablejsapi=1&cc_load_policy=0&cc_lang_pref=none" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
+  const startAt=(o.live||o.upcoming)?0:resumeAt(o.id); // 途中まで見た動画は続きから（ライブは除く）
+  state._curTime=startAt;
+  $('#playerBox').innerHTML=`<iframe src="https://www.youtube.com/embed/${encodeURIComponent(o.id)}?autoplay=1&playsinline=1&rel=0&enablejsapi=1&cc_load_policy=0&cc_lang_pref=none${startAt?`&start=${startAt}`:''}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
+  if(startAt){const m=Math.floor(startAt/60),s=startAt%60;toast(`${m>0?m+'分':''}${s}秒から再開`);}
   const f=$('#playerBox iframe');
   f.addEventListener('load',()=>{ try{f.contentWindow.postMessage(JSON.stringify({event:'listening',id:1,channel:'widget'}),'*');}catch(e){} captionsOff(); });
   loadDesc(o.id);
@@ -825,6 +827,17 @@ function seekTo(sec){
   const post=(func,args)=>f.contentWindow.postMessage(JSON.stringify({event:'command',func,args}),'*');
   post('seekTo',[sec,true]); post('playVideo',[]);
 }
+// ---- 再生位置の記憶（レジューム）----
+function savePos(id,t,dur){
+  if(!id||!(t>0)||!state.pos)return;
+  const prev=state.pos[id]||{};
+  state.pos[id]={t:Math.floor(t),dur:dur?Math.floor(dur):(prev.dur||0),at:nowIso()};
+  const nt=now();
+  if(!state._posFlush||nt-state._posFlush>4000){state._posFlush=nt;LS.set(LSK_POS,state.pos);} // 書き込みは間引く
+}
+function flushPos(){ if(state.pos)LS.set(LSK_POS,state.pos); }
+function clearPos(id){ if(id&&state.pos&&state.pos[id]){delete state.pos[id];LS.set(LSK_POS,state.pos);} }
+function resumeAt(id){ const p=state.pos&&state.pos[id]; if(!p)return 0; if(p.dur&&p.t>=p.dur-15)return 0; return p.t>10?p.t:0; } // 10秒超〜終盤15秒手前のみ再開
 // 字幕を強制オフ（プレーヤー準備タイミングを取り逃さないよう数回送る）
 function captionsOff(){
   const send=()=>{const f=$('#playerBox iframe'); if(!f||!f.contentWindow)return;
@@ -851,7 +864,7 @@ async function loadComments(id){
       else ct.classList.remove('clamp'); });
   }catch(e){box.innerHTML=`<p class="cmt-note">コメント取得でエラーが発生しました。</p>`;}
 }
-function closeNp(){const np=$('#np');np.classList.remove('on','mini','fs');document.body.classList.remove('fs-lock');$('#playerBox').innerHTML='';}
+function closeNp(){flushPos();const np=$('#np');np.classList.remove('on','mini','fs');document.body.classList.remove('fs-lock');$('#playerBox').innerHTML='';}
 // ブラウザバックでアプリを抜けず、プレーヤー/オーバーレイを閉じる
 function ovlOpen(){return $('#np').classList.contains('on')||$('#searchPanel').classList.contains('on')||$('#chView').classList.contains('on')||$('#tagPick').classList.contains('on');}
 function histCapture(){ if(!state._hist){ try{history.pushState({ovl:1},'');}catch(e){} state._hist=true; } }
@@ -1210,6 +1223,7 @@ async function init(){
   state.fb=await initFirestore();
   state.history=LS.get(LSK_HIST,[]);
   state.memberVideos=LS.get(LSK_MEM,[]);
+  state.pos=LS.get(LSK_POS,{});
   const [updatedAt]=await Promise.all([loadVideos(),loadDiscover(),loadChannels()]);
   state._updatedAt=updatedAt; shuffleDiscover();
   if(!state.meta.modes)state.meta.modes={};
@@ -1237,10 +1251,13 @@ async function init(){
   window.addEventListener('message',e=>{
     if(typeof e.data!=='string'||(''+e.origin).indexOf('youtube')<0)return;
     try{const d=JSON.parse(e.data);
-      if(d&&d.info&&typeof d.info.currentTime==='number')state._curTime=d.info.currentTime;
+      if(d&&d.info&&typeof d.info.currentTime==='number'){state._curTime=d.info.currentTime;savePos(state.currentVideo&&state.currentVideo.id,d.info.currentTime,d.info.duration);}
       if(d&&d.event==='onError')showPlayerError(d.info);
+      if(d&&d.event==='onStateChange'&&d.info===0)clearPos(state.currentVideo&&state.currentVideo.id); // 最後まで見たら位置クリア
     }catch(_){}
   });
+  window.addEventListener('pagehide',flushPos);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushPos();});
   $('#actMin').onclick=minimizePlayer;
   $('#actClose').onclick=()=>history.back();
   // 小窓の再生/一時停止（YouTubeロゴを踏まずに操作できるように）
