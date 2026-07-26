@@ -64,35 +64,44 @@ async function markMeta(list) {
   console.log(`ライブ判定: 配信中 ${live} / 配信予定 ${upcoming}`);
 }
 
-// メンバー限定候補: 各チャンネルのアップロード再生リスト(公開キーで取得可)にあって、
-// RSS(=通常公開)に無く、かつRSSの新しさ範囲内の動画。RSSはメンバー限定を載せないことが多いので、
-// その差分がメンバー限定候補。再生はできないのでアプリ側は公式アプリへ誘導する（mem:true）。
+const MEMBER_DAYS = Number(process.env.MEMBER_DAYS || 60); // メンバー候補は直近この日数のみ
+
+// oembedで公開判定。公開動画は200、メンバー限定/制限付きは非200。
+async function oembedRestricted(id) {
+  try {
+    const r = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`,
+      { headers: { 'User-Agent': config.userAgent } });
+    r.body?.cancel?.();
+    return r.status !== 200; // 200=公開 / 401,403等=メンバー限定など
+  } catch (e) { return false; }
+}
+
+// メンバー限定候補: アップロード一覧(公開キー)にあってRSS(通常公開)に無い直近動画のうち、
+// oembedで「非公開扱い＝制限あり」のものだけ。RSS枠から外れた古い公開動画やショートは公開判定で除外される。
 async function fetchMemberCandidates(targets, rssVideos) {
   if (!YT_KEY) return [];
-  const byCh = new Map();
-  for (const v of rssVideos) {
-    let e = byCh.get(v.cid); if (!e) { e = { ids: new Set(), minP: Infinity }; byCh.set(v.cid, e); }
-    e.ids.add(v.id); const t = Date.parse(v.p) || 0; if (t && t < e.minP) e.minP = t;
-  }
-  const out = [];
+  const rssIds = new Set(rssVideos.map((v) => v.id));
+  const cutoff = Date.now() - MEMBER_DAYS * 86400000;
+  const cand = [];
   await mapPool(targets, config.concurrency, async (c) => {
     const cid = c.channelId; if (!cid || cid.length < 3) return;
     const up = 'UU' + cid.slice(2); // アップロード再生リストID
     try {
-      const r = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=20&playlistId=${up}&key=${YT_KEY}`);
+      const r = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=15&playlistId=${up}&key=${YT_KEY}`);
       if (!r.ok) return;
       const j = await r.json();
-      const e = byCh.get(cid) || { ids: new Set(), minP: 0 };
       for (const it of j.items || []) {
         const s = it.snippet || {}, vid = s.resourceId && s.resourceId.videoId; if (!vid) continue;
-        if (e.ids.has(vid)) continue; // RSSにある=通常公開なのでスキップ
-        const t = Date.parse(s.publishedAt) || 0;
-        if (e.minP && e.minP !== Infinity && t < e.minP) continue; // RSSの窓より古い=ただの旧動画
-        out.push({ id: vid, cid, t: s.title || '', p: s.publishedAt || '', u: s.publishedAt || '', mem: true });
+        if (rssIds.has(vid)) continue; // RSSにある=通常公開
+        const t = Date.parse(s.publishedAt) || 0; if (t < cutoff) continue; // 直近のみ
+        cand.push({ id: vid, cid, t: s.title || '', p: s.publishedAt || '', u: s.publishedAt || '' });
       }
     } catch (e) {}
   });
-  return out;
+  console.log(`メンバー候補(公開判定前): ${cand.length}本`);
+  const mem = [];
+  await mapPool(cand, config.concurrency, async (v) => { if (await oembedRestricted(v.id)) mem.push({ ...v, mem: true }); });
+  return mem;
 }
 
 async function listChannels() {
