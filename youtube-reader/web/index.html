@@ -352,6 +352,13 @@ body.fs-lock{overflow:hidden;}
 
   <!-- SETTINGS -->
   <div id="pg-set" class="pg">
+    <div class="sec-h" id="pipSec" style="display:none">再生</div>
+    <div class="card" id="pipCard" style="display:none">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+        <input type="checkbox" id="iosPipToggle" style="width:20px;height:20px;flex:0 0 auto;">
+        <span>スワイプでPiP（iOSネイティブ再生）<br><small style="color:var(--ink-faint)">ONにすると再生はタップ開始・全画面になりますが、ホームへスワイプで他アプリの上に浮かせられます。OFFはアプリ内インライン再生＋小窓。</small></span>
+      </label>
+    </div>
     <div class="sec-h">メンバー限定動画</div>
     <div class="card">
       <p style="margin-bottom:10px">PCのYouTubeでチャンネルの「動画」→「メンバー限定」を開き、専用コードを実行してコピーしたデータをここに貼り付けて「追加」。現在 <b id="memStat">—</b> 本。フィードの「すべて」に🔒付きで表示されます（タップで公式アプリ）。</p>
@@ -769,8 +776,14 @@ function openVideo(o){
   $('#descBox').innerHTML='';
   const startAt=(o.live||o.upcoming)?0:resumeAt(o.id); // 途中まで見た動画は続きから（ライブは除く）
   state._curTime=startAt;
-  $('#playerBox').innerHTML=`<iframe src="https://www.youtube.com/embed/${encodeURIComponent(o.id)}?autoplay=1&playsinline=1&rel=0&enablejsapi=1&cc_load_policy=0&cc_lang_pref=none${startAt?`&start=${startAt}`:''}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
-  if(startAt){const m=Math.floor(startAt/60),s=startAt%60;toast(`${m>0?m+'分':''}${s}秒から再開`);}
+  const pip=useIosPip(); // iOSネイティブ再生（スワイプPiP）モードか
+  const params=pip
+    ? `playsinline=0&rel=0&fs=1${startAt?`&start=${startAt}`:''}` // 自動再生なし・ネイティブ全画面→スワイプPiP
+    : `autoplay=1&playsinline=1&rel=0&enablejsapi=1&cc_load_policy=0&cc_lang_pref=none${startAt?`&start=${startAt}`:''}`;
+  $('#playerBox').innerHTML=`<iframe src="https://www.youtube.com/embed/${encodeURIComponent(o.id)}?${params}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
+  { const pb=$('#actPip'); if(pb)pb.style.display=(IS_IOS&&!pip)?'':'none'; } // ネイティブ既定なら📺は不要
+  if(pip)toast('▶をタップで全画面再生。ホームへスワイプでPiP（他アプリの上に浮かせる）');
+  else if(startAt){const m=Math.floor(startAt/60),s=startAt%60;toast(`${m>0?m+'分':''}${s}秒から再開`);}
   const f=$('#playerBox iframe');
   f.addEventListener('load',()=>{ try{f.contentWindow.postMessage(JSON.stringify({event:'listening',id:1,channel:'widget'}),'*');}catch(e){} captionsOff(); });
   loadDesc(o.id);
@@ -884,6 +897,8 @@ async function loadDesc(id){
 }
 // ミニプレーヤー: iframeは動かさず #np のクラスだけで大/小を切替（＝再生シームレス）
 const IS_IPHONE=/iP(hone|od)/.test(navigator.userAgent);
+const IS_IOS=/iP(hone|od|ad)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+function useIosPip(){return IS_IOS&&state.meta.iosPip!==false;} // iOSでスワイプPiP（ネイティブ再生）を使うか（既定ON）
 function cssFsToggle(force){
   const np=$('#np'), on=(force!==undefined)?force:!np.classList.contains('fs');
   np.classList.toggle('fs',on); document.body.classList.toggle('fs-lock',on);
@@ -1389,7 +1404,10 @@ async function init(){
   $('#npMin').onclick=()=>$('#np').classList.contains('mini')?expandPlayer():minimizePlayer();
   $('#actFull').onclick=goFullscreen;
   $('#relatedBtn').onclick=toggleRelated;
-  { const IS_IOS=/iP(hone|od|ad)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1); const p=$('#actPip'); if(p&&IS_IOS){ p.style.display=''; p.onclick=playNativePiP; } } // PiPボタンはiOSのみ表示
+  { const p=$('#actPip'); if(p)p.onclick=playNativePiP; } // 表示可否はopenVideoで制御（ネイティブ既定なら不要なので隠す）
+  if(IS_IOS){ $('#pipSec').style.display=''; $('#pipCard').style.display=''; const t=$('#iosPipToggle');
+    t.checked=(state.meta.iosPip!==false); // 既定ON
+    t.onchange=()=>{ state.meta.iosPip=t.checked; saveMeta(); toast(t.checked?'スワイプPiP: ON':'アプリ内インライン再生: ON'); }; }
   $('#fsExit').onclick=()=>history.back();
   window.addEventListener('popstate',histClose);
   // プレーヤーからの再生位置を受信（公式アプリへその時間で飛ぶため）
