@@ -356,7 +356,7 @@ body.fs-lock{overflow:hidden;}
     <div class="card" id="pipCard" style="display:none">
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
         <input type="checkbox" id="iosPipToggle" style="width:20px;height:20px;flex:0 0 auto;">
-        <span>スワイプでPiP（iOSネイティブ再生）<br><small style="color:var(--ink-faint)">ONにすると再生はタップ開始・全画面になりますが、ホームへスワイプで他アプリの上に浮かせられます。OFFはアプリ内インライン再生＋小窓。</small></span>
+        <span>ネイティブ再生（全画面・タップ開始）<br><small style="color:var(--ink-faint)">OFF（既定）=全画面にならないインライン再生＋アプリ内小窓。ON=毎回▶タップで全画面になりますが、ホームへスワイプで確実にPiPできます。※インラインでもiOS設定「PiPを自動的に開始」がONなら浮く場合あり。</small></span>
       </label>
     </div>
     <div class="sec-h">メンバー限定動画</div>
@@ -898,7 +898,7 @@ async function loadDesc(id){
 // ミニプレーヤー: iframeは動かさず #np のクラスだけで大/小を切替（＝再生シームレス）
 const IS_IPHONE=/iP(hone|od)/.test(navigator.userAgent);
 const IS_IOS=/iP(hone|od|ad)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-function useIosPip(){return IS_IOS&&state.meta.iosPip!==false;} // iOSでスワイプPiP（ネイティブ再生）を使うか（既定ON）
+function useIosPip(){return IS_IOS&&state.meta.iosPip===true;} // iOSでネイティブ再生(全画面・タップ開始)を使うか（既定OFF＝インライン）
 function cssFsToggle(force){
   const np=$('#np'), on=(force!==undefined)?force:!np.classList.contains('fs');
   np.classList.toggle('fs',on); document.body.classList.toggle('fs-lock',on);
@@ -1406,8 +1406,8 @@ async function init(){
   $('#relatedBtn').onclick=toggleRelated;
   { const p=$('#actPip'); if(p)p.onclick=playNativePiP; } // 表示可否はopenVideoで制御（ネイティブ既定なら不要なので隠す）
   if(IS_IOS){ $('#pipSec').style.display=''; $('#pipCard').style.display=''; const t=$('#iosPipToggle');
-    t.checked=(state.meta.iosPip!==false); // 既定ON
-    t.onchange=()=>{ state.meta.iosPip=t.checked; saveMeta(); toast(t.checked?'スワイプPiP: ON':'アプリ内インライン再生: ON'); }; }
+    t.checked=(state.meta.iosPip===true); // 既定OFF（インライン）
+    t.onchange=()=>{ state.meta.iosPip=t.checked; saveMeta(); toast(t.checked?'ネイティブ再生: ON（全画面・スワイプPiP）':'インライン再生: ON（全画面にしない）'); }; }
   $('#fsExit').onclick=()=>history.back();
   window.addEventListener('popstate',histClose);
   // プレーヤーからの再生位置を受信（公式アプリへその時間で飛ぶため）
