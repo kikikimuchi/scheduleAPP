@@ -427,7 +427,7 @@ body.fs-lock{overflow:hidden;}
 
 <!-- SEARCH -->
 <div id="searchPanel">
-  <div class="sp-head"><input class="fi" id="searchInput" placeholder="登録・発見の動画を検索"><button class="btn ghost npb" id="searchClose">✕</button></div>
+  <div class="sp-head"><input class="fi" id="searchInput" placeholder="🔍 検索（Enterで YouTube 全体検索）" enterkeyhint="search"><button class="btn ghost npb" id="searchClose">✕</button></div>
   <div id="searchList"></div>
 </div>
 <!-- CHANNEL VIEW (アプリ内チャンネル) -->
@@ -877,7 +877,7 @@ function openSearch(){ histCapture(); $('#searchPanel').classList.add('on'); con
 function renderSearch(){
   const q=($('#searchInput').value||'').trim().toLowerCase(); state._sq=q;
   const list=$('#searchList');
-  if(!q){list.innerHTML=`<div class="empty">キーワードを入力してください</div>`;return;}
+  if(!q){list.innerHTML=`<div class="empty">キーワードを入力してください<br><small style="color:var(--ink-faint)">Enterで YouTube 全体を検索できます</small></div>`;return;}
   // チャンネル（登録チャンネルから名前一致）
   const chs=Object.entries(state.channels)
     .filter(([cid,c])=>((c.title||'')+(c.yomi||'')).toLowerCase().includes(q))
@@ -903,6 +903,36 @@ function renderSearch(){
   bindCards(list);
 }
 
+// YouTube全体検索（Enter時）。search.list はクォータ100/回と高いので入力ごとではなくEnterのみ。
+const _htmlDec=s=>{const t=document.createElement('textarea');t.innerHTML=s||'';return t.value;};
+async function ytSearch(){
+  const q=($('#searchInput').value||'').trim(); state._sq=q.toLowerCase();
+  const list=$('#searchList');
+  if(!q)return;
+  if(!CFG.youtubeApiKey){
+    let n=$('#ytSearchSec')||Object.assign(document.createElement('div'),{id:'ytSearchSec'});
+    n.innerHTML=`<div class="s-sec">YouTube検索結果</div><div class="empty">YouTube全体検索にはAPIキー設定が必要です（SETUP参照）</div>`;
+    if(!n.parentNode)list.appendChild(n); return;
+  }
+  let box=$('#ytSearchSec');
+  if(!box){box=document.createElement('div');box.id='ytSearchSec';list.appendChild(box);}
+  box.innerHTML=`<div class="s-sec">YouTube検索結果</div><div class="empty">検索中…</div>`;
+  box.scrollIntoView&&box.scrollIntoView({behavior:'smooth',block:'nearest'});
+  try{
+    const params=new URLSearchParams({part:'snippet',type:'video',q,maxResults:'30',order:'relevance',regionCode:'JP',relevanceLanguage:'ja',key:CFG.youtubeApiKey});
+    const r=await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`);
+    box=$('#ytSearchSec'); if(!box||state._sq!==q.toLowerCase())return; // 入力が変わっていたら破棄
+    if(!r.ok){box.innerHTML=`<div class="s-sec">YouTube検索結果</div><div class="empty">検索に失敗しました（APIクォータ超過の可能性）</div>`;return;}
+    const j=await r.json();
+    const known=new Set();
+    const vids=(j.items||[]).map(it=>({id:it.id?.videoId,cid:it.snippet?.channelId||'',t:_htmlDec(it.snippet?.title||''),ch:_htmlDec(it.snippet?.channelTitle||''),p:it.snippet?.publishedAt||''}))
+      .filter(v=>v.id&&!known.has(v.id)&&(known.add(v.id),true));
+    box.innerHTML=vids.length
+      ?`<div class="s-sec">YouTube検索結果</div><div class="vgrid">`+vids.map(v=>cardHtml(v)).join('')+`</div>`
+      :`<div class="s-sec">YouTube検索結果</div><div class="empty">「${esc(q)}」は見つかりませんでした</div>`;
+    bindCards(box);
+  }catch(e){const b=$('#ytSearchSec');if(b)b.innerHTML=`<div class="s-sec">YouTube検索結果</div><div class="empty">検索エラー</div>`;}
+}
 function chFilterMatch(c){
   if(state.chFilter==='untagged')return !(c.tags&&c.tags.length);
   if(!state.chFilter||state.chFilter==='all')return true;
@@ -1241,6 +1271,7 @@ async function init(){
   $('#searchBtn').onclick=openSearch;
   $('#searchClose').onclick=()=>history.back();
   $('#searchInput').addEventListener('input',renderSearch);
+  $('#searchInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#searchInput').blur();ytSearch();}});
   $('#tagPickClose').onclick=()=>history.back();
   $('#chvClose').onclick=()=>history.back();
   $('#chvTabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{state.chvTab=b.dataset.t;$('#chvTabs').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));renderChvTab();});
