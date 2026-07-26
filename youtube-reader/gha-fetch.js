@@ -85,46 +85,6 @@ async function markMeta(list) {
   console.log(`ライブ判定: 配信中 ${live} / 配信予定 ${upcoming} / URL確認ショート ${urlShort}/${urlCand.length}`);
 }
 
-const MEMBER_DAYS = Number(process.env.MEMBER_DAYS || 60); // メンバー候補は直近この日数のみ
-
-// oembedで公開判定。公開動画は200、メンバー限定/制限付きは非200。
-async function oembedRestricted(id) {
-  try {
-    const r = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`,
-      { headers: { 'User-Agent': config.userAgent } });
-    r.body?.cancel?.();
-    return r.status !== 200; // 200=公開 / 401,403等=メンバー限定など
-  } catch (e) { return false; }
-}
-
-// メンバー限定候補: アップロード一覧(公開キー)にあってRSS(通常公開)に無い直近動画のうち、
-// oembedで「非公開扱い＝制限あり」のものだけ。RSS枠から外れた古い公開動画やショートは公開判定で除外される。
-async function fetchMemberCandidates(targets, rssVideos) {
-  if (!YT_KEY) return [];
-  const rssIds = new Set(rssVideos.map((v) => v.id));
-  const cutoff = Date.now() - MEMBER_DAYS * 86400000;
-  const cand = [];
-  await mapPool(targets, config.concurrency, async (c) => {
-    const cid = c.channelId; if (!cid || cid.length < 3) return;
-    const up = 'UU' + cid.slice(2); // アップロード再生リストID
-    try {
-      const r = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=15&playlistId=${up}&key=${YT_KEY}`);
-      if (!r.ok) return;
-      const j = await r.json();
-      for (const it of j.items || []) {
-        const s = it.snippet || {}, vid = s.resourceId && s.resourceId.videoId; if (!vid) continue;
-        if (rssIds.has(vid)) continue; // RSSにある=通常公開
-        const t = Date.parse(s.publishedAt) || 0; if (t < cutoff) continue; // 直近のみ
-        cand.push({ id: vid, cid, t: s.title || '', p: s.publishedAt || '', u: s.publishedAt || '' });
-      }
-    } catch (e) {}
-  });
-  console.log(`メンバー候補(公開判定前): ${cand.length}本`);
-  const mem = [];
-  await mapPool(cand, config.concurrency, async (v) => { if (await oembedRestricted(v.id)) mem.push({ ...v, mem: true }); });
-  return mem;
-}
-
 async function listChannels() {
   const base = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/${CH_COL}?key=${API_KEY}&pageSize=300`;
   const channels = [];
@@ -213,14 +173,6 @@ async function main() {
   await markMeta(toCheck);
   const shortCount = toCheck.filter((v) => v.short).length;
   console.log(`ショート判定: ${toCheck.length}本中 ${shortCount}本がショート`);
-
-  // メンバー限定候補を追加（RSSに載らない差分）
-  const members = await fetchMemberCandidates(targets, videos);
-  const known = new Set(trimmed.map((v) => v.id));
-  const memAdd = members.filter((v) => !known.has(v.id) && (known.add(v.id), true));
-  for (const v of memAdd) trimmed.push(v);
-  trimmed.sort((a, b) => key(b) - key(a));
-  console.log(`メンバー限定候補: ${memAdd.length}本`);
 
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, JSON.stringify({ updatedAt: now(), count: trimmed.length, videos: trimmed }) + '\n', 'utf8');
