@@ -85,24 +85,62 @@ function collectMembersFromData(data, cid) {
   })(data);
   return out;
 }
+const MEMBER_MAX_PAGES = Number(process.env.MEMBER_MAX_PAGES || 25); // continuationの最大ページ数（1ページ≒30件）
+// continuation(次ページ)トークンを探す
+function findContinuation(obj) {
+  let token = null;
+  (function walk(n) {
+    if (!n || typeof n !== 'object' || token) return;
+    if (Array.isArray(n)) { for (const x of n) { walk(x); if (token) return; } return; }
+    if (n.continuationItemRenderer) {
+      const t = n.continuationItemRenderer.continuationEndpoint?.continuationCommand?.token;
+      if (t) { token = t; return; }
+    }
+    for (const k in n) { walk(n[k]); if (token) return; }
+  })(obj);
+  return token;
+}
+// 1つのタブを continuation で最後まで辿ってメンバー動画を集める
+async function scrapeChannelTab(base, tab, byId) {
+  let cid = '';
+  let html;
+  try {
+    const r = await fetch(base + tab, { headers: MEMBER_HEADERS, redirect: 'follow' });
+    if (!r.ok) { console.error(`  member ${base}${tab}: HTTP ${r.status}`); return; }
+    html = await r.text();
+  } catch (e) { console.error(`  member ${base}${tab}: ${e.message}`); return; }
+  const data = extractYtInitialData(html);
+  if (!data) { console.error(`  member ${base}${tab}: ytInitialData取得失敗`); return; }
+  cid = extractChannelId(data);
+  let n0 = byId.size;
+  for (const v of collectMembersFromData(data, cid)) if (!byId.has(v.id)) byId.set(v.id, v);
+  // InnerTube(次ページAPI)のキー・クライアント版を取り出す
+  const key = (html.match(/"INNERTUBE_API_KEY":"([^"]+)"/) || [])[1];
+  const cver = (html.match(/"INNERTUBE_CONTEXT_CLIENT_VERSION":"([^"]+)"/) || html.match(/"clientVersion":"([^"]+)"/) || [])[1] || '2.20240101.00.00';
+  let token = findContinuation(data);
+  let pages = 1;
+  while (token && key && pages < MEMBER_MAX_PAGES) {
+    pages++;
+    try {
+      const cr = await fetch(`https://www.youtube.com/youtubei/v1/browse?key=${key}&prettyPrint=false`, {
+        method: 'POST',
+        headers: { ...MEMBER_HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context: { client: { clientName: 'WEB', clientVersion: cver, hl: 'ja', gl: 'JP' } }, continuation: token }),
+      });
+      if (!cr.ok) { console.error(`  member ${base}${tab}: continuation HTTP ${cr.status}`); break; }
+      const cj = await cr.json();
+      for (const v of collectMembersFromData(cj, cid)) if (!byId.has(v.id)) byId.set(v.id, v);
+      token = findContinuation(cj);
+    } catch (e) { console.error(`  member ${base}${tab}: continuation ${e.message}`); break; }
+  }
+  console.error(`  member ${base}${tab}: +${byId.size - n0}本 / ${pages}ページ (cid=${cid})`);
+}
 async function fetchMemberVideos() {
   if (!MEMBER_CHANNELS.length) return [];
   const byId = new Map();
   for (const ref of MEMBER_CHANNELS) {
     const base = ref.startsWith('@') ? `https://www.youtube.com/${encodeURIComponent(ref)}` : `https://www.youtube.com/channel/${ref}`;
-    for (const tab of ['/videos', '/streams']) { // 通常動画タブとライブタブ両方を見る
-      try {
-        const r = await fetch(base + tab, { headers: MEMBER_HEADERS, redirect: 'follow' });
-        if (!r.ok) { console.error(`  member ${ref}${tab}: HTTP ${r.status}`); continue; }
-        const html = await r.text();
-        const data = extractYtInitialData(html);
-        if (!data) { console.error(`  member ${ref}${tab}: ytInitialData取得失敗`); continue; }
-        const cid = (ref.startsWith('@') ? extractChannelId(data) : ref) || extractChannelId(data);
-        const found = collectMembersFromData(data, cid);
-        for (const v of found) if (!byId.has(v.id)) byId.set(v.id, v);
-        console.error(`  member ${ref}${tab}: メンバー ${found.length}本 (cid=${cid})`);
-      } catch (e) { console.error(`  member ${ref}${tab}: ${e.message}`); }
-    }
+    for (const tab of ['/videos', '/streams']) await scrapeChannelTab(base, tab, byId);
   }
   const out = [...byId.values()];
   console.error(`  → メンバー合計 ${out.length}本`);
