@@ -498,7 +498,7 @@ body.fs-lock{overflow:hidden;}
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script>
 const CFG = window.YTR_CONFIG || {};
-const APP_VER = 'ytapi-v18'; // 更新確認用。設定>状態 に表示
+const APP_VER = 'autopip-v19'; // 更新確認用。設定>状態 に表示
 const CH_COL='schedule_ytChannels', META_DOC=['schedule_ytMeta','app'], MEM_DOC=['schedule_ytMeta','members'];
 const REDISCOVER={W_STALE:1.0,W_FRESH:0.6,FRESH_CAP_DAYS:30,NEVER_VIEWED_DAYS:400};
 const DAY=86400000, now=()=>Date.now(), nowIso=()=>new Date().toISOString();
@@ -839,7 +839,8 @@ function makePlayer(native,id,startAt){
   state.ytp=new YT.Player('ytpd',{ host:'https://www.youtube.com', videoId:id||undefined,
     playerVars:{ playsinline:native?0:1, rel:0, fs:1, autoplay:id?1:0, start:startAt||0, cc_load_policy:0 },
     events:{
-      onReady:(e)=>{ try{ if(id)e.target.playVideo(); }catch(_){} if(!native)captionsOff(); },
+      onReady:(e)=>{ try{ if(id)e.target.playVideo(); }catch(_){} if(!native)captionsOff();
+        try{ const f=e.target.getIframe&&e.target.getIframe(); if(f){ f.allow='autoplay; encrypted-media; picture-in-picture; fullscreen'; f.setAttribute('playsinline',''); f.setAttribute('webkit-playsinline',''); } }catch(_){} }, // インライン自動PiPを効かせる
       onStateChange:(e)=>{ const st=e.data;
         if(st===1){state._playing=true;$('#miniPlay').classList.remove('paused');ctPoll(true);}
         else if(st===2){state._playing=false;$('#miniPlay').classList.add('paused');ctPoll(false);}
