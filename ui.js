@@ -156,10 +156,13 @@ function sortByTime(arr){
     return (av===null?Infinity:av) - (bv===null?Infinity:bv);
   });
 }
-// 起床シフトを適用（特殊表記・深夜24:00以上はそのまま）
+// 起床シフトを適用。
+// 特殊表記(自然起床/随時/〜表記など parseTimeで読めないもの)は adjustTime 内でそのまま返る。
+// 深夜(24:00以上)の時刻も一律シフトさせる。
+// ※以前は「24:00以上は固定」ガードがあったが、起床シフトで夜のタスクが24:00を
+//   跨ぐと、編集保存時の逆シフト計算がこのガードに引っかかり保存時刻がシフト分ズレていた。
+//   モードのデフォルトタスクは元々 adjustTime で無条件シフトしており、それに揃える。
 function shiftTaskTime(time, shiftMin){
-  const v = parseTime(time);
-  if(v === null || v >= 1440) return time; // 自然起床等/深夜タスクは固定
   return adjustTime(time, shiftMin);
 }
 function computeDayTasks(date){
