@@ -266,8 +266,13 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 .kokai-block{margin-bottom:22px;}
 .kokai-card{background:var(--card);border:1px solid var(--bdr);border-radius:14px;margin-bottom:10px;overflow:hidden;}
 .kokai-work-head{padding:13px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;}
-.kokai-work-name{font-size:14px;font-weight:700;flex:1;min-width:0;}
+.kokai-work-name{font-size:14px;font-weight:700;}
+.kokai-work-sub{margin-top:3px;}
+.kokai-cat{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.06em;color:#7A6BA6;background:#F0EBF9;border-radius:5px;padding:2px 6px;margin-right:6px;vertical-align:middle;}
 .kokai-work-frac{font-size:11px;color:var(--ink-mute);flex-shrink:0;}
+.kokai-stage-idx{width:18px;height:18px;flex-shrink:0;border-radius:50%;background:rgba(0,0,0,.05);color:var(--ink-mute);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.kokai-nudge{font-size:10px;color:var(--ink-mute);margin-top:8px;letter-spacing:.03em;display:flex;align-items:center;gap:5px;}
+.kokai-nudge .dot{width:5px;height:5px;border-radius:50%;background:var(--beige);flex-shrink:0;}
 .kokai-bar{height:3px;background:rgba(0,0,0,.05);margin:0 14px;border-radius:1.5px;overflow:hidden;}
 .kokai-bar-fill{height:100%;background:linear-gradient(90deg,var(--lav),var(--blue));transition:width .3s;}
 .kokai-stage-row{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--bdr);cursor:pointer;}
@@ -338,7 +343,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v72</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v73</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -722,18 +727,28 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 
 <!-- KOKAI: 作品（制作工程）追加・編集 -->
 <div class="ov" id="ov-kokai-work"><div class="modal"><div class="mhd"><div class="mttl" id="kw-title">作品を追加</div><button class="mcl" onclick="closeModal('ov-kokai-work')">×</button></div><div class="mbody">
-  <div class="fg"><label class="fl">作品名 *</label><input class="fi" type="text" id="kw-name" placeholder="例: 陽かり"></div>
+  <div class="fg"><label class="fl">タイトル *</label><input class="fi" type="text" id="kw-name" placeholder="例: 陽かり（実写版）"></div>
+  <div class="flex-row">
+    <div style="flex:1;"><label class="fl">区分</label><select class="fi" id="kw-cat"><option value="作品">作品</option><option value="音楽">音楽</option><option value="検証">検証</option><option value="その他">その他</option></select></div>
+    <div style="flex:1;"><label class="fl">締切（任意）</label><input class="fi" type="date" id="kw-deadline"></div>
+  </div>
+  <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-soft);margin:12px 0 8px;cursor:pointer;">
+    <input type="checkbox" id="kw-onhold" style="width:18px;height:18px;flex-shrink:0;">
+    <span>保留中（工程は後日定義）</span>
+  </label>
   <div class="fg"><label class="fl">メモ（任意）</label><textarea class="fi" id="kw-note" rows="3"></textarea></div>
   <button class="btn-pri" onclick="saveKokaiWork()">保存</button>
   <button class="btn-sec" id="kw-del" style="margin-top:8px;width:100%;color:var(--ink-mute);display:none;" onclick="deleteKokaiWork()">この作品を削除</button>
 </div></div></div>
 
-<!-- KOKAI: 工程ステータス編集 -->
-<div class="ov" id="ov-kokai-stage"><div class="modal" style="max-width:360px;"><div class="mhd"><div class="mttl" id="ks-title">工程</div><button class="mcl" onclick="closeModal('ov-kokai-stage')">×</button></div><div class="mbody">
+<!-- KOKAI: 工程 追加・編集 -->
+<div class="ov" id="ov-kokai-stage"><div class="modal" style="max-width:380px;"><div class="mhd"><div class="mttl" id="ks-title">工程</div><button class="mcl" onclick="closeModal('ov-kokai-stage')">×</button></div><div class="mbody">
+  <div class="fg"><label class="fl">工程名 *</label><input class="fi" type="text" id="ks-label" placeholder="例: コンテ改訂"></div>
   <label class="fl">ステータス</label>
   <div class="kokai-status-grid" id="ks-status-grid"></div>
   <div class="fg" style="margin-top:12px;"><label class="fl">メモ（任意）</label><textarea class="fi" id="ks-memo" rows="3"></textarea></div>
   <button class="btn-pri" onclick="saveKokaiStage()">保存</button>
+  <button class="btn-sec" id="ks-del" style="margin-top:8px;width:100%;color:var(--ink-mute);display:none;" onclick="deleteKokaiStage()">この工程を削除</button>
 </div></div></div>
 
 <!-- KOKAI: タスク追加 -->
@@ -769,9 +784,13 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
     <div style="flex:1;"><label class="fl">単位</label><input class="fi" type="text" id="ka-unit" placeholder="本 / 回 / 日"></div>
   </div>
   <div class="fg" style="margin-top:10px;"><label class="fl">目標頻度メモ（任意）</label><input class="fi" type="text" id="ka-schedule" placeholder="例: 毎週日曜21時"></div>
-  <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-soft);margin:2px 0 12px;cursor:pointer;">
+  <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-soft);margin:2px 0 8px;cursor:pointer;">
     <input type="checkbox" id="ka-memo" style="width:18px;height:18px;flex-shrink:0;">
     <span>記録時にメモを残す（練習の課題曲名など）</span>
+  </label>
+  <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-soft);margin:2px 0 12px;cursor:pointer;">
+    <input type="checkbox" id="ka-production" style="width:18px;height:18px;flex-shrink:0;">
+    <span>制作系（2日以上あくと静かに知らせる）</span>
   </label>
   <button class="btn-pri" onclick="saveKokaiActivity()">保存</button>
   <button class="btn-sec" id="ka-del" style="margin-top:8px;width:100%;color:var(--ink-mute);display:none;" onclick="deleteKokaiActivity()">この活動を削除</button>
@@ -834,7 +853,7 @@ const COL = {
 
 // =================== CACHE ===================
 window.cache = {
-  settings: { startWeight:83, targetWeight:68, interimWeight:71.5, interimDate:'2026-09-15', startBodyFat:25, targetBodyFat:18, youtubeLongTarget:15, youtubeShortTarget:30, vanBudget:400000, gymDays:['月','木'], wakeTime:'10:00', targetSleepHours:8, calendarEmbedUrl:'', notifyEnabled:false, notifyEmail:'', notifyLeadMin:5, priorityOrder:[], targetCalories:1700, basalMetabolism:2200, targetBurn:2700, targetProtein:160, waterMinMl:2500, waterMaxMl:3000, workoutPerWeek:2, runningPerWeek:4, restPerWeek:3, targetWeeklyDeficit:7700, trackStartDate:'2026-06-25', limitCarbs:145, limitFat:50, excludeDates:['2026-06-29','2026-06-30'], kokaiSeeded:false },
+  settings: { startWeight:83, targetWeight:68, interimWeight:71.5, interimDate:'2026-09-15', startBodyFat:25, targetBodyFat:18, youtubeLongTarget:15, youtubeShortTarget:30, vanBudget:400000, gymDays:['月','木'], wakeTime:'10:00', targetSleepHours:8, calendarEmbedUrl:'', notifyEnabled:false, notifyEmail:'', notifyLeadMin:5, priorityOrder:[], targetCalories:1700, basalMetabolism:2200, targetBurn:2700, targetProtein:160, waterMinMl:2500, waterMaxMl:3000, workoutPerWeek:2, runningPerWeek:4, restPerWeek:3, targetWeeklyDeficit:7700, trackStartDate:'2026-06-25', limitCarbs:145, limitFat:50, excludeDates:['2026-06-29','2026-06-30'], kokaiSeeded:false, kokaiContentVersion:0 },
   weights: [],
   dayModes: {},  // {'2026-05-14': 'normal'}
   wakeTimes: {}, // {'2026-05-14': '11:00'}
@@ -1361,6 +1380,6 @@ if(window.caches){ caches.keys().then(ks=>{ ks.forEach(k=>caches.delete(k)); }).
 </script>
 
 <!-- UI script -->
-<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=72"></script>
+<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=73"></script>
 </body>
 </html>
