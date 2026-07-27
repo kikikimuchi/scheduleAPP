@@ -498,7 +498,7 @@ body.fs-lock{overflow:hidden;}
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script>
 const CFG = window.YTR_CONFIG || {};
-const APP_VER = 'pipfix-v17'; // 更新確認用。設定>状態 に表示
+const APP_VER = 'ytapi-v18'; // 更新確認用。設定>状態 に表示
 const CH_COL='schedule_ytChannels', META_DOC=['schedule_ytMeta','app'], MEM_DOC=['schedule_ytMeta','members'];
 const REDISCOVER={W_STALE:1.0,W_FRESH:0.6,FRESH_CAP_DAYS:30,NEVER_VIEWED_DAYS:400};
 const DAY=86400000, now=()=>Date.now(), nowIso=()=>new Date().toISOString();
@@ -825,17 +825,44 @@ function openVideo(o){
   state._playing=true; $('#miniPlay').classList.remove('paused'); $('#npMin').textContent='▽';
   $('#npInfo').scrollTop=0;
 }
-// プレーヤーを指定モードで（再）生成。native=true→playsinline無し(全画面・スワイプPiP)、false→インライン
+// ---- YouTube IFrame Player API（loadVideoByIdをタップ操作内で呼ぶとiOSでも即再生できる）----
+let _ytApiReq=false;
+function loadYTApi(){ if(_ytApiReq)return; _ytApiReq=true;
+  if(window.YT&&window.YT.Player){state._ytReady=true;return;}
+  const s=document.createElement('script'); s.src='https://www.youtube.com/iframe_api'; document.head.appendChild(s); }
+window.onYouTubeIframeAPIReady=function(){ state._ytReady=true; try{ makePlayer(useIosPip(),null,0); }catch(e){} };
+function ctPoll(on){ clearInterval(state._ctT); if(on)state._ctT=setInterval(()=>{ try{ const p=state.ytp; if(!p||!p.getCurrentTime)return; const t=p.getCurrentTime(); if(typeof t==='number'){ state._curTime=t; savePos(state.currentVideo&&state.currentVideo.id,t,p.getDuration&&p.getDuration()); syncChatReplay(t);} }catch(e){} },1000); }
+function makePlayer(native,id,startAt){
+  if(!(window.YT&&window.YT.Player))return false;
+  if(state.ytp){try{state.ytp.destroy();}catch(e){}state.ytp=null;}
+  $('#playerBox').innerHTML='<div id="ytpd"></div>';
+  state.ytp=new YT.Player('ytpd',{ host:'https://www.youtube.com', videoId:id||undefined,
+    playerVars:{ playsinline:native?0:1, rel:0, fs:1, autoplay:id?1:0, start:startAt||0, cc_load_policy:0 },
+    events:{
+      onReady:(e)=>{ try{ if(id)e.target.playVideo(); }catch(_){} if(!native)captionsOff(); },
+      onStateChange:(e)=>{ const st=e.data;
+        if(st===1){state._playing=true;$('#miniPlay').classList.remove('paused');ctPoll(true);}
+        else if(st===2){state._playing=false;$('#miniPlay').classList.add('paused');ctPoll(false);}
+        else if(st===0){clearPos(state.currentVideo&&state.currentVideo.id);ctPoll(false);} },
+      onError:(e)=>showPlayerError(e.data),
+    }});
+  state._ytNative=native; return true;
+}
+// プレーヤーに動画を読み込む。API準備済みなら loadVideoById（=タップ操作の中で即再生）、未準備なら従来の生iframe
 function applyPlayer(o,native,startAt){
+  state._nativeMode=native; if(native)state._nativeAt=Date.now();
+  const pb=$('#actPip'); if(pb)pb.classList.toggle('on',native);
+  if(state._ytReady&&window.YT&&window.YT.Player){
+    if(state.ytp&&state._ytNative===native&&state.ytp.loadVideoById){
+      try{ state.ytp.loadVideoById({videoId:o.id,startSeconds:startAt||0}); if(!native)captionsOff(); return; }catch(e){}
+    }
+    if(makePlayer(native,o.id,startAt))return;
+  }
+  // フォールバック（API未ロード時）
   const s=startAt?`&start=${startAt}`:'';
-  const params=native
-    ? `autoplay=1&playsinline=0&rel=0&fs=1&enablejsapi=1${s}` // autoplayで全画面再生まで一気に（iOSがブロックしたら▶タップ）
-    : `autoplay=1&playsinline=1&rel=0&enablejsapi=1&cc_load_policy=0&cc_lang_pref=none${s}`;
+  const params=native?`autoplay=1&playsinline=0&rel=0&fs=1&enablejsapi=1${s}`:`autoplay=1&playsinline=1&rel=0&enablejsapi=1&cc_load_policy=0&cc_lang_pref=none${s}`;
   $('#playerBox').innerHTML=`<iframe src="https://www.youtube.com/embed/${encodeURIComponent(o.id)}?${params}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
-  const f=$('#playerBox iframe');
-  if(f)f.addEventListener('load',()=>{ try{f.contentWindow.postMessage(JSON.stringify({event:'listening',id:1,channel:'widget'}),'*');}catch(e){} if(!native)captionsOff(); });
-  state._nativeMode=native; if(native)state._nativeAt=Date.now(); // 復帰誤検知防止用のタイムスタンプ
-  const pb=$('#actPip'); if(pb)pb.classList.toggle('on',native); // ネイティブ時はボタン点灯
+  const f=$('#playerBox iframe'); if(f)f.addEventListener('load',()=>{ try{f.contentWindow.postMessage(JSON.stringify({event:'listening',id:1,channel:'widget'}),'*');}catch(e){} if(!native)captionsOff(); });
 }
 // 📺トグル: ネイティブ⇄インラインを切替（現在の再生位置から）
 function toggleNativePlayer(){
@@ -1009,6 +1036,7 @@ function fmtRich(raw){
   return out.replace(/\n/g,'<br>');
 }
 function seekTo(sec){
+  if(state.ytp&&state.ytp.seekTo){ try{ state.ytp.seekTo(sec,true); state.ytp.playVideo(); return; }catch(e){} }
   const f=$('#playerBox iframe'); if(!f||!f.contentWindow) return;
   const post=(func,args)=>f.contentWindow.postMessage(JSON.stringify({event:'command',func,args}),'*');
   post('seekTo',[sec,true]); post('playVideo',[]);
@@ -1037,7 +1065,9 @@ function clearPos(id){ if(id&&state.pos&&state.pos[id]){delete state.pos[id];LS.
 function resumeAt(id){ const p=state.pos&&state.pos[id]; if(!p)return 0; if(p.dur&&p.t>=p.dur-15)return 0; return p.t>10?p.t:0; } // 10秒超〜終盤15秒手前のみ再開
 // 字幕を強制オフ（プレーヤー準備タイミングを取り逃さないよう数回送る）
 function captionsOff(){
-  const send=()=>{const f=$('#playerBox iframe'); if(!f||!f.contentWindow)return;
+  const send=()=>{
+    if(state.ytp&&state.ytp.unloadModule){ try{ state.ytp.setOption('captions','track',{}); state.ytp.unloadModule('captions'); state.ytp.unloadModule('cc'); return; }catch(e){} }
+    const f=$('#playerBox iframe'); if(!f||!f.contentWindow)return;
     const post=(func,args)=>f.contentWindow.postMessage(JSON.stringify({event:'command',func,args}),'*');
     post('setOption',['captions','track',{}]); post('unloadModule',['captions']); post('unloadModule',['cc']);};
   [600,1600,3200].forEach(ms=>setTimeout(send,ms));
@@ -1061,7 +1091,9 @@ async function loadComments(id){
       else ct.classList.remove('clamp'); });
   }catch(e){box.innerHTML=`<p class="cmt-note">コメント取得でエラーが発生しました。</p>`;}
 }
-function closeNp(){flushPos();updateCardProgress(state.currentVideo&&state.currentVideo.id);const np=$('#np');np.classList.remove('on','mini','fs');resetNpPos();document.body.classList.remove('fs-lock');$('#playerBox').innerHTML='';state.currentVideo=null;saveView();}
+function closeNp(){flushPos();updateCardProgress(state.currentVideo&&state.currentVideo.id);const np=$('#np');np.classList.remove('on','mini','fs');resetNpPos();document.body.classList.remove('fs-lock');
+  if(state.ytp){try{state.ytp.stopVideo();}catch(e){}ctPoll(false);}else{$('#playerBox').innerHTML='';} // 永続プレーヤーは停止のみ(再利用)
+  state.currentVideo=null;saveView();}
 // ブラウザバックでアプリを抜けず、プレーヤー/オーバーレイを閉じる
 function ovlOpen(){return $('#np').classList.contains('on')||$('#searchPanel').classList.contains('on')||$('#chView').classList.contains('on')||$('#tagPick').classList.contains('on');}
 function histCapture(){ if(!state._hist){ try{history.pushState({ovl:1},'');}catch(e){} state._hist=true; } }
@@ -1490,9 +1522,9 @@ async function init(){
   $('#actClose').onclick=()=>history.back();
   // 小窓の再生/一時停止（YouTubeロゴを踏まずに操作できるように）
   $('#miniPlay').onclick=()=>{
-    const f=$('#playerBox iframe'); if(!f||!f.contentWindow)return;
     const play=!state._playing;
-    f.contentWindow.postMessage(JSON.stringify({event:'command',func:play?'playVideo':'pauseVideo',args:[]}),'*');
+    if(state.ytp&&state.ytp.playVideo){ try{ play?state.ytp.playVideo():state.ytp.pauseVideo(); }catch(e){} }
+    else { const f=$('#playerBox iframe'); if(!f||!f.contentWindow)return; f.contentWindow.postMessage(JSON.stringify({event:'command',func:play?'playVideo':'pauseVideo',args:[]}),'*'); }
     state._playing=play; $('#miniPlay').classList.toggle('paused',!play);
   };
   // 配信中ライブ=チャット埋め込み(リアルタイムなので動く) / アーカイブ=同期不可なのでYouTubeリンク
@@ -1561,6 +1593,7 @@ async function init(){
   window.addEventListener('pagehide',saveView);
   setHdh();window.addEventListener('resize',setHdh);window.addEventListener('orientationchange',()=>setTimeout(setHdh,300));
   initLogin();
+  loadYTApi(); // YouTube IFrame Player API を読み込み（タップで即再生できるように）
   // リロード時は前回の表示（タブ・タグ・スクロール位置）を復元
   const v=LS.get(LSK_VIEW,null);
   state._restoring=true;
