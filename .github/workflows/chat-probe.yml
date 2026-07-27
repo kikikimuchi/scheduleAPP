@@ -1,0 +1,20 @@
+name: Chat probe (diagnostic)
+on:
+  workflow_dispatch:
+    inputs:
+      ids:
+        description: "動画ID(カンマ区切り)"
+        required: false
+        default: ""
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Probe chat
+        env:
+          CHAT_IDS: ${{ github.event.inputs.ids }}
+        run: node youtube-reader/gha-chat-probe.js
