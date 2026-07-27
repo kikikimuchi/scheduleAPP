@@ -307,25 +307,34 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 .kokai-world-check{display:flex;align-items:center;gap:7px;margin-top:9px;font-size:11px;color:var(--ink-soft);cursor:pointer;}
 .kokai-world-box{width:17px;height:17px;border:1.5px solid var(--bdr-s);border-radius:5px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#fff;font-size:11px;font-weight:700;}
 .kokai-world-box.on{background:var(--mint);border-color:var(--mint);color:#fff;}
-.kokai-act-card{border:1px solid var(--bdr);border-radius:14px;padding:13px 14px;margin-bottom:10px;background:#fff;}
-.kokai-act-head{display:flex;align-items:center;gap:10px;}
-.kokai-act-ico{font-size:18px;flex-shrink:0;}
-.kokai-act-name{font-size:13px;font-weight:700;}
-.kokai-act-sched{font-size:10px;color:var(--ink-mute);margin-top:1px;}
-.kokai-act-frac{margin-left:auto;text-align:right;flex-shrink:0;}
+.kokai-act-card{border:1px solid var(--bdr);border-radius:14px;padding:12px 13px;margin-bottom:9px;background:#fff;}
+.kokai-act-head{display:flex;align-items:center;gap:9px;}
+.kokai-act-ico{font-size:17px;flex-shrink:0;}
+.kokai-act-name{font-size:13px;font-weight:700;line-height:1.2;}
+.kokai-act-sched{font-size:10px;color:var(--ink-mute);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.kokai-act-frac{margin-left:auto;text-align:right;flex-shrink:0;padding-left:6px;}
 .kokai-act-frac-num{font-size:15px;font-weight:700;line-height:1;}
 .kokai-act-frac-lbl{font-size:9px;color:var(--ink-mute);}
-.kokai-act-bar{height:4px;background:rgba(0,0,0,.05);border-radius:2px;overflow:hidden;margin:9px 0;}
+.kokai-act-bar{height:4px;background:rgba(0,0,0,.05);border-radius:2px;overflow:hidden;margin:8px 0;}
 .kokai-act-bar-fill{height:100%;background:linear-gradient(90deg,var(--mint),var(--blue));transition:width .3s;}
-.kokai-act-btns{display:flex;gap:6px;align-items:center;margin-top:9px;}
-.kokai-rec-btn{border:none;border-radius:10px;padding:10px 14px;font-size:12px;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--lav),var(--blue));cursor:pointer;letter-spacing:.04em;flex-shrink:0;}
-.kokai-rec-btn:active{transform:scale(.97);}
-.kokai-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:11px;}
-.kokai-grid-cell{aspect-ratio:1;border-radius:3px;background:rgba(0,0,0,.05);}
+/* 記録行：1タップ主役ボタン＋（練習のみ）小さな任意メモ */
+.kokai-rec-row{display:flex;gap:6px;align-items:center;margin-top:8px;}
+.kokai-memo-in{flex:1;min-width:0;height:38px;line-height:38px;border:none;background:rgba(0,0,0,.04);border-radius:9px;padding:0 11px;font-size:13px;color:var(--ink);outline:none;-webkit-appearance:none;appearance:none;}
+.kokai-memo-in:focus{box-shadow:0 0 0 2px rgba(200,181,219,.5);}
+.kokai-rec-btn{flex:1;border:none;border-radius:10px;height:40px;font-size:13px;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--lav),var(--blue));cursor:pointer;letter-spacing:.04em;}
+.kokai-rec-btn.has-memo{flex:0 0 auto;padding:0 16px;}
+.kokai-rec-btn.done{background:#EAF3EA;color:#5E9160;}
+.kokai-rec-btn:active{transform:scale(.98);}
+.kokai-undo{flex:0 0 auto;border:1px solid var(--bdr-s);background:transparent;border-radius:9px;height:40px;padding:0 11px;font-size:11px;color:var(--ink-mute);cursor:pointer;}
+/* 履歴：小さなドット帯（直近28日を1行） */
+.kokai-grid{display:grid;grid-template-columns:repeat(28,1fr);gap:2px;margin-top:10px;}
+.kokai-grid-cell{aspect-ratio:1;border-radius:2px;background:rgba(0,0,0,.06);}
 .kokai-grid-cell.on{background:var(--lav);}
 .kokai-grid-cell.today{box-shadow:0 0 0 1.5px var(--pink) inset;}
-.kokai-streak{font-size:10px;color:var(--ink-soft);margin-top:8px;letter-spacing:.04em;}
+.kokai-act-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px;}
+.kokai-streak{font-size:10px;color:var(--ink-soft);letter-spacing:.04em;}
 .kokai-streak b{color:var(--ink);font-weight:700;}
+.kokai-edit-link{background:none;border:none;font-size:10px;color:var(--ink-faint);cursor:pointer;padding:2px 4px;letter-spacing:.05em;}
 
 /* ===== PC(>=768px)レイアウト：基本ルールの後に置き確実に上書き。スマホは未変更 ===== */
 @media (min-width: 768px){
@@ -343,7 +352,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v73</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v74</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -1380,6 +1389,6 @@ if(window.caches){ caches.keys().then(ks=>{ ks.forEach(k=>caches.delete(k)); }).
 </script>
 
 <!-- UI script -->
-<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=73"></script>
+<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=74"></script>
 </body>
 </html>
