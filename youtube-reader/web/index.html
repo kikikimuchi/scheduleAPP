@@ -498,7 +498,7 @@ body.fs-lock{overflow:hidden;}
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script>
 const CFG = window.YTR_CONFIG || {};
-const APP_VER = 'chat-v16'; // 更新確認用。設定>状態 に表示
+const APP_VER = 'pipfix-v17'; // 更新確認用。設定>状態 に表示
 const CH_COL='schedule_ytChannels', META_DOC=['schedule_ytMeta','app'], MEM_DOC=['schedule_ytMeta','members'];
 const REDISCOVER={W_STALE:1.0,W_FRESH:0.6,FRESH_CAP_DAYS:30,NEVER_VIEWED_DAYS:400};
 const DAY=86400000, now=()=>Date.now(), nowIso=()=>new Date().toISOString();
@@ -1475,15 +1475,17 @@ async function init(){
     }catch(_){}
   });
   window.addEventListener('pagehide',flushPos);
-  // PiP/ネイティブ再生からアプリに戻ったら自動でインラインへ（iOSは色々なイベントで来るので複数拾う）
+  // PiP/ネイティブ再生から「一度ホームへ出て」アプリに戻ってきた時だけ自動でインラインへ
+  // （全画面再生中に誤発動してPiPを潰さないよう、hidden→visibleのサイクルを条件にする）
   function maybeReturnInline(){
-    if(!state._nativeMode||!state.currentVideo||!$('#np').classList.contains('on'))return;
-    if(Date.now()-(state._nativeAt||0)<2500)return; // 全画面移行直後の誤発火を無視
+    if(!state._wentBgNative||!state._nativeMode||!state.currentVideo||!$('#np').classList.contains('on'))return;
+    state._wentBgNative=false;
     const t=Math.floor(state._curTime||0); applyPlayer(state.currentVideo,false,t>1?t:0);
   }
-  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){flushPos();saveView();} else maybeReturnInline(); });
-  window.addEventListener('focus',maybeReturnInline);
-  window.addEventListener('pageshow',maybeReturnInline);
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='hidden'){ flushPos(); saveView(); if(state._nativeMode)state._wentBgNative=true; }
+    else maybeReturnInline();
+  });
   $('#actMin').onclick=minimizePlayer;
   $('#actClose').onclick=()=>history.back();
   // 小窓の再生/一時停止（YouTubeロゴを踏まずに操作できるように）
