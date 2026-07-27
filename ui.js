@@ -2894,15 +2894,12 @@ function renderKokaiActivities(){
     const unit = a.unit || '回';
     const days = kDaysForAct(a.id);
     const todayCount = kLogsForAct(a.id).filter(l=>l.date===today).length;
-    const start = kDateAdd(today,-20);
+    const start = kDateAdd(today,-27);
     let grid = '';
-    for(let i=0;i<21;i++){ const dd=kDateAdd(start,i); grid+=`<div class="kokai-grid-cell ${days.has(dd)?'on':''} ${dd===today?'today':''}"></div>`; }
-    let streakHtml = '';
-    if(a.freq==='daily'){
-      streakHtml = `<div class="kokai-streak">連続 <b>${kStreak(a.id)}日</b> ・ のべ <b>${days.size}日</b></div>`;
-    } else {
-      streakHtml = `<div class="kokai-streak">のべ <b>${kLogsForAct(a.id).length}${unit}</b></div>`;
-    }
+    for(let i=0;i<28;i++){ const dd=kDateAdd(start,i); grid+=`<div class="kokai-grid-cell ${days.has(dd)?'on':''} ${dd===today?'today':''}"></div>`; }
+    const streakTxt = a.freq==='daily'
+      ? `連続 <b>${kStreak(a.id)}日</b> ・ のべ <b>${days.size}日</b>`
+      : `のべ <b>${kLogsForAct(a.id).length}${unit}</b>`;
     // 制作系: 2日以上あいたら静かに知らせる（警告色なし）
     let nudgeHtml = '';
     if(a.production){
@@ -2912,19 +2909,17 @@ function renderKokaiActivities(){
         nudgeHtml = `<div class="kokai-nudge"><span class="dot"></span>2日以上は止めない（${note}）</div>`;
       }
     }
-    let recHtml;
-    if(a.hasMemo){
-      recHtml = `<input class="fi" type="text" id="kokai-memo-${a.id}" placeholder="課題曲名など（任意）" style="flex:1;height:40px;line-height:40px;">
-        <button class="kokai-rec-btn" onclick="recordKokaiActivity('${a.id}')">記録</button>`;
-    } else {
-      recHtml = `<button class="kokai-rec-btn" onclick="recordKokaiActivity('${a.id}')">＋ 今日を記録</button>
-        <span style="font-size:10px;color:var(--ink-mute);">${todayCount>0?`今日 ${todayCount}${unit}`:'今日まだ'}</span>`;
-    }
-    const undoHtml = todayCount>0 ? `<button class="btn-sec" style="padding:8px 10px;font-size:11px;color:var(--ink-mute);" onclick="undoKokaiToday('${a.id}')">取消</button>` : '';
+    // 記録は全活動「＋今日やった」ワンタップに統一。押すと即記録→「✓記録済み」に。
+    // 練習だけは左に小さな任意メモ（課題曲名）。空でも押せる。
+    const done = todayCount>0;
+    const btnLabel = done ? `✓ 記録済み${todayCount>1?` ×${todayCount}`:''}` : '＋ 今日やった';
+    const memoIn = a.hasMemo ? `<input class="kokai-memo-in" type="text" id="kokai-memo-${a.id}" placeholder="🎵 課題曲（任意）">` : '';
+    const recBtn = `<button class="kokai-rec-btn ${a.hasMemo?'has-memo':''} ${done?'done':''}" onclick="recordKokaiActivity('${a.id}')">${btnLabel}</button>`;
+    const undo = done ? `<button class="kokai-undo" onclick="undoKokaiToday('${a.id}')">取消</button>` : '';
     return `<div class="kokai-act-card">
       <div class="kokai-act-head">
         <span class="kokai-act-ico">${a.icon||'🔁'}</span>
-        <div style="min-width:0;">
+        <div style="min-width:0;flex:1;">
           <div class="kokai-act-name">${kesc(a.name)}</div>
           ${a.schedule?`<div class="kokai-act-sched">${kesc(a.schedule)}</div>`:''}
         </div>
@@ -2934,11 +2929,12 @@ function renderKokaiActivities(){
         </div>
       </div>
       <div class="kokai-act-bar"><div class="kokai-act-bar-fill" style="width:${pct}%"></div></div>
-      <div class="kokai-act-btns">${recHtml}${undoHtml}
-        <button class="btn-sec" style="padding:8px 10px;font-size:11px;color:var(--ink-mute);margin-left:auto;" onclick="openKokaiActivityEdit('${a.id}')">編集</button>
-      </div>
+      <div class="kokai-rec-row">${memoIn}${recBtn}${undo}</div>
       <div class="kokai-grid">${grid}</div>
-      ${streakHtml}
+      <div class="kokai-act-foot">
+        <span class="kokai-streak">${streakTxt}</span>
+        <button class="kokai-edit-link" onclick="openKokaiActivityEdit('${a.id}')">編集</button>
+      </div>
       ${nudgeHtml}
     </div>`;
   }).join('');
