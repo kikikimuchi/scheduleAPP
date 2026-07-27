@@ -498,7 +498,7 @@ body.fs-lock{overflow:hidden;}
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script>
 const CFG = window.YTR_CONFIG || {};
-const APP_VER = 'chatreplay-v14'; // 更新確認用。設定>状態 に表示
+const APP_VER = 'chatsync-v15'; // 更新確認用。設定>状態 に表示
 const CH_COL='schedule_ytChannels', META_DOC=['schedule_ytMeta','app'], MEM_DOC=['schedule_ytMeta','members'];
 const REDISCOVER={W_STALE:1.0,W_FRESH:0.6,FRESH_CAP_DAYS:30,NEVER_VIEWED_DAYS:400};
 const DAY=86400000, now=()=>Date.now(), nowIso=()=>new Date().toISOString();
@@ -843,6 +843,18 @@ function toggleNativePlayer(){
   const t=Math.floor(state._curTime||0), toNative=!state._nativeMode;
   applyPlayer(o,toNative,t>1?t:0);
   toast(toNative?'ネイティブ再生（▶→全画面→ホームへスワイプでPiP）':'インライン再生に戻しました');
+}
+// リプレイチャットのiframeにプレーヤーの再生時刻を送って同期を試みる（ベストエフォート）
+let _chatSyncT=0;
+function syncChatReplay(t){
+  const box=$('#chatBox'); if(!box||box.style.display!=='block')return;
+  const cf=box.querySelector('iframe'); if(!cf||!cf.contentWindow)return;
+  const n=now(); if(n-_chatSyncT<900)return; _chatSyncT=n;
+  const sec=Math.floor(t||0);
+  try{
+    cf.contentWindow.postMessage(JSON.stringify({event:'video-progress',currentTime:sec}),'https://www.youtube.com');
+    cf.contentWindow.postMessage(JSON.stringify({'yt-player-video-progress':sec}),'https://www.youtube.com');
+  }catch(e){}
 }
 function showPlayerError(code){
   const o=state.currentVideo||{}; if(!o.id)return;
@@ -1457,7 +1469,7 @@ async function init(){
   window.addEventListener('message',e=>{
     if(typeof e.data!=='string'||(''+e.origin).indexOf('youtube')<0)return;
     try{const d=JSON.parse(e.data);
-      if(d&&d.info&&typeof d.info.currentTime==='number'){state._curTime=d.info.currentTime;savePos(state.currentVideo&&state.currentVideo.id,d.info.currentTime,d.info.duration);}
+      if(d&&d.info&&typeof d.info.currentTime==='number'){state._curTime=d.info.currentTime;savePos(state.currentVideo&&state.currentVideo.id,d.info.currentTime,d.info.duration);syncChatReplay(d.info.currentTime);}
       if(d&&d.event==='onError')showPlayerError(d.info);
       if(d&&d.event==='onStateChange'&&d.info===0)clearPos(state.currentVideo&&state.currentVideo.id); // 最後まで見たら位置クリア
     }catch(_){}
