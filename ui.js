@@ -2894,9 +2894,18 @@ function renderKokaiActivities(){
     const unit = a.unit || '回';
     const days = kDaysForAct(a.id);
     const todayCount = kLogsForAct(a.id).filter(l=>l.date===today).length;
-    const start = kDateAdd(today,-27);
-    let grid = '';
-    for(let i=0;i<28;i++){ const dd=kDateAdd(start,i); grid+=`<div class="kokai-grid-cell ${days.has(dd)?'on':''} ${dd===today?'today':''}"></div>`; }
+    // 履歴カレンダー（今週＋過去2週＝3週間）。各日はタップで記録/取消。
+    const calStart = kDateAdd(kWeekStart(today), -14);
+    const wdHead = ['日','月','火','水','木','金','土']
+      .map((w,i)=>`<span class="${i===0?'sun':i===6?'sat':''}">${w}</span>`).join('');
+    let cal = '';
+    for(let i=0;i<21;i++){
+      const dd = kDateAdd(calStart, i);
+      const dnum = Number(dd.slice(8,10));
+      const isToday = dd===today, isFuture = dd>today, on = days.has(dd);
+      const cls = 'kokai-day'+(on?' on':'')+(isToday?' today':'')+(isFuture?' future':'');
+      cal += `<div class="${cls}" ${isFuture?'':`onclick="toggleKokaiDay('${a.id}','${dd}')"`}>${dnum}</div>`;
+    }
     const streakTxt = a.freq==='daily'
       ? `連続 <b>${kStreak(a.id)}日</b> ・ のべ <b>${days.size}日</b>`
       : `のべ <b>${kLogsForAct(a.id).length}${unit}</b>`;
@@ -2930,7 +2939,11 @@ function renderKokaiActivities(){
       </div>
       <div class="kokai-act-bar"><div class="kokai-act-bar-fill" style="width:${pct}%"></div></div>
       <div class="kokai-rec-row">${memoIn}${recBtn}${undo}</div>
-      <div class="kokai-grid">${grid}</div>
+      <div class="kokai-cal">
+        <div class="kokai-cal-wd">${wdHead}</div>
+        <div class="kokai-cal-grid">${cal}</div>
+        <div class="kokai-cal-hint">タップでその日を記録・取消</div>
+      </div>
       <div class="kokai-act-foot">
         <span class="kokai-streak">${streakTxt}</span>
         <button class="kokai-edit-link" onclick="openKokaiActivityEdit('${a.id}')">編集</button>
@@ -2947,6 +2960,21 @@ window.recordKokaiActivity = async function(actId){
   const log = { id:kuid(), activityId:String(actId), date:getTodayDateString(), memo };
   cache.kokaiActivityLogs.push(log);
   await window.setDocImport('kokaiActivityLogs', log);
+  renderKokaiActivities();
+};
+// カレンダーの日タップ: その日の記録をトグル（未記録→1件追加 / 記録あり→その日を全消し）
+window.toggleKokaiDay = async function(actId, date){
+  if(date > getTodayDateString()) return; // 未来は不可
+  const mine = kLogsForAct(actId).filter(l=>l.date===date);
+  if(mine.length){
+    const ids = mine.map(l=>String(l.id));
+    cache.kokaiActivityLogs = cache.kokaiActivityLogs.filter(x=>!ids.includes(String(x.id)));
+    for(const id of ids) await window.deleteDocImport('kokaiActivityLogs', id);
+  } else {
+    const log = { id:kuid(), activityId:String(actId), date, memo:'' };
+    cache.kokaiActivityLogs.push(log);
+    await window.setDocImport('kokaiActivityLogs', log);
+  }
   renderKokaiActivities();
 };
 window.undoKokaiToday = async function(actId){

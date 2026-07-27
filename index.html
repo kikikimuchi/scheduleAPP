@@ -326,11 +326,20 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 .kokai-rec-btn.done{background:#EAF3EA;color:#5E9160;}
 .kokai-rec-btn:active{transform:scale(.98);}
 .kokai-undo{flex:0 0 auto;border:1px solid var(--bdr-s);background:transparent;border-radius:9px;height:40px;padding:0 11px;font-size:11px;color:var(--ink-mute);cursor:pointer;}
-/* 履歴：小さなドット帯（直近28日を1行） */
-.kokai-grid{display:grid;grid-template-columns:repeat(28,1fr);gap:2px;margin-top:10px;}
-.kokai-grid-cell{aspect-ratio:1;border-radius:2px;background:rgba(0,0,0,.06);}
-.kokai-grid-cell.on{background:var(--lav);}
-.kokai-grid-cell.today{box-shadow:0 0 0 1.5px var(--pink) inset;}
+/* 履歴：タップで記録/取消できる小さなカレンダー（今週＋過去2週） */
+.kokai-cal{margin-top:10px;}
+.kokai-cal-wd{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:3px;}
+.kokai-cal-wd span{text-align:center;font-size:8px;color:var(--ink-mute);letter-spacing:.02em;}
+.kokai-cal-wd span.sun{color:#E88FA1;}
+.kokai-cal-wd span.sat{color:#A8C8E8;}
+.kokai-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+.kokai-day{height:26px;border-radius:6px;background:rgba(0,0,0,.04);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--ink-mute);cursor:pointer;border:1.5px solid transparent;}
+.kokai-day:active{transform:scale(.92);}
+.kokai-day.on{background:var(--lav);color:#fff;font-weight:700;}
+.kokai-day.today{border-color:var(--pink);color:var(--pink-dk);font-weight:700;}
+.kokai-day.today.on{color:#fff;}
+.kokai-day.future{opacity:.3;cursor:default;pointer-events:none;}
+.kokai-cal-hint{font-size:9px;color:var(--ink-faint);margin-top:6px;text-align:center;letter-spacing:.04em;}
 .kokai-act-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px;}
 .kokai-streak{font-size:10px;color:var(--ink-soft);letter-spacing:.04em;}
 .kokai-streak b{color:var(--ink);font-weight:700;}
@@ -352,7 +361,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v74</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v75</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -1389,6 +1398,6 @@ if(window.caches){ caches.keys().then(ks=>{ ks.forEach(k=>caches.delete(k)); }).
 </script>
 
 <!-- UI script -->
-<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=74"></script>
+<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=75"></script>
 </body>
 </html>
