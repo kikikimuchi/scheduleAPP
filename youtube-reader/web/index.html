@@ -497,12 +497,17 @@ body.fs-lock{overflow:hidden;}
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script>
 const CFG = window.YTR_CONFIG || {};
-const APP_VER = 'view-restore-v10'; // 更新確認用。設定>状態 に表示
+const APP_VER = 'view-restore-v11'; // 更新確認用。設定>状態 に表示
 const CH_COL='schedule_ytChannels', META_DOC=['schedule_ytMeta','app'], MEM_DOC=['schedule_ytMeta','members'];
 const REDISCOVER={W_STALE:1.0,W_FRESH:0.6,FRESH_CAP_DAYS:30,NEVER_VIEWED_DAYS:400};
 const DAY=86400000, now=()=>Date.now(), nowIso=()=>new Date().toISOString();
 const LSK_CH='ytr_channels', LSK_META='ytr_meta', LSK_HIST='ytr_history', LSK_MEM='ytr_member', LSK_MEMPL='ytr_member_pl', LSK_POS='ytr_pos', LSK_VIEW='ytr_view';
-function saveView(){ try{ if(state._restoring)return; LS.set(LSK_VIEW,{pg:document.body.dataset.pg||'feed',tag:state.activeTag,fm:state.feedMode,y:window.scrollY}); }catch(e){} }
+function saveView(){ try{ if(state._restoring)return;
+  const np=$('#np'), chv=$('#chView'); let ov=null;
+  if(np&&np.classList.contains('on')&&state.currentVideo&&state.currentVideo.id) ov={t:'v',v:state.currentVideo}; // 再生中の動画
+  else if(chv&&chv.classList.contains('on')&&state.chvCid) ov={t:'c',cid:state.chvCid,ct:state.chvTab}; // 開いているチャンネル
+  LS.set(LSK_VIEW,{pg:document.body.dataset.pg||'feed',tag:state.activeTag,fm:state.feedMode,y:window.scrollY,ov});
+}catch(e){} }
 const state={ videos:[], discover:[], channels:{}, meta:{tags:[],modes:{}}, history:[],
   activeTag:'__all__', chFilter:'all', feedMode:'subs', discMode:'recommended', fb:null };
 
@@ -1039,7 +1044,7 @@ async function loadComments(id){
       else ct.classList.remove('clamp'); });
   }catch(e){box.innerHTML=`<p class="cmt-note">コメント取得でエラーが発生しました。</p>`;}
 }
-function closeNp(){flushPos();updateCardProgress(state.currentVideo&&state.currentVideo.id);const np=$('#np');np.classList.remove('on','mini','fs');resetNpPos();document.body.classList.remove('fs-lock');$('#playerBox').innerHTML='';}
+function closeNp(){flushPos();updateCardProgress(state.currentVideo&&state.currentVideo.id);const np=$('#np');np.classList.remove('on','mini','fs');resetNpPos();document.body.classList.remove('fs-lock');$('#playerBox').innerHTML='';state.currentVideo=null;saveView();}
 // ブラウザバックでアプリを抜けず、プレーヤー/オーバーレイを閉じる
 function ovlOpen(){return $('#np').classList.contains('on')||$('#searchPanel').classList.contains('on')||$('#chView').classList.contains('on')||$('#tagPick').classList.contains('on');}
 function histCapture(){ if(!state._hist){ try{history.pushState({ovl:1},'');}catch(e){} state._hist=true; } }
@@ -1459,7 +1464,7 @@ async function init(){
     if(Date.now()-(state._nativeAt||0)<2500)return; // 全画面移行直後の誤発火を無視
     const t=Math.floor(state._curTime||0); applyPlayer(state.currentVideo,false,t>1?t:0);
   }
-  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden')flushPos(); else maybeReturnInline(); });
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){flushPos();saveView();} else maybeReturnInline(); });
   window.addEventListener('focus',maybeReturnInline);
   window.addEventListener('pageshow',maybeReturnInline);
   $('#actMin').onclick=minimizePlayer;
@@ -1538,6 +1543,12 @@ async function init(){
     requestAnimationFrame(()=>window.scrollTo(0,v.y||0));
   }else{
     document.body.dataset.pg='feed'; renderFeed();
+  }
+  // 再生中の動画/開いていたチャンネルも復元
+  if(v&&v.ov){
+    if(v.ov.t==='v'&&v.ov.v&&v.ov.v.id) openVideo(v.ov.v);
+    else if(v.ov.t==='c'&&v.ov.cid){ openChannel(v.ov.cid);
+      if(v.ov.ct&&v.ov.ct!=='all'){ state.chvTab=v.ov.ct; const tb=$('#chvTabs'); if(tb)tb.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.t===v.ov.ct)); renderChvTab(); } }
   }
   state._restoring=false;
   refreshStatus();
