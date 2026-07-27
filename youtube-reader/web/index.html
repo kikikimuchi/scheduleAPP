@@ -497,15 +497,17 @@ body.fs-lock{overflow:hidden;}
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script>
 const CFG = window.YTR_CONFIG || {};
-const APP_VER = 'view-restore-v11'; // 更新確認用。設定>状態 に表示
+const APP_VER = 'view-restore-v12'; // 更新確認用。設定>状態 に表示
 const CH_COL='schedule_ytChannels', META_DOC=['schedule_ytMeta','app'], MEM_DOC=['schedule_ytMeta','members'];
 const REDISCOVER={W_STALE:1.0,W_FRESH:0.6,FRESH_CAP_DAYS:30,NEVER_VIEWED_DAYS:400};
 const DAY=86400000, now=()=>Date.now(), nowIso=()=>new Date().toISOString();
 const LSK_CH='ytr_channels', LSK_META='ytr_meta', LSK_HIST='ytr_history', LSK_MEM='ytr_member', LSK_MEMPL='ytr_member_pl', LSK_POS='ytr_pos', LSK_VIEW='ytr_view';
 function saveView(){ try{ if(state._restoring)return;
-  const np=$('#np'), chv=$('#chView'); let ov=null;
-  if(np&&np.classList.contains('on')&&state.currentVideo&&state.currentVideo.id) ov={t:'v',v:state.currentVideo}; // 再生中の動画
-  else if(chv&&chv.classList.contains('on')&&state.chvCid) ov={t:'c',cid:state.chvCid,ct:state.chvTab}; // 開いているチャンネル
+  const sp=$('#searchPanel'), chv=$('#chView'), np=$('#np'); let ov=null;
+  // 上に表示されている順（検索＞チャンネル＞動画）で判定
+  if(sp&&sp.classList.contains('on')) ov={t:'s',q:state._sq||''};
+  else if(chv&&chv.classList.contains('on')&&state.chvCid) ov={t:'c',cid:state.chvCid,ct:state.chvTab};
+  else if(np&&np.classList.contains('on')&&!np.classList.contains('mini')&&state.currentVideo&&state.currentVideo.id) ov={t:'v',v:state.currentVideo};
   LS.set(LSK_VIEW,{pg:document.body.dataset.pg||'feed',tag:state.activeTag,fm:state.feedMode,y:window.scrollY,ov});
 }catch(e){} }
 const state={ videos:[], discover:[], channels:{}, meta:{tags:[],modes:{}}, history:[],
@@ -1544,11 +1546,12 @@ async function init(){
   }else{
     document.body.dataset.pg='feed'; renderFeed();
   }
-  // 再生中の動画/開いていたチャンネルも復元
+  // 再生中の動画/開いていたチャンネル/検索も復元
   if(v&&v.ov){
     if(v.ov.t==='v'&&v.ov.v&&v.ov.v.id) openVideo(v.ov.v);
     else if(v.ov.t==='c'&&v.ov.cid){ openChannel(v.ov.cid);
       if(v.ov.ct&&v.ov.ct!=='all'){ state.chvTab=v.ov.ct; const tb=$('#chvTabs'); if(tb)tb.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.t===v.ov.ct)); renderChvTab(); } }
+    else if(v.ov.t==='s'){ state._sq=v.ov.q||''; openSearch(); }
   }
   state._restoring=false;
   refreshStatus();
