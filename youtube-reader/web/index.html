@@ -498,7 +498,7 @@ body.fs-lock{overflow:hidden;}
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script>
 const CFG = window.YTR_CONFIG || {};
-const APP_VER = 'chatsync-v15'; // 更新確認用。設定>状態 に表示
+const APP_VER = 'chat-v16'; // 更新確認用。設定>状態 に表示
 const CH_COL='schedule_ytChannels', META_DOC=['schedule_ytMeta','app'], MEM_DOC=['schedule_ytMeta','members'];
 const REDISCOVER={W_STALE:1.0,W_FRESH:0.6,FRESH_CAP_DAYS:30,NEVER_VIEWED_DAYS:400};
 const DAY=86400000, now=()=>Date.now(), nowIso=()=>new Date().toISOString();
@@ -1493,19 +1493,19 @@ async function init(){
     f.contentWindow.postMessage(JSON.stringify({event:'command',func:play?'playVideo':'pauseVideo',args:[]}),'*');
     state._playing=play; $('#miniPlay').classList.toggle('paused',!play);
   };
-  // ライブチャット / チャットリプレイ
+  // 配信中ライブ=チャット埋め込み(リアルタイムなので動く) / アーカイブ=同期不可なのでYouTubeリンク
   $('#chatBtn').onclick=()=>{
     const cb=$('#chatBtn'), box=$('#chatBox'), id=cb.dataset.id, base=cb.dataset.label||'💬 チャットを表示', shown=(box.style.display==='block');
     if(!shown){
       if(!box.dataset.for||box.dataset.for!==id){ // 動画が変わったら作り直す
-        const live=cb.dataset.live==='1', token=cb.dataset.token||'', host=encodeURIComponent(location.hostname);
-        // 配信中=live_chat / アーカイブ=live_chat_replay?continuation=トークン（トークンが無ければ暫定でlive_chat）
-        const url=live
-          ?`https://www.youtube.com/live_chat?v=${encodeURIComponent(id)}&embed_domain=${host}`
-          :(token?`https://www.youtube.com/live_chat_replay?continuation=${encodeURIComponent(token)}&embed_domain=${host}`
-                 :`https://www.youtube.com/live_chat?v=${encodeURIComponent(id)}&embed_domain=${host}`);
-        box.innerHTML=`<iframe src="${url}" allow="autoplay"></iframe>`
-          +`<a class="chat-fb" href="https://www.youtube.com/watch?v=${encodeURIComponent(id)}" target="_blank" rel="noopener">チャットが出ない場合は YouTube で見る ↗</a>`;
+        const live=cb.dataset.live==='1', host=encodeURIComponent(location.hostname);
+        if(live){ // 配信中はリアルタイムなので埋め込みで表示できる
+          box.innerHTML=`<iframe src="https://www.youtube.com/live_chat?v=${encodeURIComponent(id)}&embed_domain=${host}" allow="autoplay"></iframe>`
+            +`<a class="chat-fb" href="https://www.youtube.com/watch?v=${encodeURIComponent(id)}" target="_blank" rel="noopener">出ない場合は YouTube で見る ↗</a>`;
+        }else{ // アーカイブのリプレイは第三者埋め込みでは同期表示できないためYouTubeへ誘導
+          box.innerHTML=`<p class="cmt-note">チャットリプレイはアプリ内では表示できません（YouTubeの仕様）。下のボタンからYouTubeでご覧ください。</p>`
+            +`<a class="chat-fb" href="https://www.youtube.com/watch?v=${encodeURIComponent(id)}" target="_blank" rel="noopener">▶ YouTubeでチャットリプレイを見る ↗</a>`;
+        }
         box.dataset.for=id;
       }
       box.style.display='block';cb.textContent=base.replace('を表示','を隠す');

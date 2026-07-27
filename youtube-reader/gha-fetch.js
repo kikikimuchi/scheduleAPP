@@ -368,9 +368,7 @@ async function main() {
   if (memAdd.length) trimmed.sort((a, b) => key(b) - key(a));
   console.log(`メンバー限定: ${memAdd.length}本を追加`);
 
-  // ライブアーカイブのチャットリプレイ用トークンを取得（新しい順に上限まで）
-  console.log('チャットリプレイのトークン取得中…');
-  await fetchChatTokens(trimmed);
+  // ※チャットリプレイは第三者埋め込みで同期表示できないためトークン取得は停止（fetchChatTokensは未使用）
 
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, JSON.stringify({ updatedAt: now(), count: trimmed.length, videos: trimmed }) + '\n', 'utf8');
