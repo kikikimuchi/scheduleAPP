@@ -156,10 +156,13 @@ function sortByTime(arr){
     return (av===null?Infinity:av) - (bv===null?Infinity:bv);
   });
 }
-// 起床シフトを適用（特殊表記・深夜24:00以上はそのまま）
+// 起床シフトを適用。
+// 特殊表記(自然起床/随時/〜表記など parseTimeで読めないもの)は adjustTime 内でそのまま返る。
+// 深夜(24:00以上)の時刻も一律シフトさせる。
+// ※以前は「24:00以上は固定」ガードがあったが、起床シフトで夜のタスクが24:00を
+//   跨ぐと、編集保存時の逆シフト計算がこのガードに引っかかり保存時刻がシフト分ズレていた。
+//   モードのデフォルトタスクは元々 adjustTime で無条件シフトしており、それに揃える。
 function shiftTaskTime(time, shiftMin){
-  const v = parseTime(time);
-  if(v === null || v >= 1440) return time; // 自然起床等/深夜タスクは固定
   return adjustTime(time, shiftMin);
 }
 function computeDayTasks(date){
@@ -2469,3 +2472,532 @@ if(typeof document !== 'undefined' && document.addEventListener){
     renderToday();
   }, 60000);
 }
+
+// =====================================================================
+// ============= KOKAI 活動管理 =============
+// =====================================================================
+// 制作工程（パイプライン）の各工程
+const KOKAI_STAGES = [
+  { key:'lyrics',  label:'作詞',              icon:'✍️' },
+  { key:'arrange', label:'編曲',              icon:'🎹' },
+  { key:'record',  label:'録音',              icon:'🎙️' },
+  { key:'mix',     label:'ミックス/マスタリング', icon:'🎚️' },
+  { key:'video',   label:'映像',              icon:'🎬' },
+  { key:'publish', label:'公開',              icon:'🚀' },
+];
+const KOKAI_STATUS = {
+  todo:  { label:'未着手' },
+  doing: { label:'進行中' },
+  done:  { label:'完了'  },
+};
+const KOKAI_STATUS_KEYS = ['todo','doing','done'];
+
+// --- utils ---
+let _kokaiSeq = 0;
+function kuid(){ return String(Date.now()*1000 + (_kokaiSeq++ % 1000)); }
+function kesc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function kymd(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function kDateAdd(ymd, n){ const d=new Date(ymd+'T00:00'); d.setDate(d.getDate()+n); return kymd(d); }
+function kWeekStart(ymd){ const d=new Date(ymd+'T00:00'); d.setDate(d.getDate()-d.getDay()); return kymd(d); } // 日曜始まり
+function kLogsForAct(actId){ return cache.kokaiActivityLogs.filter(l=>String(l.activityId)===String(actId)); }
+function kDaysForAct(actId){ return new Set(kLogsForAct(actId).map(l=>l.date)); }
+// 期間内の達成カウント（毎日=日数、それ以外=件数）
+function kPeriodCount(act){
+  const today = getTodayDateString();
+  let logs;
+  if(act.freq==='monthly'){
+    const mo = today.slice(0,7);
+    logs = kLogsForAct(act.id).filter(l=>l.date>=mo+'-01' && l.date<=mo+'-31');
+  } else {
+    const ws = kWeekStart(today), we = kDateAdd(ws,6);
+    logs = kLogsForAct(act.id).filter(l=>l.date>=ws && l.date<=we);
+  }
+  if(act.freq==='daily') return new Set(logs.map(l=>l.date)).size;
+  return logs.length;
+}
+function kStreak(actId){
+  const days = kDaysForAct(actId);
+  let cur = getTodayDateString();
+  if(!days.has(cur)) cur = kDateAdd(cur,-1); // 今日未記録なら昨日から数える
+  let n=0;
+  while(days.has(cur)){ n++; cur = kDateAdd(cur,-1); }
+  return n;
+}
+function kSortByOrder(arr){ return arr.slice().sort((a,b)=>(a.order||0)-(b.order||0)); }
+
+// --- サブタブ（4ブロックへスクロール） ---
+window.setKokaiTab = function(t){
+  document.querySelectorAll('[data-kt]').forEach(b=>b.classList.toggle('on', b.dataset.kt===t));
+  const el = document.getElementById('kokai-block-'+t);
+  if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+};
+
+// --- 全体描画 ---
+window.renderKokai = function(){
+  if(!document.getElementById('pg-kokai')) return;
+  renderKokaiWorks();
+  renderKokaiTasks();
+  renderKokaiContents();
+  renderKokaiActivities();
+};
+
+// ============= Block 1: 制作工程管理 =============
+let _kokaiWorkExpanded = null;
+function workProgress(w){
+  const st = w.stages || {};
+  const done = KOKAI_STAGES.filter(s=>(st[s.key]||{}).status==='done').length;
+  return { done, total: KOKAI_STAGES.length, pct: Math.round(done/KOKAI_STAGES.length*100) };
+}
+function renderKokaiWorks(){
+  const host = document.getElementById('kokai-works-list');
+  if(!host) return;
+  const works = kSortByOrder(cache.kokaiWorks);
+  if(works.length===0){
+    host.innerHTML = `<div class="empty-state"><div class="em-ico">🎼</div><div>作品がありません</div><div style="font-size:10px;color:var(--ink-mute);margin-top:6px;">＋作品 から登録</div></div>`;
+    return;
+  }
+  host.innerHTML = works.map(w=>{
+    const pr = workProgress(w);
+    const expanded = _kokaiWorkExpanded === String(w.id);
+    const st = w.stages || {};
+    const stagesHtml = KOKAI_STAGES.map(s=>{
+      const cur = st[s.key] || { status:'todo', memo:'' };
+      const stt = KOKAI_STATUS[cur.status] ? cur.status : 'todo';
+      return `<div class="kokai-stage-row" onclick="openKokaiStageEdit('${w.id}','${s.key}')">
+        <div class="kokai-stage-ico">${s.icon}</div>
+        <div class="kokai-stage-name">${s.label}${cur.memo?`<div class="kokai-stage-memo">📝 ${kesc(cur.memo)}</div>`:''}</div>
+        <div class="kokai-chip ${stt}">${KOKAI_STATUS[stt].label}</div>
+      </div>`;
+    }).join('');
+    return `<div class="kokai-card">
+      <div class="kokai-work-head" onclick="toggleKokaiWork('${w.id}')">
+        <div class="kokai-work-name">${kesc(w.name)}</div>
+        <div class="kokai-work-frac">${pr.done}/${pr.total}</div>
+        <span style="color:var(--ink-faint);font-size:12px;">${expanded?'▲':'▼'}</span>
+      </div>
+      <div class="kokai-bar"><div class="kokai-bar-fill" style="width:${pr.pct}%"></div></div>
+      ${expanded ? `<div style="padding:8px 14px 12px;">
+        ${w.note?`<div style="background:rgba(0,0,0,.03);border-radius:8px;padding:9px 11px;font-size:11px;line-height:1.6;color:var(--ink-soft);margin:6px 0 10px;white-space:pre-wrap;">📝 ${kesc(w.note)}</div>`:'<div style="height:6px;"></div>'}
+        ${stagesHtml}
+        <button class="btn-sec" style="margin-top:12px;width:100%;font-size:11px;" onclick="openKokaiWorkEdit('${w.id}')">作品を編集</button>
+      </div>` : `<div style="height:12px;"></div>`}
+    </div>`;
+  }).join('');
+}
+window.toggleKokaiWork = function(id){
+  _kokaiWorkExpanded = _kokaiWorkExpanded===String(id) ? null : String(id);
+  renderKokaiWorks();
+};
+let _editKokaiWorkId = null;
+window.openKokaiWorkAdd = function(){
+  _editKokaiWorkId = null;
+  $('kw-title').textContent = '作品を追加';
+  $('kw-name').value = ''; $('kw-note').value = '';
+  $('kw-del').style.display = 'none';
+  openModal('ov-kokai-work');
+};
+window.openKokaiWorkEdit = function(id){
+  const w = cache.kokaiWorks.find(x=>String(x.id)===String(id));
+  if(!w) return;
+  _editKokaiWorkId = String(id);
+  $('kw-title').textContent = '作品を編集';
+  $('kw-name').value = w.name || ''; $('kw-note').value = w.note || '';
+  $('kw-del').style.display = '';
+  openModal('ov-kokai-work');
+};
+window.saveKokaiWork = async function(){
+  const name = $('kw-name').value.trim();
+  if(!name) return alert('作品名を入力してください');
+  const note = $('kw-note').value.trim();
+  if(_editKokaiWorkId){
+    const w = cache.kokaiWorks.find(x=>String(x.id)===String(_editKokaiWorkId));
+    if(!w) return;
+    w.name = name; w.note = note;
+    await window.setDocImport('kokaiWorks', w);
+  } else {
+    const stages = {};
+    KOKAI_STAGES.forEach(s=>{ stages[s.key] = { status:'todo', memo:'' }; });
+    const w = { id:kuid(), name, note, stages, order:(cache.kokaiWorks.length) };
+    cache.kokaiWorks.push(w);
+    _kokaiWorkExpanded = String(w.id);
+    await window.setDocImport('kokaiWorks', w);
+  }
+  closeModal('ov-kokai-work');
+  renderKokaiWorks();
+};
+window.deleteKokaiWork = function(){
+  if(!_editKokaiWorkId) return;
+  const w = cache.kokaiWorks.find(x=>String(x.id)===String(_editKokaiWorkId));
+  confirmDialog(`「${w?w.name:''}」を削除しますか？`, async ()=>{
+    cache.kokaiWorks = cache.kokaiWorks.filter(x=>String(x.id)!==String(_editKokaiWorkId));
+    await window.deleteDocImport('kokaiWorks', _editKokaiWorkId);
+    closeModal('ov-kokai-work');
+    _editKokaiWorkId = null;
+    renderKokaiWorks();
+  });
+};
+
+// 工程ステータス編集
+let _stageEdit = null; // {workId, stageKey, status}
+window.openKokaiStageEdit = function(workId, stageKey){
+  const w = cache.kokaiWorks.find(x=>String(x.id)===String(workId));
+  if(!w) return;
+  const s = KOKAI_STAGES.find(x=>x.key===stageKey);
+  const cur = (w.stages||{})[stageKey] || { status:'todo', memo:'' };
+  _stageEdit = { workId:String(workId), stageKey, status: KOKAI_STATUS[cur.status]?cur.status:'todo' };
+  $('ks-title').textContent = `${s.icon} ${s.label}`;
+  $('ks-memo').value = cur.memo || '';
+  renderKokaiStatusGrid();
+  openModal('ov-kokai-stage');
+};
+function renderKokaiStatusGrid(){
+  const host = $('ks-status-grid');
+  if(!host || !_stageEdit) return;
+  host.innerHTML = KOKAI_STATUS_KEYS.map(k=>
+    `<div class="kokai-status-opt ${_stageEdit.status===k?'on':''}" onclick="pickKokaiStatus('${k}')">${KOKAI_STATUS[k].label}</div>`
+  ).join('');
+}
+window.pickKokaiStatus = function(k){ if(_stageEdit){ _stageEdit.status = k; renderKokaiStatusGrid(); } };
+window.saveKokaiStage = async function(){
+  if(!_stageEdit) return;
+  const w = cache.kokaiWorks.find(x=>String(x.id)===String(_stageEdit.workId));
+  if(!w) return;
+  if(!w.stages) w.stages = {};
+  w.stages[_stageEdit.stageKey] = { status:_stageEdit.status, memo:$('ks-memo').value.trim() };
+  await window.setDocImport('kokaiWorks', w);
+  closeModal('ov-kokai-stage');
+  _stageEdit = null;
+  renderKokaiWorks();
+};
+
+// ============= Block 2: タスク＋期限管理 =============
+function kLinkName(t){
+  if(t.linkType==='work'){ const w=cache.kokaiWorks.find(x=>String(x.id)===String(t.linkId)); return w?('🎼 '+w.name):''; }
+  if(t.linkType==='activity'){ const a=cache.kokaiActivities.find(x=>String(x.id)===String(t.linkId)); return a?(((a.icon||'🔁'))+' '+a.name):''; }
+  return '';
+}
+function kDueInfo(due){
+  if(!due) return { txt:'期限なし', cls:'' };
+  const diff = Math.ceil((new Date(due+'T00:00') - new Date(getTodayDateString()+'T00:00'))/86400000);
+  if(diff<0)  return { txt:`${Math.abs(diff)}日超過`, cls:'over' };
+  if(diff===0)return { txt:'今日', cls:'soon' };
+  if(diff===1)return { txt:'明日', cls:'soon' };
+  if(diff<=3) return { txt:`あと${diff}日`, cls:'soon' };
+  return { txt:`あと${diff}日`, cls:'' };
+}
+function renderKokaiTasks(){
+  const host = document.getElementById('kokai-tasks-list');
+  if(!host) return;
+  const open = cache.kokaiTasks.filter(t=>!t.done);
+  const done = cache.kokaiTasks.filter(t=>t.done);
+  // 期限が近い順（期限なしは末尾）
+  open.sort((a,b)=>{
+    if(a.due && b.due) return a.due < b.due ? -1 : (a.due>b.due?1:0);
+    if(a.due) return -1; if(b.due) return 1; return 0;
+  });
+  if(open.length===0 && done.length===0){
+    host.innerHTML = `<div class="empty-state"><div class="em-ico">📌</div><div>タスクがありません</div></div>`;
+    return;
+  }
+  const rowHtml = (t)=>{
+    const di = kDueInfo(t.due);
+    const link = kLinkName(t);
+    return `<div class="kokai-task-row">
+      <div class="task-check ${t.done?'on':''}" onclick="toggleKokaiTask('${t.id}')">${t.done?'✓':''}</div>
+      <div class="kokai-task-main">
+        <div class="kokai-task-label ${t.done?'done':''}">${kesc(t.label)}</div>
+        <div class="kokai-task-meta"><span class="kokai-due ${di.cls}">${t.due?`${t.due}・`:''}${di.txt}</span>${link?` ・ ${kesc(link)}`:''}</div>
+      </div>
+      <button class="task-del" onclick="deleteKokaiTask('${t.id}')">×</button>
+    </div>`;
+  };
+  host.innerHTML = open.map(rowHtml).join('')
+    + (done.length ? `<div style="font-size:10px;color:var(--ink-mute);margin:12px 0 4px;">完了 ${done.length}件</div>` + done.map(rowHtml).join('') : '');
+}
+window.openKokaiTaskAdd = function(){
+  $('ktk-label').value = ''; $('ktk-due').value = '';
+  // ひもづけ選択肢
+  let opts = `<option value="">（なし）</option>`;
+  if(cache.kokaiWorks.length){
+    opts += `<optgroup label="作品">` + kSortByOrder(cache.kokaiWorks).map(w=>`<option value="work:${w.id}">🎼 ${kesc(w.name)}</option>`).join('') + `</optgroup>`;
+  }
+  if(cache.kokaiActivities.length){
+    opts += `<optgroup label="活動">` + kSortByOrder(cache.kokaiActivities).map(a=>`<option value="activity:${a.id}">${kesc((a.icon||'🔁')+' '+a.name)}</option>`).join('') + `</optgroup>`;
+  }
+  $('ktk-link').innerHTML = opts;
+  openModal('ov-kokai-task');
+};
+window.saveKokaiTask = async function(){
+  const label = $('ktk-label').value.trim();
+  if(!label) return alert('内容を入力してください');
+  const linkVal = $('ktk-link').value || '';
+  let linkType='', linkId='';
+  if(linkVal){ const [tp,id]=linkVal.split(':'); linkType=tp; linkId=id; }
+  const t = { id:kuid(), label, due:$('ktk-due').value||'', linkType, linkId, done:false };
+  cache.kokaiTasks.push(t);
+  await window.setDocImport('kokaiTasks', t);
+  closeModal('ov-kokai-task');
+  renderKokaiTasks();
+};
+window.toggleKokaiTask = async function(id){
+  const t = cache.kokaiTasks.find(x=>String(x.id)===String(id));
+  if(!t) return;
+  t.done = !t.done;
+  await window.setDocImport('kokaiTasks', t);
+  renderKokaiTasks();
+};
+window.deleteKokaiTask = async function(id){
+  cache.kokaiTasks = cache.kokaiTasks.filter(x=>String(x.id)!==String(id));
+  await window.deleteDocImport('kokaiTasks', id);
+  renderKokaiTasks();
+};
+
+// ============= Block 3: 公開コンテンツ管理 =============
+function renderKokaiContents(){
+  const host = document.getElementById('kokai-contents-list');
+  if(!host) return;
+  const list = cache.kokaiContents.slice().sort((a,b)=>{
+    if(a.scheduledDate && b.scheduledDate) return a.scheduledDate < b.scheduledDate ? -1 : (a.scheduledDate>b.scheduledDate?1:0);
+    if(a.scheduledDate) return -1; if(b.scheduledDate) return 1; return 0;
+  });
+  if(list.length===0){
+    host.innerHTML = `<div class="empty-state"><div class="em-ico">🌙</div><div>公開予定のコンテンツがありません</div></div>`;
+    return;
+  }
+  host.innerHTML = list.map(c=>{
+    const ok = !!c.inWorld;
+    return `<div class="kokai-content-card ${ok?'':'blocked'}">
+      <div class="kokai-content-top">
+        <div class="kokai-content-title ${ok?'':'blocked'}">${kesc(c.title)}</div>
+        <div class="kokai-badge ${ok?'ok':'ng'}">${ok?'公開可':'公開不可'}</div>
+      </div>
+      <div style="font-size:10px;color:var(--ink-mute);margin-top:4px;">${c.scheduledDate?`公開予定 ${c.scheduledDate}`:'公開日 未定'}</div>
+      <div class="kokai-world-check" onclick="toggleKokaiContentWorld('${c.id}')">
+        <div class="kokai-world-box ${ok?'on':''}">${ok?'✓':''}</div>
+        <span>KOKAIの世界観に属する</span>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px;">
+        <button class="btn-sec" style="flex:1;font-size:11px;" onclick="openKokaiContentEdit('${c.id}')">編集</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+let _editKokaiContentId = null;
+window.openKokaiContentAdd = function(){
+  _editKokaiContentId = null;
+  $('kc-title').textContent = 'コンテンツを追加';
+  $('kc-name').value=''; $('kc-date').value=''; $('kc-world').checked=false;
+  $('kc-del').style.display='none';
+  openModal('ov-kokai-content');
+};
+window.openKokaiContentEdit = function(id){
+  const c = cache.kokaiContents.find(x=>String(x.id)===String(id));
+  if(!c) return;
+  _editKokaiContentId = String(id);
+  $('kc-title').textContent = 'コンテンツを編集';
+  $('kc-name').value=c.title||''; $('kc-date').value=c.scheduledDate||''; $('kc-world').checked=!!c.inWorld;
+  $('kc-del').style.display='';
+  openModal('ov-kokai-content');
+};
+window.saveKokaiContent = async function(){
+  const title = $('kc-name').value.trim();
+  if(!title) return alert('タイトルを入力してください');
+  const scheduledDate = $('kc-date').value || '';
+  const inWorld = $('kc-world').checked;
+  if(_editKokaiContentId){
+    const c = cache.kokaiContents.find(x=>String(x.id)===String(_editKokaiContentId));
+    if(!c) return;
+    c.title=title; c.scheduledDate=scheduledDate; c.inWorld=inWorld;
+    await window.setDocImport('kokaiContents', c);
+  } else {
+    const c = { id:kuid(), title, scheduledDate, inWorld };
+    cache.kokaiContents.push(c);
+    await window.setDocImport('kokaiContents', c);
+  }
+  closeModal('ov-kokai-content');
+  renderKokaiContents();
+};
+window.toggleKokaiContentWorld = async function(id){
+  const c = cache.kokaiContents.find(x=>String(x.id)===String(id));
+  if(!c) return;
+  c.inWorld = !c.inWorld;
+  await window.setDocImport('kokaiContents', c);
+  renderKokaiContents();
+};
+window.deleteKokaiContent = function(){
+  if(!_editKokaiContentId) return;
+  const c = cache.kokaiContents.find(x=>String(x.id)===String(_editKokaiContentId));
+  confirmDialog(`「${c?c.title:''}」を削除しますか？`, async ()=>{
+    cache.kokaiContents = cache.kokaiContents.filter(x=>String(x.id)!==String(_editKokaiContentId));
+    await window.deleteDocImport('kokaiContents', _editKokaiContentId);
+    closeModal('ov-kokai-content');
+    _editKokaiContentId = null;
+    renderKokaiContents();
+  });
+};
+
+// ============= Block 4: 定期活動の記録 =============
+function kFreqLabel(f){ return f==='monthly'?'今月':'今週'; }
+function renderKokaiActivities(){
+  const host = document.getElementById('kokai-activities-list');
+  if(!host) return;
+  const acts = kSortByOrder(cache.kokaiActivities);
+  if(acts.length===0){
+    host.innerHTML = `<div class="empty-state"><div class="em-ico">🔁</div><div>定期活動がありません</div><div style="font-size:10px;color:var(--ink-mute);margin-top:6px;">＋活動 から登録</div></div>`;
+    return;
+  }
+  const today = getTodayDateString();
+  host.innerHTML = acts.map(a=>{
+    const count = kPeriodCount(a);
+    const target = a.target || 1;
+    const pct = Math.min(100, Math.round(count/target*100));
+    const unit = a.unit || '回';
+    const days = kDaysForAct(a.id);
+    const todayCount = kLogsForAct(a.id).filter(l=>l.date===today).length;
+    // 直近21日グリッド
+    const start = kDateAdd(today,-20);
+    let grid = '';
+    for(let i=0;i<21;i++){ const dd=kDateAdd(start,i); grid+=`<div class="kokai-grid-cell ${days.has(dd)?'on':''} ${dd===today?'today':''}"></div>`; }
+    // 履歴サマリ
+    let streakHtml = '';
+    if(a.freq==='daily'){
+      streakHtml = `<div class="kokai-streak">連続 <b>${kStreak(a.id)}日</b> ・ のべ <b>${days.size}日</b></div>`;
+    } else {
+      const total = kLogsForAct(a.id).length;
+      streakHtml = `<div class="kokai-streak">のべ <b>${total}${unit}</b></div>`;
+    }
+    // 記録ボタン
+    let recHtml;
+    if(a.hasMemo){
+      recHtml = `<input class="fi" type="text" id="kokai-memo-${a.id}" placeholder="課題曲名など（任意）" style="flex:1;height:40px;line-height:40px;">
+        <button class="kokai-rec-btn" onclick="recordKokaiActivity('${a.id}')">記録</button>`;
+    } else {
+      recHtml = `<button class="kokai-rec-btn" onclick="recordKokaiActivity('${a.id}')">＋ 今日を記録</button>
+        <span style="font-size:10px;color:var(--ink-mute);">${todayCount>0?`今日 ${todayCount}${unit}`:'今日まだ'}</span>`;
+    }
+    const undoHtml = todayCount>0 ? `<button class="btn-sec" style="padding:8px 10px;font-size:11px;color:var(--ink-mute);" onclick="undoKokaiToday('${a.id}')">取消</button>` : '';
+    return `<div class="kokai-act-card">
+      <div class="kokai-act-head">
+        <span class="kokai-act-ico">${a.icon||'🔁'}</span>
+        <div style="min-width:0;">
+          <div class="kokai-act-name">${kesc(a.name)}</div>
+          ${a.schedule?`<div class="kokai-act-sched">${kesc(a.schedule)}</div>`:''}
+        </div>
+        <div class="kokai-act-frac">
+          <div class="kokai-act-frac-num">${count}<span style="font-size:10px;color:var(--ink-mute);">/${target}</span></div>
+          <div class="kokai-act-frac-lbl">${kFreqLabel(a.freq)}(${unit})</div>
+        </div>
+      </div>
+      <div class="kokai-act-bar"><div class="kokai-act-bar-fill" style="width:${pct}%"></div></div>
+      <div class="kokai-act-btns">${recHtml}${undoHtml}
+        <button class="btn-sec" style="padding:8px 10px;font-size:11px;color:var(--ink-mute);margin-left:auto;" onclick="openKokaiActivityEdit('${a.id}')">編集</button>
+      </div>
+      <div class="kokai-grid">${grid}</div>
+      ${streakHtml}
+    </div>`;
+  }).join('');
+}
+window.recordKokaiActivity = async function(actId){
+  const a = cache.kokaiActivities.find(x=>String(x.id)===String(actId));
+  if(!a) return;
+  let memo = '';
+  if(a.hasMemo){ const el=$('kokai-memo-'+actId); memo = el ? el.value.trim() : ''; }
+  const log = { id:kuid(), activityId:String(actId), date:getTodayDateString(), memo };
+  cache.kokaiActivityLogs.push(log);
+  await window.setDocImport('kokaiActivityLogs', log);
+  renderKokaiActivities();
+};
+window.undoKokaiToday = async function(actId){
+  const today = getTodayDateString();
+  const mine = kLogsForAct(actId).filter(l=>l.date===today);
+  if(mine.length===0) return;
+  const last = mine[mine.length-1];
+  cache.kokaiActivityLogs = cache.kokaiActivityLogs.filter(x=>String(x.id)!==String(last.id));
+  await window.deleteDocImport('kokaiActivityLogs', last.id);
+  renderKokaiActivities();
+};
+let _editKokaiActivityId = null;
+window.openKokaiActivityAdd = function(){
+  _editKokaiActivityId = null;
+  $('ka-title').textContent = '定期活動を追加';
+  $('ka-name').value=''; $('ka-icon').value=''; $('ka-freq').value='weekly';
+  $('ka-target').value=''; $('ka-unit').value=''; $('ka-schedule').value=''; $('ka-memo').checked=false;
+  $('ka-del').style.display='none';
+  openModal('ov-kokai-activity');
+};
+window.openKokaiActivityEdit = function(id){
+  const a = cache.kokaiActivities.find(x=>String(x.id)===String(id));
+  if(!a) return;
+  _editKokaiActivityId = String(id);
+  $('ka-title').textContent = '定期活動を編集';
+  $('ka-name').value=a.name||''; $('ka-icon').value=a.icon||''; $('ka-freq').value=a.freq||'weekly';
+  $('ka-target').value=a.target!=null?a.target:''; $('ka-unit').value=a.unit||''; $('ka-schedule').value=a.schedule||''; $('ka-memo').checked=!!a.hasMemo;
+  $('ka-del').style.display='';
+  openModal('ov-kokai-activity');
+};
+window.saveKokaiActivity = async function(){
+  const name = $('ka-name').value.trim();
+  if(!name) return alert('活動名を入力してください');
+  const target = parseInt($('ka-target').value,10);
+  const data = {
+    name,
+    icon: ($('ka-icon').value||'').trim() || '🔁',
+    freq: $('ka-freq').value,
+    target: (!isNaN(target) && target>0) ? target : 1,
+    unit: ($('ka-unit').value||'').trim() || '回',
+    schedule: ($('ka-schedule').value||'').trim(),
+    hasMemo: $('ka-memo').checked,
+  };
+  if(_editKokaiActivityId){
+    const a = cache.kokaiActivities.find(x=>String(x.id)===String(_editKokaiActivityId));
+    if(!a) return;
+    Object.assign(a, data);
+    await window.setDocImport('kokaiActivities', a);
+  } else {
+    const a = { id:kuid(), order:cache.kokaiActivities.length, ...data };
+    cache.kokaiActivities.push(a);
+    await window.setDocImport('kokaiActivities', a);
+  }
+  closeModal('ov-kokai-activity');
+  renderKokaiActivities();
+};
+window.deleteKokaiActivity = function(){
+  if(!_editKokaiActivityId) return;
+  const a = cache.kokaiActivities.find(x=>String(x.id)===String(_editKokaiActivityId));
+  confirmDialog(`「${a?a.name:''}」を削除しますか？（記録も残りますが表示されなくなります）`, async ()=>{
+    cache.kokaiActivities = cache.kokaiActivities.filter(x=>String(x.id)!==String(_editKokaiActivityId));
+    await window.deleteDocImport('kokaiActivities', _editKokaiActivityId);
+    closeModal('ov-kokai-activity');
+    _editKokaiActivityId = null;
+    renderKokaiActivities();
+  });
+};
+
+// ============= 初期データ（1度だけ） =============
+window.ensureKokaiSeed = async function(){
+  if(cache.settings && cache.settings.kokaiSeeded) return;
+  try{
+    if(cache.kokaiWorks.length===0){
+      const stages = {};
+      KOKAI_STAGES.forEach(s=>{ stages[s.key] = { status: s.key==='lyrics' ? 'done' : 'todo', memo:'' }; });
+      const w = { id:kuid(), name:'陽かり', note:'', stages, order:0 };
+      cache.kokaiWorks.push(w);
+      await window.setDocImport('kokaiWorks', w);
+    }
+    if(cache.kokaiActivities.length===0){
+      const defs = [
+        { name:'ライブ配信',            icon:'📡', freq:'weekly',  target:1, unit:'回', schedule:'毎週日曜21時',                              hasMemo:false },
+        { name:'ショート投稿',          icon:'📱', freq:'weekly',  target:3, unit:'本', schedule:'週3本',                                    hasMemo:false },
+        { name:'オリジナル曲（弾き語り）', icon:'🎸', freq:'monthly', target:1, unit:'回', schedule:'月1回',                                    hasMemo:false },
+        { name:'練習',                  icon:'🎵', freq:'daily',   target:7, unit:'日', schedule:'毎日（アップ5分→課題曲20分→録音1テイク5分）', hasMemo:true  },
+      ];
+      for(let i=0;i<defs.length;i++){
+        const a = { id:kuid(), order:i, ...defs[i] };
+        cache.kokaiActivities.push(a);
+        await window.setDocImport('kokaiActivities', a);
+      }
+    }
+    cache.settings.kokaiSeeded = true;
+    await window.saveAllSettings();
+  } catch(e){ console.warn('KOKAI seed失敗', e); }
+};
