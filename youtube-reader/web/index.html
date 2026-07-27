@@ -497,11 +497,12 @@ body.fs-lock{overflow:hidden;}
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script>
 const CFG = window.YTR_CONFIG || {};
-const APP_VER = 'pc-layout-v9'; // 更新確認用。設定>状態 に表示
+const APP_VER = 'view-restore-v10'; // 更新確認用。設定>状態 に表示
 const CH_COL='schedule_ytChannels', META_DOC=['schedule_ytMeta','app'], MEM_DOC=['schedule_ytMeta','members'];
 const REDISCOVER={W_STALE:1.0,W_FRESH:0.6,FRESH_CAP_DAYS:30,NEVER_VIEWED_DAYS:400};
 const DAY=86400000, now=()=>Date.now(), nowIso=()=>new Date().toISOString();
-const LSK_CH='ytr_channels', LSK_META='ytr_meta', LSK_HIST='ytr_history', LSK_MEM='ytr_member', LSK_MEMPL='ytr_member_pl', LSK_POS='ytr_pos';
+const LSK_CH='ytr_channels', LSK_META='ytr_meta', LSK_HIST='ytr_history', LSK_MEM='ytr_member', LSK_MEMPL='ytr_member_pl', LSK_POS='ytr_pos', LSK_VIEW='ytr_view';
+function saveView(){ try{ if(state._restoring)return; LS.set(LSK_VIEW,{pg:document.body.dataset.pg||'feed',tag:state.activeTag,fm:state.feedMode,y:window.scrollY}); }catch(e){} }
 const state={ videos:[], discover:[], channels:{}, meta:{tags:[],modes:{}}, history:[],
   activeTag:'__all__', chFilter:'all', feedMode:'subs', discMode:'recommended', fb:null };
 
@@ -1393,11 +1394,12 @@ function goHome(){
   state.meta.modes=state.meta.modes||{}; state.meta.modes['__all__']='fav'; saveMeta();
   tab('feed'); renderFeed(); scrollTop();
 }
-function tab(name){['feed','hist','ch','set'].forEach(p=>$('#pg-'+p).classList.toggle('on',p===name));
+function tab(name,keepScroll){['feed','hist','ch','set'].forEach(p=>$('#pg-'+p).classList.toggle('on',p===name));
   document.body.dataset.pg=name;
   document.querySelectorAll('.tb').forEach(b=>b.classList.toggle('on',b.dataset.pg===name));
   if(name==='hist')renderHistory();if(name==='ch')renderChannels();if(name==='set'){renderTagMgr();refreshStatus();}
-  scrollTop();}
+  if(!keepScroll)scrollTop();
+  saveView();}
 function refreshStatus(){const total=Object.keys(state.channels).length,un=Object.values(state.channels).filter(c=>!(c.tags&&c.tags.length)).length;
   $('#statusLine').innerHTML=`保存先: <b>${state.fb?'Firestore（クラウド同期）':'この端末のみ'}</b><br>`
     +`チャンネル: ${total} / タグ未設定: ${un} / 登録動画: ${state.videos.length} / 発見: ${state.discover.length}<br>`
@@ -1519,12 +1521,26 @@ async function init(){
     window.addEventListener('touchend',e=>{if(!pull)return;pull=false;if(window.scrollY<=0&&e.changedTouches[0].clientY-sy>90){toast('更新中…');refreshData();}},{passive:true});
   })();
   // 下スクロールでヘッダを隠す/上スクロールで出す
-  let _ly=0;
-  window.addEventListener('scroll',()=>{const y=window.scrollY;if(y>90&&y>_ly+4)document.body.classList.add('hdhide');else if(y<_ly-4||y<40)document.body.classList.remove('hdhide');_ly=y;},{passive:true});
+  let _ly=0,_svT=0;
+  window.addEventListener('scroll',()=>{const y=window.scrollY;if(y>90&&y>_ly+4)document.body.classList.add('hdhide');else if(y<_ly-4||y<40)document.body.classList.remove('hdhide');_ly=y;
+    const n=now();if(n-_svT>500){_svT=n;saveView();}},{passive:true}); // スクロール位置も保存(間引き)
+  window.addEventListener('pagehide',saveView);
   setHdh();window.addEventListener('resize',setHdh);window.addEventListener('orientationchange',()=>setTimeout(setHdh,300));
   initLogin();
-  document.body.dataset.pg='feed';
-  renderFeed();refreshStatus();
+  // リロード時は前回の表示（タブ・タグ・スクロール位置）を復元
+  const v=LS.get(LSK_VIEW,null);
+  state._restoring=true;
+  if(v&&['feed','hist','ch','set'].includes(v.pg)){
+    if(v.fm)state.feedMode=v.fm;
+    if(v.tag)state.activeTag=v.tag;
+    renderFeed();
+    tab(v.pg,true); // スクロールは維持
+    requestAnimationFrame(()=>window.scrollTo(0,v.y||0));
+  }else{
+    document.body.dataset.pg='feed'; renderFeed();
+  }
+  state._restoring=false;
+  refreshStatus();
   refreshLiveStatus();
   loadMemberVideos();
   setInterval(liveTick,4*60*1000); // 4分ごとにライブ状態と新着配信を自動チェック
