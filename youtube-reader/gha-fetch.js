@@ -176,6 +176,34 @@ async function fetchMemberVideos() {
   return out;
 }
 
+const CHAT_TOKEN_MAX = Number(process.env.CHAT_TOKEN_MAX || 60); // チャットリプレイ用トークンを取得する最大本数(新しい順)
+// 視聴ページ conversationBar からリプレイチャットの継続トークンを取り出す
+function findConvToken(data) {
+  let cb = null;
+  (function w(n){ if(cb||!n||typeof n!=='object')return; if(Array.isArray(n)){for(const x of n){w(x);if(cb)return;}return;} if(n.conversationBar){cb=n.conversationBar;return;} for(const k in n){w(n[k]);if(cb)return;} })(data);
+  if(!cb)return null;
+  let tok=null;
+  (function w(n){ if(tok||!n||typeof n!=='object')return; if(Array.isArray(n)){for(const x of n){w(x);if(tok)return;}return;} if(n.reloadContinuationData&&n.reloadContinuationData.continuation){tok=n.reloadContinuationData.continuation;return;} for(const k in n){w(n[k]);if(tok)return;} })(cb);
+  return tok;
+}
+// ライブアーカイブ(新しい順・上限CHAT_TOKEN_MAX)の視聴ページからリプレイチャットのトークンを取得して v.chat に付与
+async function fetchChatTokens(list) {
+  const arch = list.filter((v) => v.wasLive || v.live).sort((a,b)=>(Date.parse(b.p)||0)-(Date.parse(a.p)||0)).slice(0, CHAT_TOKEN_MAX);
+  if (!arch.length) return;
+  let ok = 0;
+  await mapPool(arch, 4, async (v) => {
+    try {
+      const r = await fetch(`https://www.youtube.com/watch?v=${v.id}`, { headers: MEMBER_HEADERS });
+      if (!r.ok) return;
+      const data = extractYtInitialData(await r.text());
+      if (!data) return;
+      const tok = findConvToken(data);
+      if (tok) { v.chat = tok; ok++; }
+    } catch (e) {}
+  });
+  console.log(`チャットリプレイtrtoken: ${ok}/${arch.length} 本取得`);
+}
+
 const now = () => new Date().toISOString();
 
 function isoDurToSec(iso) {
@@ -226,6 +254,7 @@ async function markMeta(list) {
         else if (bc === 'upcoming') { v.upcoming = true; if (lsd.scheduledStartTime) v.p = lsd.scheduledStartTime; upcoming++; }
         else if (sec != null && sec > 0 && sec <= SHORT_MAX_SEC) v.short = true; // 60秒以下は無条件ショート
         else if (sec != null && sec > SHORT_MAX_SEC && sec <= SHORT_URLCHECK_SEC && !v.short) urlCand.push(v); // 60秒〜3分はURL確認
+        if (lsd.actualEndTime) v.wasLive = true; // 終了したライブ=アーカイブ（チャットリプレイ対象）
       }
     } catch (e) {
       console.error('videos.list 失敗:', e.message);
@@ -334,6 +363,10 @@ async function main() {
   for (const v of memAdd) trimmed.push(v);
   if (memAdd.length) trimmed.sort((a, b) => key(b) - key(a));
   console.log(`メンバー限定: ${memAdd.length}本を追加`);
+
+  // ライブアーカイブのチャットリプレイ用トークンを取得（新しい順に上限まで）
+  console.log('チャットリプレイのトークン取得中…');
+  await fetchChatTokens(trimmed);
 
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, JSON.stringify({ updatedAt: now(), count: trimmed.length, videos: trimmed }) + '\n', 'utf8');

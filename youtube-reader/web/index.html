@@ -498,7 +498,7 @@ body.fs-lock{overflow:hidden;}
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script>
 const CFG = window.YTR_CONFIG || {};
-const APP_VER = 'chatreplay-v13'; // 更新確認用。設定>状態 に表示
+const APP_VER = 'chatreplay-v14'; // 更新確認用。設定>状態 に表示
 const CH_COL='schedule_ytChannels', META_DOC=['schedule_ytMeta','app'], MEM_DOC=['schedule_ytMeta','members'];
 const REDISCOVER={W_STALE:1.0,W_FRESH:0.6,FRESH_CAP_DAYS:30,NEVER_VIEWED_DAYS:400};
 const DAY=86400000, now=()=>Date.now(), nowIso=()=>new Date().toISOString();
@@ -929,7 +929,9 @@ async function loadDesc(id){
     const vc=st.viewCount?`👁 ${numJa(st.viewCount)}回`:'', lc=st.likeCount?`👍 ${numJa(st.likeCount)}`:'';
     $('#vStats').textContent=[vc,lc].filter(Boolean).join('　');
     if(it.liveStreamingDetails){ const live=d.liveBroadcastContent==='live'; const cb=$('#chatBtn');
-      cb.style.display=''; cb.dataset.id=id; cb.dataset.live=live?'1':'0'; cb.dataset.label=live?'💬 ライブチャットを表示':'💬 チャットリプレイを表示'; cb.textContent=cb.dataset.label; }
+      cb.style.display=''; cb.dataset.id=id; cb.dataset.live=live?'1':'0';
+      const st=findById(id); cb.dataset.token=(st&&st.chat)||''; // アーカイブはリプレイ用トークン
+      cb.dataset.label=live?'💬 ライブチャットを表示':'💬 チャットリプレイを表示'; cb.textContent=cb.dataset.label; }
   }catch(e){}
 }
 // ミニプレーヤー: iframeは動かさず #np のクラスだけで大/小を切替（＝再生シームレス）
@@ -1484,10 +1486,12 @@ async function init(){
     const cb=$('#chatBtn'), box=$('#chatBox'), id=cb.dataset.id, base=cb.dataset.label||'💬 チャットを表示', shown=(box.style.display==='block');
     if(!shown){
       if(!box.dataset.for||box.dataset.for!==id){ // 動画が変わったら作り直す
-        const live=cb.dataset.live==='1';
-        // 配信中は live_chat、アーカイブは live_chat_replay（別URL）
-        const path=live?'live_chat':'live_chat_replay';
-        const url=`https://www.youtube.com/${path}?v=${encodeURIComponent(id)}&embed_domain=${encodeURIComponent(location.hostname)}`;
+        const live=cb.dataset.live==='1', token=cb.dataset.token||'', host=encodeURIComponent(location.hostname);
+        // 配信中=live_chat / アーカイブ=live_chat_replay?continuation=トークン（トークンが無ければ暫定でlive_chat）
+        const url=live
+          ?`https://www.youtube.com/live_chat?v=${encodeURIComponent(id)}&embed_domain=${host}`
+          :(token?`https://www.youtube.com/live_chat_replay?continuation=${encodeURIComponent(token)}&embed_domain=${host}`
+                 :`https://www.youtube.com/live_chat?v=${encodeURIComponent(id)}&embed_domain=${host}`);
         box.innerHTML=`<iframe src="${url}" allow="autoplay"></iframe>`
           +`<a class="chat-fb" href="https://www.youtube.com/watch?v=${encodeURIComponent(id)}" target="_blank" rel="noopener">チャットが出ない場合は YouTube で見る ↗</a>`;
         box.dataset.for=id;
