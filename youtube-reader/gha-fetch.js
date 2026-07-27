@@ -176,7 +176,8 @@ async function fetchMemberVideos() {
   return out;
 }
 
-const CHAT_TOKEN_MAX = Number(process.env.CHAT_TOKEN_MAX || 60); // チャットリプレイ用トークンを取得する最大本数(新しい順)
+const CHAT_TOKEN_MAX = Number(process.env.CHAT_TOKEN_MAX || 150); // チャットリプレイ用トークンを取得する最大本数
+const CHAT_TOKEN_PER_CH = Number(process.env.CHAT_TOKEN_PER_CH || 3); // 1チャンネルあたりの上限(ニュース系が枠を独占しないように)
 // 視聴ページ conversationBar からリプレイチャットの継続トークンを取り出す
 function findConvToken(data) {
   let cb = null;
@@ -188,7 +189,10 @@ function findConvToken(data) {
 }
 // ライブアーカイブ(新しい順・上限CHAT_TOKEN_MAX)の視聴ページからリプレイチャットのトークンを取得して v.chat に付与
 async function fetchChatTokens(list) {
-  const arch = list.filter((v) => v.wasLive || v.live).sort((a,b)=>(Date.parse(b.p)||0)-(Date.parse(a.p)||0)).slice(0, CHAT_TOKEN_MAX);
+  const sorted = list.filter((v) => v.wasLive || v.live).sort((a,b)=>(Date.parse(b.p)||0)-(Date.parse(a.p)||0));
+  // チャンネルごとに上限を設けつつ新しい順に選ぶ（1チャンネルが枠を独占しないように）
+  const perCh = new Map(); const arch = [];
+  for (const v of sorted) { const n = perCh.get(v.cid) || 0; if (n >= CHAT_TOKEN_PER_CH) continue; perCh.set(v.cid, n + 1); arch.push(v); if (arch.length >= CHAT_TOKEN_MAX) break; }
   if (!arch.length) return;
   let ok = 0;
   await mapPool(arch, 4, async (v) => {
