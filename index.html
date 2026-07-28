@@ -361,7 +361,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v75</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v76</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -417,54 +417,6 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
       <button class="btn-sec" onclick="addNightTask()">＋</button>
     </div>
   </div>
-</div>
-
-<!-- PAGE: PROJECTS -->
-<div class="pg" id="pg-projects">
-  <div class="dash-grid" style="margin-bottom:10px;">
-    <div class="card" style="margin-bottom:0;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;">
-      <div>
-        <div style="font-size:9px;color:var(--ink-mute);letter-spacing:.1em;">進行中</div>
-        <div style="font-size:9px;color:var(--ink-soft);">案件</div>
-      </div>
-      <div style="font-size:20px;font-weight:700;line-height:1;" id="proj-active-count">0</div>
-    </div>
-    <div class="card" style="margin-bottom:0;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;">
-      <div>
-        <div style="font-size:9px;color:var(--ink-mute);letter-spacing:.1em;">未完了</div>
-        <div style="font-size:9px;color:var(--ink-soft);">タスク</div>
-      </div>
-      <div style="font-size:20px;font-weight:700;line-height:1;" id="proj-task-count">0</div>
-    </div>
-  </div>
-
-  <div class="card" id="all-tasks-card" style="display:none;">
-    <div class="sec-h" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <div style="font-size:13px;">現在のタスク</div>
-      <span style="font-size:10px;color:var(--ink-mute);">タップで⭐優先 / もう一度で解除</span>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <div>
-        <div style="font-size:10px;letter-spacing:.1em;color:var(--pink-dk);font-weight:700;margin-bottom:4px;">⭐ 優先</div>
-        <div id="priority-tasks-list" style="min-height:60px;"></div>
-      </div>
-      <div>
-        <div style="font-size:10px;letter-spacing:.1em;color:var(--ink-mute);font-weight:700;margin-bottom:4px;">全タスク <span id="all-tasks-count">0件</span></div>
-        <div id="all-tasks-list"></div>
-      </div>
-    </div>
-  </div>
-
-  <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
-    <div class="subtab-wrap" style="flex:1;margin-bottom:0;display:grid;grid-template-columns:1fr 1fr 1fr;">
-      <button class="subtab on" onclick="setProjFilter('active')" data-pf="active">進行中</button>
-      <button class="subtab" onclick="setProjFilter('done')" data-pf="done">完了</button>
-      <button class="subtab" onclick="setProjFilter('all')" data-pf="all">すべて</button>
-    </div>
-    <button class="btn-pri" style="width:auto;padding:14px 20px;" onclick="openProjectAdd()">＋ 追加</button>
-  </div>
-
-  <div id="project-list"></div>
 </div>
 
 <!-- PAGE: PROGRESS -->
@@ -670,10 +622,6 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
   <button class="tb" data-tb="ideal" onclick="setTab('ideal')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/></svg>
     理想
-  </button>
-  <button class="tb" data-tb="projects" onclick="setTab('projects')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>
-    案件
   </button>
   <button class="tb" data-tb="calendar" onclick="setTab('calendar')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
@@ -1398,6 +1346,6 @@ if(window.caches){ caches.keys().then(ks=>{ ks.forEach(k=>caches.delete(k)); }).
 </script>
 
 <!-- UI script -->
-<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=75"></script>
+<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=76"></script>
 </body>
 </html>
