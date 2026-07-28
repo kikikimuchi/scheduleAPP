@@ -697,6 +697,8 @@ window.setProjFilter = function(f){
   renderProjects();
 };
 window.renderProjects = function(){
+  // 案件タブは廃止。ページが無い環境では何もしない（データ・関数は保持）。
+  if(!document.getElementById('project-list')) return;
   const todayStr = getTodayDateString();
   const active = cache.projects.filter(p=>p.status==='active');
   const filtered = cache.projects.filter(p=>_projFilter==='all' || p.status===_projFilter);
