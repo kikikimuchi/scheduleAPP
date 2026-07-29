@@ -110,7 +110,7 @@
   .tag-select{display:flex; flex-wrap:wrap; gap:8px;}
   .tag-toggle{
     border:1.5px solid var(--line); background:var(--bg); color:var(--ink-soft);
-    padding:8px 14px; border-radius:20px; font-size:13px; font-weight:700;
+    padding:6px 12px; border-radius:8px; font-size:12.5px; font-weight:700;
     cursor:pointer; font-family:inherit;
   }
   .tag-toggle.on{color:#fff; border-color:transparent;}
@@ -142,17 +142,17 @@
     border:1px solid var(--line); background:var(--card); color:var(--ink-mute); cursor:pointer;
   }
   .step.on{color:#fff; border-color:transparent;}
-  .body-actions{display:flex; gap:7px; margin-top:14px;}
+  .body-actions{display:flex; gap:7px; margin-top:10px;}
 
   /* inputs & buttons */
   input.fi, textarea.fi, select.fi{
     width:100%; border:1px solid var(--line); background:var(--bg); color:var(--ink);
-    border-radius:11px; padding:11px 13px; font-size:14px; font-family:inherit; outline:none;
+    border-radius:10px; padding:9px 12px; font-size:14px; font-family:inherit; outline:none;
   }
   input.fi:focus, textarea.fi:focus, select.fi:focus{border-color:var(--accent);}
-  textarea.fi{resize:vertical; min-height:70px;}
+  textarea.fi{resize:vertical; min-height:48px;}
   .btn{
-    border:none; border-radius:11px; padding:11px 15px; font-size:13.5px; font-weight:700;
+    border:none; border-radius:11px; padding:10px 15px; font-size:13.5px; font-weight:700;
     cursor:pointer; font-family:inherit;
   }
   .btn-primary{background:var(--accent); color:#fff;}
@@ -261,9 +261,9 @@
   }
   @keyframes up{from{transform:translateY(30px);opacity:.4;}to{transform:translateY(0);opacity:1;}}
   .sheet h2{margin:0 0 10px; font-size:16px; font-weight:800;}
-  .field{margin-bottom:13px;}
-  .field label{display:block; font-size:11px; font-weight:700; color:var(--ink-mute); margin-bottom:6px; letter-spacing:.02em;}
-  .grab{width:38px; height:4px; background:var(--line); border-radius:3px; margin:0 auto 14px;}
+  .field{margin-bottom:9px;}
+  .field label{display:block; font-size:11px; font-weight:700; color:var(--ink-mute); margin-bottom:3px; letter-spacing:.02em;}
+  .grab{width:38px; height:4px; background:var(--line); border-radius:3px; margin:0 auto 10px;}
 </style>
 </head>
 <body>
@@ -292,12 +292,12 @@
     <h2 id="sheetTitle">案件を追加</h2>
     <div class="field">
       <label>案件名</label>
-      <input class="fi" id="f-name" type="text" placeholder="例：Accord50周年動画 編集">
+      <input class="fi" id="f-name" type="text">
     </div>
     <div class="field">
       <label>クライアント</label>
-      <input class="fi" id="f-client" type="text" placeholder="例：Honda" list="client-list" autocomplete="off">
-      <datalist id="client-list"></datalist>
+      <select class="fi" id="f-client-sel" onchange="onClientSel()"></select>
+      <input class="fi" id="f-client-new" type="text" placeholder="クライアント名" style="display:none;margin-top:8px;">
     </div>
     <div class="field">
       <label>締切</label>
@@ -315,7 +315,7 @@
     </div>
     <div class="field" id="amount-field">
       <label>金額（円）</label>
-      <input class="fi" id="f-amount" type="number" inputmode="numeric" min="0" step="1000" placeholder="例：150000">
+      <input class="fi" id="f-amount" type="number" inputmode="numeric" min="0" step="1000">
     </div>
     <div class="field" id="paid-field">
       <label>入金日（未入金なら空欄）</label>
@@ -333,7 +333,7 @@
       <button class="btn btn-primary wide" onclick="saveEdit()">保存</button>
       <button class="btn btn-sec" onclick="closeEdit()">キャンセル</button>
     </div>
-    <div style="text-align:center; margin-top:12px;">
+    <div style="text-align:center; margin-top:6px;">
       <button class="btn btn-ghost" id="deleteBtn" onclick="deleteProject()" style="display:none;">この案件を削除</button>
     </div>
   </div>
@@ -565,9 +565,16 @@ function renderTaskChips(){
     done: all.filter(x=>x.t.done).length,
     all: all.length,
   };
-  const chips=[{k:'open',label:'未完'},{k:'priority',label:'★優先'},{k:'done',label:'完了'},{k:'all',label:'すべて'}];
+  const chips=[
+    {k:'open',label:'未完',color:'var(--s-progress)'},
+    {k:'priority',label:'★優先',color:'var(--warn)'},
+    {k:'done',label:'完了',color:'var(--s-done)'},
+    {k:'all',label:'すべて',color:'var(--ink-mute)'},
+  ];
   $('chips').innerHTML = chips.map(c=>`
-    <button class="chip ${taskFilter===c.k?'on':''}" onclick="setTaskFilter('${c.k}')">${c.label}<span class="cnt">${cnt[c.k]}</span></button>`).join('');
+    <button class="chip ${taskFilter===c.k?'on':''}" style="${taskFilter===c.k?`background:${c.color};color:#fff;border-color:transparent;`:''}" onclick="setTaskFilter('${c.k}')">
+      <span class="dot" style="background:${c.color}"></span>${c.label}<span class="cnt">${cnt[c.k]}</span>
+    </button>`).join('');
 }
 
 function renderTasksView(){
@@ -849,7 +856,7 @@ window.openSalesModal = ()=>{
     <div style="font-size:10px;color:var(--ink-mute);margin-top:5px;line-height:1.5;">
       ※ 入力金額は税別。消費税(10%)は預り金として確保推奨。所得税・住民税などは年間の利益に応じて別途必要です。
     </div>
-    ${personalTotal?`<div style="margin-top:9px;padding-top:8px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink-mute);">個人売上（会社設立前）：<span style="font-weight:800;color:var(--ink-soft);font-size:13px;">${fmtYen(personalTotal)}</span></div>`:''}
+    ${personalTotal?`<div style="margin-top:9px;padding-top:8px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink-mute);">個人売上（会社設立前）：<span style="font-weight:800;color:var(--ink-soft);font-size:13px;">${fmtYen(personalTotal)}</span>（税込 ${fmtYen(Math.round(personalTotal*1.1))}）</div>`:''}
     ${unpaid.length?`<div style="margin-top:8px;font-size:12px;color:var(--warn);font-weight:700;">未入金 ${fmtYen(unpaidTotal)}（${unpaid.length}件）</div>`:''}`;
   $('salesOverlay').classList.add('on');
 };
@@ -894,9 +901,13 @@ window.openEdit = (id)=>{
   const p = id?find(id):null;
   $('sheetTitle').textContent = p?'案件を編集':'案件を追加';
   $('f-name').value = p?p.name:'';
-  $('f-client').value = p?p.client:'';
-  $('client-list').innerHTML = [...new Set(projects.map(x=>(x.client||'').trim()).filter(Boolean))]
-    .map(c=>`<option value="${esc(c)}"></option>`).join('');
+  const cur = p ? (p.client||'') : '';
+  const clients = [...new Set(projects.map(x=>(x.client||'').trim()).filter(Boolean))].sort();
+  $('f-client-sel').innerHTML =
+    `<option value="">（未設定）</option>`
+    + clients.map(c=>`<option value="${esc(c)}" ${c===cur?'selected':''}>${esc(c)}</option>`).join('')
+    + `<option value="__new__">＋ 新しいクライアントを追加</option>`;
+  $('f-client-new').style.display='none'; $('f-client-new').value='';
   $('f-deadline').value = p?p.deadline:'';
   $('f-amount').value = (p && p.amount!=null) ? p.amount : '';
   $('f-paid').value = p ? (p.paidDate||'') : '';
@@ -912,6 +923,11 @@ window.openEdit = (id)=>{
   updateJimuUI();
   $('deleteBtn').style.display = p?'inline-block':'none';
   $('overlay').classList.add('on');
+};
+window.onClientSel = ()=>{
+  const isNew = $('f-client-sel').value==='__new__';
+  $('f-client-new').style.display = isNew ? 'block' : 'none';
+  if(isNew) $('f-client-new').focus();
 };
 window.togglePersonal = (btn)=>{
   const on = !btn.classList.contains('on');
@@ -942,7 +958,8 @@ window.saveEdit = async ()=>{
   if(editingId){ p=find(editingId); }
   else { p={id:Date.now(), tasks:[]}; projects.push(p); }
   p.name=name;
-  p.client=$('f-client').value.trim();
+  const csel=$('f-client-sel').value;
+  p.client = (csel==='__new__') ? $('f-client-new').value.trim() : csel;
   p.deadline=$('f-deadline').value;
   p.tags = currentTags();
   const amt=$('f-amount').value.trim();
