@@ -3,28 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#4f6ef2">
-<title>仕事 — 案件管理</title>
+<meta name="theme-color" content="#181b21">
+<title>株式会社 狩所 — 案件管理</title>
 <style>
+  /* 目に優しいダークテーマ（常時ダーク） */
   :root{
-    --bg:#f5f6f8; --card:#ffffff; --ink:#1c2230; --ink-soft:#4a5568;
-    --ink-mute:#8892a4; --ink-faint:#b3bccb; --line:#e7eaef;
-    --accent:#4f6ef2; --accent-soft:#eef2ff;
-    --danger:#ef4444; --warn:#f59e0b;
-    /* stage colors */
-    --s-quote:#64748b; --s-progress:#3b82f6; --s-review:#f59e0b;
-    --s-delivery:#8b5cf6; --s-done:#10b981;
+    --bg:#181b21; --card:#21252e; --ink:#dfe4ec; --ink-soft:#a6afc0;
+    --ink-mute:#7c8698; --ink-faint:#515a6a; --line:#2c313b;
+    --accent:#7d92f7; --accent-soft:#242b44;
+    --danger:#ef8a8c; --warn:#e3b263;
+    /* stage colors（彩度を抑えめに） */
+    --s-quote:#818b9d; --s-progress:#6f95e6; --s-review:#e3b263; --s-done:#54c298;
     /* tag colors */
-    --tag-dir:#8b5cf6; --tag-shoot:#06b6d4; --tag-edit:#ec4899; --tag-jimu:#64748b;
-    --shadow:0 1px 3px rgba(20,30,55,.06), 0 4px 16px rgba(20,30,55,.05);
-  }
-  @media (prefers-color-scheme: dark){
-    :root{
-      --bg:#12151c; --card:#1b1f29; --ink:#eef1f6; --ink-soft:#b8c0cf;
-      --ink-mute:#7e8698; --ink-faint:#565e70; --line:#2a2f3c;
-      --accent:#7d92f7; --accent-soft:#232a45;
-      --shadow:0 1px 3px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.35);
-    }
+    --tag-dir:#9a8cf1; --tag-shoot:#54c6da; --tag-edit:#e88bc0; --tag-jimu:#818b9d;
+    --shadow:0 1px 3px rgba(0,0,0,.28), 0 6px 20px rgba(0,0,0,.30);
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{margin:0;padding:0;}
@@ -44,6 +36,7 @@
   .head-row{display:flex; align-items:center; gap:10px;}
   .title{font-size:22px; font-weight:800; letter-spacing:.02em;}
   .title small{font-size:11px; font-weight:600; color:var(--ink-mute); margin-left:6px; letter-spacing:0;}
+  .title small.fiscal{border:1px solid var(--line); padding:1px 6px; border-radius:6px; color:var(--ink-soft);}
   .head-row .sp{flex:1;}
   .icon-btn{
     border:1px solid var(--line); background:var(--card); color:var(--ink-soft);
@@ -126,10 +119,9 @@
   /* expanded body */
   .body{padding:2px 14px 14px; border-top:1px solid var(--line);}
   .note{
-    background:rgba(0,0,0,.03); border-radius:10px; padding:10px 12px; font-size:12px;
+    background:rgba(255,255,255,.04); border-radius:10px; padding:10px 12px; font-size:12px;
     color:var(--ink-soft); white-space:pre-wrap; margin:12px 0; line-height:1.65;
   }
-  @media (prefers-color-scheme: dark){ .note{background:rgba(255,255,255,.04);} }
   .task{display:flex; align-items:center; gap:10px; padding:8px 2px; border-bottom:1px solid var(--line);}
   .task:last-of-type{border-bottom:none;}
   .check{
@@ -214,6 +206,34 @@
   .task-group-head .stage-pill{margin-bottom:0;}
   .tg-name{font-size:13.5px; font-weight:700; word-break:break-word;}
 
+  /* tappable sales stat */
+  .stat.tap{cursor:pointer;}
+  .stat.tap:active{transform:scale(.97);}
+  .stat.tap .l{color:var(--accent);}
+
+  /* drag & drop */
+  .drag-handle{
+    flex-shrink:0; color:var(--ink-faint); font-size:15px; cursor:grab;
+    padding:2px 4px; touch-action:none; user-select:none; line-height:1;
+  }
+  .task.dragging{opacity:.85; background:var(--accent-soft); border-radius:8px;}
+  .dnd-list.dragging-active .task{transition:transform .12s;}
+
+  /* monochrome star */
+  .star{color:var(--ink-faint);}
+  .star.on{color:var(--ink);}
+
+  /* sales modal chart */
+  .sm-head{display:flex; gap:8px; margin-bottom:14px;}
+  .sm-stat{flex:1; background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:10px 12px;}
+  .sm-stat .n{font-size:16px; font-weight:800; line-height:1.1;}
+  .sm-stat .l{font-size:10px; color:var(--ink-mute); margin-top:4px; font-weight:600;}
+  .sm-row{display:flex; align-items:center; gap:9px; padding:5px 0;}
+  .sm-mon{width:44px; flex-shrink:0; font-size:11px; font-weight:700; color:var(--ink-soft); text-align:right;}
+  .sm-track{flex:1; height:16px; background:var(--bg); border-radius:5px; overflow:hidden;}
+  .sm-bar{height:100%; background:var(--accent); border-radius:5px; min-width:2px;}
+  .sm-val{width:78px; flex-shrink:0; font-size:11px; font-weight:700; text-align:right; font-variant-numeric:tabular-nums;}
+
   /* modal */
   .overlay{
     position:fixed; inset:0; z-index:50; background:rgba(15,20,35,.5);
@@ -236,7 +256,7 @@
 <div class="wrap">
   <header>
     <div class="head-row">
-      <div class="title">株式会社 狩所<small id="sub">案件管理</small></div>
+      <div class="title">株式会社 狩所<small class="fiscal">5月決算</small><small id="sub">案件管理</small></div>
       <div class="sp"></div>
       <button class="icon-btn" onclick="reload()" title="再読込" id="reloadBtn">↻</button>
     </div>
@@ -294,6 +314,18 @@
   </div>
 </div>
 
+<!-- sales sheet -->
+<div class="overlay" id="salesOverlay" onclick="if(event.target===this)closeSales()">
+  <div class="sheet">
+    <div class="grab"></div>
+    <h2>売上（月別）</h2>
+    <div id="salesBody"></div>
+    <div class="body-actions" style="margin-top:16px;">
+      <button class="btn btn-sec wide" onclick="closeSales()">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ==================== 設定 ==================== */
 const PROJECT_ID = 'keiriauto-6f8f1';
@@ -303,8 +335,8 @@ const BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databas
 // 進捗ステージ（5段階）。既存の status(active/done) は stage から自動同期する。
 const STAGES = [
   {key:'quote',    label:'見積',   color:'var(--s-quote)'},
-  {key:'progress', label:'制作',   color:'var(--s-progress)'},
-  {key:'review',   label:'確認待ち', color:'var(--s-review)'},
+  {key:'progress', label:'進行',   color:'var(--s-progress)'},
+  {key:'review',   label:'確認',   color:'var(--s-review)'},
   {key:'done',     label:'完了',   color:'var(--s-done)'},
 ];
 const stageOf = k => STAGES.find(s=>s.key===k) || STAGES[1];
@@ -445,14 +477,18 @@ function renderSummary(){
   const active = projects.filter(p=>p.stage!=='done');
   const cases = active.filter(p=>!isJimu(p));   // 事務は案件に数えない
   const openTasks = active.reduce((n,p)=>n+(p.tasks||[]).filter(t=>!t.done).length,0);
-  const soon = cases.filter(p=>{const i=dlInfo(p.deadline,false); return i && i.diff<=3;}).length;
+  // 締切3日以内は「案件」ではなく「タスク」ベース：締切が近い案件の未完タスク数
+  const soonTasks = active.reduce((n,p)=>{
+    const i=dlInfo(p.deadline,false);
+    return n + ((i && i.diff<=3) ? (p.tasks||[]).filter(t=>!t.done).length : 0);
+  },0);
   const total = cases.reduce((n,p)=>n+(typeof p.amount==='number'&&isFinite(p.amount)?p.amount:0),0);
   $('sub').textContent = `案件 ${cases.length}件`;
   $('summary').innerHTML = `
     <div class="stat"><div class="n">${cases.length}</div><div class="l">進行中の案件</div></div>
-    <div class="stat ${soon?'danger':''}"><div class="n">${soon}</div><div class="l">締切3日以内</div></div>
     <div class="stat"><div class="n">${openTasks}</div><div class="l">未完タスク</div></div>
-    <div class="stat"><div class="n" style="font-size:15px;">${total?fmtYen(total):'¥0'}</div><div class="l">2026年度売上</div></div>`;
+    <div class="stat ${soonTasks?'danger':''}"><div class="n">${soonTasks}</div><div class="l">締切3日以内</div></div>
+    <div class="stat tap" onclick="openSalesModal()"><div class="n" style="font-size:15px;">${total?fmtYen(total):'¥0'}</div><div class="l">2026年度売上 ›</div></div>`;
 }
 
 // 案件フィルタ判定。事務は案件系フィルタ（未完了/各ステージ）に出さず、専用の jimu と all にのみ出す。
@@ -467,8 +503,8 @@ function renderChips(){
   const count = f => projects.filter(p=>matchFilter(p,f)).length;
   const chips = [
     {k:'working',label:'未完了'},
-    ...STAGES.map(s=>({k:s.key,label:s.label,color:s.color})),
     {k:'jimu',label:'事務',color:'var(--tag-jimu)'},
+    ...STAGES.map(s=>({k:s.key,label:s.label,color:s.color})),
     {k:'all',label:'すべて'},
   ];
   $('chips').innerHTML = chips.map(c=>`
@@ -497,7 +533,7 @@ function renderTasksView(){
     : taskFilter==='priority' ? (t.priority&&!t.done)
     : taskFilter==='done' ? t.done : true;
   const groups = projects.map(p=>{
-    const ts=(p.tasks||[]).filter(match).sort((a,b)=>(b.priority?1:0)-(a.priority?1:0));
+    const ts=(p.tasks||[]).filter(match);   // 並び順はユーザーのD&D順を尊重（優先ソートしない）
     return {p, ts};
   }).filter(g=>g.ts.length>0);
   groups.sort((a,b)=>{
@@ -519,17 +555,21 @@ function renderTasksView(){
           ${pill}
           <span class="tg-name">${esc(g.p.name)||'（無題）'}</span>
         </div>
+        <div class="dnd-list" data-pid="${g.p.id}">
         ${g.ts.map(t=>`
-          <div class="task">
+          <div class="task" data-tid="${t.id}">
+            <span class="drag-handle" title="ドラッグで並び替え">⣿</span>
             <div class="check ${t.done?'on':''}" onclick="toggleTask('${g.p.id}','${t.id}')">${t.done?'✓':''}</div>
             <div class="task-label ${t.done?'done':''}">${esc(t.label)}</div>
-            <span class="star" onclick="togglePrio('${g.p.id}','${t.id}')">${t.priority?'⭐':'☆'}</span>
+            <span class="star ${t.priority?'on':''}" onclick="togglePrio('${g.p.id}','${t.id}')">${t.priority?'★':'☆'}</span>
             <button class="task-del" onclick="delTask('${g.p.id}','${t.id}')">×</button>
           </div>`).join('')}
+        </div>
       </div>`;
     }).join('');
   }
   $('list').innerHTML = html;
+  attachDnd();
 }
 
 function renderAddTaskBar(){
@@ -604,6 +644,7 @@ function renderList(){
       ${expanded?renderBody(p):''}
     </div>`;
   }).join('');
+  attachDnd();
 }
 
 function renderBody(p){
@@ -613,13 +654,14 @@ function renderBody(p){
     <div class="stage-steps">
       ${STAGES.map(s=>`<div class="step ${p.stage===s.key?'on':''}" style="${p.stage===s.key?`background:${s.color}`:''}" onclick="setStage('${p.id}','${s.key}')">${s.label}</div>`).join('')}
     </div>
-    <div style="margin-top:14px;">
+    <div class="dnd-list" data-pid="${p.id}" style="margin-top:14px;">
       ${tasks.length===0?`<div style="text-align:center;font-size:11px;color:var(--ink-mute);padding:8px;">タスクなし</div>`:
       tasks.map(t=>`
-        <div class="task">
+        <div class="task" data-tid="${t.id}">
+          <span class="drag-handle" title="ドラッグで並び替え">⣿</span>
           <div class="check ${t.done?'on':''}" onclick="toggleTask('${p.id}','${t.id}')">${t.done?'✓':''}</div>
           <div class="task-label ${t.done?'done':''}">${esc(t.label)}</div>
-          <span class="star" onclick="togglePrio('${p.id}','${t.id}')">${t.priority?'⭐':'☆'}</span>
+          <span class="star ${t.priority?'on':''}" onclick="togglePrio('${p.id}','${t.id}')">${t.priority?'★':'☆'}</span>
           <button class="task-del" onclick="delTask('${p.id}','${t.id}')">×</button>
         </div>`).join('')}
     </div>
@@ -643,6 +685,90 @@ async function persist(p){
   try{ await apiSave(p); }
   catch(e){ showBanner('保存に失敗しました（通信）', 'err'); console.error(e); }
 }
+
+/* ---- タスク並び替え（ドラッグ&ドロップ / タッチ対応） ---- */
+// 表示中(=可視)のタスクだけを新しい順序に並べ替え、非表示タスクは元の位置を保持する。
+function reorderVisible(p, orderedIds){
+  const byId = new Map((p.tasks||[]).map(t=>[String(t.id),t]));
+  const queue = orderedIds.map(id=>byId.get(String(id))).filter(Boolean);
+  const visible = new Set(orderedIds.map(String));
+  let qi=0;
+  p.tasks = (p.tasks||[]).map(t=> visible.has(String(t.id)) ? queue[qi++] : t);
+}
+function attachDnd(){
+  document.querySelectorAll('.drag-handle').forEach(h=>{ h.onpointerdown = dndStart; });
+}
+function dndStart(e){
+  const list = e.target.closest('.dnd-list');
+  const row  = e.target.closest('.task');
+  if(!list || !row) return;
+  e.preventDefault();
+  try{ e.target.setPointerCapture(e.pointerId); }catch(_){}
+  row.classList.add('dragging');
+  list.classList.add('dragging-active');
+  const move = ev=>{
+    const y = ev.clientY;
+    const others = [...list.querySelectorAll('.task:not(.dragging)')];
+    let before=null;
+    for(const o of others){
+      const r=o.getBoundingClientRect();
+      if(y < r.top + r.height/2){ before=o; break; }
+    }
+    if(before) list.insertBefore(row, before); else list.appendChild(row);
+  };
+  const up = async ()=>{
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', up);
+    document.removeEventListener('pointercancel', up);
+    row.classList.remove('dragging');
+    list.classList.remove('dragging-active');
+    const p = find(list.dataset.pid); if(!p) return;
+    const ids = [...list.querySelectorAll('.task')].map(el=>el.dataset.tid);
+    reorderVisible(p, ids);
+    await persist(p);
+  };
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', up);
+  document.addEventListener('pointercancel', up);
+}
+
+/* ---- 売上モーダル（月別グラフ） ---- */
+window.openSalesModal = ()=>{
+  // 事務を除く、金額入りの案件を締切の「月」で集計
+  const set = projects.filter(p=>!isJimu(p) && typeof p.amount==='number' && isFinite(p.amount) && p.amount>0);
+  const byMonth = {};
+  set.forEach(p=>{
+    const m = (p.deadline && /^\d{4}-\d{2}/.test(p.deadline)) ? p.deadline.slice(0,7) : '未定';
+    byMonth[m] = (byMonth[m]||0) + p.amount;
+  });
+  const dated = Object.keys(byMonth).filter(m=>m!=='未定').sort();
+  const order = [...dated]; if(byMonth['未定']!=null) order.push('未定');
+  const total = set.reduce((n,p)=>n+p.amount,0);
+  const datedTotal = dated.reduce((n,m)=>n+byMonth[m],0);
+  const avg = dated.length ? Math.round(datedTotal/dated.length) : 0;
+  const max = Math.max(1, ...order.map(m=>byMonth[m]));
+  const monLabel = m => m==='未定' ? '未定' : `${m.slice(2,4)}/${parseInt(m.slice(5,7),10)}`;
+  const rows = order.length ? order.map(m=>{
+    const v=byMonth[m], w=Math.round(v/max*100);
+    return `<div class="sm-row">
+      <div class="sm-mon">${monLabel(m)}</div>
+      <div class="sm-track"><div class="sm-bar" style="width:${w}%"></div></div>
+      <div class="sm-val">${fmtYen(v)}</div>
+    </div>`;
+  }).join('') : `<div class="empty" style="padding:24px;"><div class="t">金額が登録された案件がありません</div></div>`;
+  $('salesBody').innerHTML = `
+    <div class="sm-head">
+      <div class="sm-stat"><div class="n">${fmtYen(total)}</div><div class="l">合計</div></div>
+      <div class="sm-stat"><div class="n">${avg?fmtYen(avg):'¥0'}</div><div class="l">月平均</div></div>
+      <div class="sm-stat"><div class="n">${dated.length}</div><div class="l">対象月数</div></div>
+    </div>
+    ${rows}
+    <div style="font-size:10.5px;color:var(--ink-mute);margin-top:12px;line-height:1.6;">
+      ※ 事務タグを除く「金額入りの案件」を締切の月で集計。月平均は金額がある月数で割った値です。
+    </div>`;
+  $('salesOverlay').classList.add('on');
+};
+window.closeSales = ()=> $('salesOverlay').classList.remove('on');
 
 window.setStage = async (id,key)=>{
   const p=find(id); if(!p) return;
