@@ -147,10 +147,10 @@
   /* inputs & buttons */
   input.fi, textarea.fi, select.fi{
     width:100%; border:1px solid var(--line); background:var(--bg); color:var(--ink);
-    border-radius:10px; padding:9px 12px; font-size:14px; font-family:inherit; outline:none;
+    border-radius:10px; padding:8px 12px; font-size:14px; font-family:inherit; outline:none;
   }
   input.fi:focus, textarea.fi:focus, select.fi:focus{border-color:var(--accent);}
-  textarea.fi{resize:vertical; min-height:48px;}
+  textarea.fi{resize:vertical; min-height:42px;}
   .btn{
     border:none; border-radius:11px; padding:10px 15px; font-size:13.5px; font-weight:700;
     cursor:pointer; font-family:inherit;
@@ -256,14 +256,15 @@
   .overlay.on{display:flex;}
   .sheet{
     width:100%; max-width:520px; background:var(--card); border-radius:22px 22px 0 0;
-    padding:12px 16px calc(12px + env(safe-area-inset-bottom)); max-height:96vh; overflow-y:auto;
+    padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+    max-height:94vh; max-height:94dvh; overflow-y:auto;
     animation:up .25s ease;
   }
   @keyframes up{from{transform:translateY(30px);opacity:.4;}to{transform:translateY(0);opacity:1;}}
-  .sheet h2{margin:0 0 10px; font-size:16px; font-weight:800;}
-  .field{margin-bottom:9px;}
-  .field label{display:block; font-size:11px; font-weight:700; color:var(--ink-mute); margin-bottom:3px; letter-spacing:.02em;}
-  .grab{width:38px; height:4px; background:var(--line); border-radius:3px; margin:0 auto 10px;}
+  .sheet h2{margin:0 0 8px; font-size:16px; font-weight:800;}
+  .field{margin-bottom:7px;}
+  .field label{display:block; font-size:11px; font-weight:700; color:var(--ink-mute); margin-bottom:2px; letter-spacing:.02em;}
+  .grab{width:38px; height:4px; background:var(--line); border-radius:3px; margin:0 auto 8px;}
 </style>
 </head>
 <body>
@@ -535,10 +536,10 @@ function renderSummary(){
 // 案件フィルタ判定。事務は案件系フィルタ（未完了/各ステージ）に出さず、専用の jimu と all にのみ出す。
 function matchFilter(p, f){
   if(f==='all') return true;
-  if(f==='jimu') return isJimu(p);
-  if(f==='working') return p.stage!=='done';   // 未完了：事務も含む
-  if(f==='done') return p.stage==='done';       // 完了：事務も含む
-  if(isJimu(p)) return false;                    // 見積/進行/確認 は事務を出さない
+  if(f==='jimu') return isJimu(p) && p.stage!=='done';   // 事務：未完了のみ（完了したら消える）
+  if(f==='working') return p.stage!=='done';              // 未完了：事務も含む
+  if(f==='done') return p.stage==='done';                 // 完了：事務も含む
+  if(isJimu(p)) return false;                              // 見積/進行/確認 は事務を出さない
   return p.stage===f;
 }
 function renderChips(){
