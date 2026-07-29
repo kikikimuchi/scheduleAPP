@@ -112,6 +112,7 @@
   .dl{color:var(--ink-soft); font-weight:600;}
   .dl.over{color:var(--danger);}
   .dl.soon{color:var(--warn);}
+  .amount{font-weight:700; color:var(--ink-soft); font-variant-numeric:tabular-nums;}
   .chevron{margin-left:auto; color:var(--ink-faint); font-size:12px;}
 
   /* expanded body */
@@ -234,6 +235,10 @@
       <input class="fi" id="f-deadline" type="date">
     </div>
     <div class="field">
+      <label>金額（円）</label>
+      <input class="fi" id="f-amount" type="number" inputmode="numeric" min="0" step="1000" placeholder="例：150000">
+    </div>
+    <div class="field">
       <label>ステージ</label>
       <select class="fi" id="f-stage"></select>
     </div>
@@ -302,6 +307,7 @@ function normalize(p){
   p.tasks = Array.isArray(p.tasks) ? p.tasks : [];
   p.name = p.name||''; p.client = p.client||''; p.deadline = p.deadline||'';
   p.note = p.note||'';
+  p.amount = (typeof p.amount==='number' && isFinite(p.amount)) ? p.amount : null;
   if(!p.stage){ p.stage = (p.status==='done') ? 'done' : 'progress'; }
   p.status = (p.stage==='done') ? 'done' : 'active';
   return p;
@@ -315,7 +321,7 @@ async function apiList(){
 async function apiSave(p){
   normalize(p);
   const fields = {};
-  ['id','name','client','deadline','status','stage','note'].forEach(k=>fields[k]=toFs(p[k]));
+  ['id','name','client','deadline','status','stage','note','amount'].forEach(k=>fields[k]=toFs(p[k]));
   fields.tasks = toFs(p.tasks);
   const r = await fetch(`${BASE}/${COL}/${p.id}`,{
     method:'PATCH', headers:{'Content-Type':'application/json'},
@@ -356,6 +362,10 @@ function progress(p){
   const t=p.tasks||[]; const done=t.filter(x=>x.done).length;
   return {done, total:t.length, pct: t.length?Math.round(done/t.length*100):0};
 }
+function fmtYen(n){
+  if(typeof n!=='number'||!isFinite(n)) return '';
+  return '¥'+Math.round(n).toLocaleString('ja-JP');
+}
 
 /* ==================== 描画 ==================== */
 function render(){
@@ -369,11 +379,13 @@ function renderSummary(){
   const active = projects.filter(p=>p.stage!=='done');
   const openTasks = active.reduce((n,p)=>n+(p.tasks||[]).filter(t=>!t.done).length,0);
   const soon = active.filter(p=>{const i=dlInfo(p.deadline,false); return i && i.diff<=3;}).length;
+  const total = active.reduce((n,p)=>n+(typeof p.amount==='number'&&isFinite(p.amount)?p.amount:0),0);
   $('sub').textContent = `案件 ${active.length}件`;
   $('summary').innerHTML = `
     <div class="stat"><div class="n">${active.length}</div><div class="l">進行中の案件</div></div>
     <div class="stat ${soon?'danger':''}"><div class="n">${soon}</div><div class="l">締切3日以内</div></div>
-    <div class="stat"><div class="n">${openTasks}</div><div class="l">未完タスク</div></div>`;
+    <div class="stat"><div class="n">${openTasks}</div><div class="l">未完タスク</div></div>
+    <div class="stat"><div class="n" style="font-size:15px;">${total?fmtYen(total):'¥0'}</div><div class="l">金額合計</div></div>`;
 }
 
 function renderChips(){
@@ -435,6 +447,7 @@ function renderList(){
       <div class="bar"><div class="bar-fill" style="width:${pr.pct}%;${isDone?'background:var(--s-done);':''}"></div></div>
       <div class="proj-meta">
         ${di?`<span class="dl ${di.cls}">締切 ${p.deadline}・${di.txt}</span>`:`<span class="dl" style="color:var(--ink-faint);">締切なし</span>`}
+        ${p.amount!=null?`<span class="amount">${fmtYen(p.amount)}</span>`:''}
         <span class="chevron">${expanded?'▲':'▼'}</span>
       </div>
       ${expanded?renderBody(p):''}
@@ -521,6 +534,7 @@ window.openEdit = (id)=>{
   $('f-name').value = p?p.name:'';
   $('f-client').value = p?p.client:'';
   $('f-deadline').value = p?p.deadline:'';
+  $('f-amount').value = (p && p.amount!=null) ? p.amount : '';
   $('f-note').value = p?p.note:'';
   $('f-stage').innerHTML = STAGES.map(s=>`<option value="${s.key}" ${p&&p.stage===s.key?'selected':(!p&&s.key==='progress'?'selected':'')}>${s.label}</option>`).join('');
   $('deleteBtn').style.display = p?'inline-block':'none';
@@ -537,6 +551,8 @@ window.saveEdit = async ()=>{
   p.name=name;
   p.client=$('f-client').value.trim();
   p.deadline=$('f-deadline').value;
+  const amt=$('f-amount').value.trim();
+  p.amount = amt==='' ? null : Number(amt);
   p.note=$('f-note').value;
   p.stage=$('f-stage').value;
   normalize(p);
