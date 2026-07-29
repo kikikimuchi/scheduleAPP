@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#4f6ef2">
+<title>仕事 — 案件管理</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#ffffff; --ink:#1c2230; --ink-soft:#4a5568;
+    --ink-mute:#8892a4; --ink-faint:#b3bccb; --line:#e7eaef;
+    --accent:#4f6ef2; --accent-soft:#eef2ff;
+    --danger:#ef4444; --warn:#f59e0b;
+    /* stage colors */
+    --s-quote:#64748b; --s-progress:#3b82f6; --s-review:#f59e0b;
+    --s-delivery:#8b5cf6; --s-done:#10b981;
+    --shadow:0 1px 3px rgba(20,30,55,.06), 0 4px 16px rgba(20,30,55,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#12151c; --card:#1b1f29; --ink:#eef1f6; --ink-soft:#b8c0cf;
+      --ink-mute:#7e8698; --ink-faint:#565e70; --line:#2a2f3c;
+      --accent:#7d92f7; --accent-soft:#232a45;
+      --shadow:0 1px 3px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.35);
+    }
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+    font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+    padding-bottom:100px;
+  }
+  .wrap{max-width:520px; margin:0 auto; padding:0 14px;}
+
+  /* header */
+  header{
+    position:sticky; top:0; z-index:20; background:var(--bg);
+    padding:16px 0 8px; border-bottom:1px solid var(--line);
+  }
+  .head-row{display:flex; align-items:center; gap:10px;}
+  .title{font-size:22px; font-weight:800; letter-spacing:.02em;}
+  .title small{font-size:11px; font-weight:600; color:var(--ink-mute); margin-left:6px; letter-spacing:0;}
+  .head-row .sp{flex:1;}
+  .icon-btn{
+    border:1px solid var(--line); background:var(--card); color:var(--ink-soft);
+    width:38px; height:38px; border-radius:11px; font-size:17px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .icon-btn:active{transform:scale(.95);}
+
+  /* summary */
+  .summary{display:flex; gap:8px; margin:12px 0 4px;}
+  .stat{
+    flex:1; background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:10px 12px; box-shadow:var(--shadow);
+  }
+  .stat .n{font-size:22px; font-weight:800; line-height:1;}
+  .stat .l{font-size:10px; color:var(--ink-mute); margin-top:5px; font-weight:600;}
+  .stat.warn .n{color:var(--warn);}
+  .stat.danger .n{color:var(--danger);}
+
+  /* filter chips */
+  .chips{
+    display:flex; gap:7px; overflow-x:auto; padding:12px 0 4px; margin:0 -14px;
+    padding-left:14px; padding-right:14px; scrollbar-width:none;
+  }
+  .chips::-webkit-scrollbar{display:none;}
+  .chip{
+    flex-shrink:0; border:1px solid var(--line); background:var(--card);
+    color:var(--ink-soft); padding:7px 13px; border-radius:20px; font-size:12px;
+    font-weight:600; cursor:pointer; white-space:nowrap;
+  }
+  .chip .dot{display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; vertical-align:1px;}
+  .chip.on{background:var(--ink); color:var(--card); border-color:var(--ink);}
+  .chip .cnt{opacity:.6; margin-left:4px; font-weight:700;}
+
+  /* priority section */
+  .prio-card{
+    background:linear-gradient(180deg,var(--accent-soft),var(--card));
+    border:1px solid var(--line); border-radius:16px; padding:12px 14px;
+    margin-top:12px; box-shadow:var(--shadow);
+  }
+  .prio-card h3{margin:0 0 8px; font-size:12px; font-weight:700; color:var(--ink-soft); letter-spacing:.03em;}
+  .prio-row{display:flex; align-items:center; gap:9px; padding:6px 0;}
+  .prio-row + .prio-row{border-top:1px solid var(--line);}
+
+  /* project card */
+  .list{margin-top:12px;}
+  .proj{
+    background:var(--card); border:1px solid var(--line); border-radius:16px;
+    margin-bottom:11px; box-shadow:var(--shadow); overflow:hidden;
+  }
+  .proj-head{display:flex; align-items:flex-start; gap:10px; padding:14px; cursor:pointer;}
+  .proj-info{flex:1; min-width:0;}
+  .stage-pill{
+    display:inline-block; font-size:10px; font-weight:700; color:#fff;
+    padding:2px 9px; border-radius:20px; margin-bottom:6px; letter-spacing:.02em;
+  }
+  .proj-name{font-size:15.5px; font-weight:700; line-height:1.35; word-break:break-word;}
+  .proj-client{font-size:11.5px; color:var(--ink-mute); margin-top:2px;}
+  .proj-right{text-align:right; flex-shrink:0;}
+  .pct{font-size:20px; font-weight:800; line-height:1;}
+  .pct span{font-size:11px; font-weight:700; color:var(--ink-mute);}
+  .frac{font-size:10px; color:var(--ink-mute); margin-top:3px;}
+  .bar{height:5px; background:var(--line); border-radius:4px; overflow:hidden; margin:0 14px;}
+  .bar-fill{height:100%; background:var(--accent); border-radius:4px; transition:width .25s;}
+  .proj-meta{
+    display:flex; align-items:center; gap:8px; padding:9px 14px 13px; font-size:11.5px;
+  }
+  .dl{color:var(--ink-soft); font-weight:600;}
+  .dl.over{color:var(--danger);}
+  .dl.soon{color:var(--warn);}
+  .chevron{margin-left:auto; color:var(--ink-faint); font-size:12px;}
+
+  /* expanded body */
+  .body{padding:2px 14px 14px; border-top:1px solid var(--line);}
+  .note{
+    background:rgba(0,0,0,.03); border-radius:10px; padding:10px 12px; font-size:12px;
+    color:var(--ink-soft); white-space:pre-wrap; margin:12px 0; line-height:1.65;
+  }
+  @media (prefers-color-scheme: dark){ .note{background:rgba(255,255,255,.04);} }
+  .task{display:flex; align-items:center; gap:10px; padding:8px 2px; border-bottom:1px solid var(--line);}
+  .task:last-of-type{border-bottom:none;}
+  .check{
+    width:22px; height:22px; border-radius:7px; border:2px solid var(--ink-faint);
+    display:flex; align-items:center; justify-content:center; font-size:13px; color:#fff;
+    cursor:pointer; flex-shrink:0;
+  }
+  .check.on{background:var(--s-done); border-color:var(--s-done);}
+  .task-label{flex:1; min-width:0; font-size:13px; word-break:break-word;}
+  .task-label.done{color:var(--ink-faint); text-decoration:line-through;}
+  .star{font-size:16px; cursor:pointer; padding:2px 4px;}
+  .task-del{border:none; background:none; color:var(--ink-faint); font-size:16px; cursor:pointer; padding:2px 6px;}
+  .add-row{display:flex; gap:7px; margin-top:12px;}
+  .stage-steps{display:flex; gap:5px; margin-top:14px;}
+  .step{
+    flex:1; text-align:center; font-size:10px; font-weight:700; padding:7px 2px; border-radius:9px;
+    border:1px solid var(--line); background:var(--card); color:var(--ink-mute); cursor:pointer;
+  }
+  .step.on{color:#fff; border-color:transparent;}
+  .body-actions{display:flex; gap:7px; margin-top:14px;}
+
+  /* inputs & buttons */
+  input.fi, textarea.fi, select.fi{
+    width:100%; border:1px solid var(--line); background:var(--bg); color:var(--ink);
+    border-radius:11px; padding:11px 13px; font-size:14px; font-family:inherit; outline:none;
+  }
+  input.fi:focus, textarea.fi:focus, select.fi:focus{border-color:var(--accent);}
+  textarea.fi{resize:vertical; min-height:70px;}
+  .btn{
+    border:none; border-radius:11px; padding:11px 15px; font-size:13.5px; font-weight:700;
+    cursor:pointer; font-family:inherit;
+  }
+  .btn-primary{background:var(--accent); color:#fff;}
+  .btn-sec{background:var(--bg); border:1px solid var(--line); color:var(--ink-soft);}
+  .btn-ghost{background:none; color:var(--ink-mute); border:none;}
+  .btn:active{transform:scale(.97);}
+  .btn.wide{flex:1;}
+
+  /* FAB */
+  .fab{
+    position:fixed; right:calc(50% - 260px + 4px); bottom:22px; z-index:30;
+    width:58px; height:58px; border-radius:19px; background:var(--accent); color:#fff;
+    border:none; font-size:28px; font-weight:300; cursor:pointer;
+    box-shadow:0 6px 20px rgba(79,110,242,.45); display:flex; align-items:center; justify-content:center;
+  }
+  @media (max-width:540px){ .fab{right:20px;} }
+  .fab:active{transform:scale(.94);}
+
+  /* empty / states */
+  .empty{text-align:center; padding:52px 20px; color:var(--ink-mute);}
+  .empty .ic{font-size:38px; opacity:.4;}
+  .empty .t{margin-top:10px; font-size:13px;}
+  .banner{
+    text-align:center; padding:10px; border-radius:11px; font-size:12px; margin-top:12px; font-weight:600;
+  }
+  .banner.err{background:rgba(239,68,68,.12); color:var(--danger);}
+  .banner.load{background:var(--accent-soft); color:var(--accent);}
+
+  /* modal */
+  .overlay{
+    position:fixed; inset:0; z-index:50; background:rgba(15,20,35,.5);
+    display:none; align-items:flex-end; justify-content:center;
+  }
+  .overlay.on{display:flex;}
+  .sheet{
+    width:100%; max-width:520px; background:var(--card); border-radius:22px 22px 0 0;
+    padding:20px 18px calc(20px + env(safe-area-inset-bottom)); max-height:92vh; overflow-y:auto;
+    animation:up .25s ease;
+  }
+  @keyframes up{from{transform:translateY(30px);opacity:.4;}to{transform:translateY(0);opacity:1;}}
+  .sheet h2{margin:0 0 16px; font-size:17px; font-weight:800;}
+  .field{margin-bottom:13px;}
+  .field label{display:block; font-size:11px; font-weight:700; color:var(--ink-mute); margin-bottom:6px; letter-spacing:.02em;}
+  .grab{width:38px; height:4px; background:var(--line); border-radius:3px; margin:0 auto 14px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="head-row">
+      <div class="title">仕事<small id="sub">案件管理</small></div>
+      <div class="sp"></div>
+      <button class="icon-btn" onclick="reload()" title="再読込" id="reloadBtn">↻</button>
+    </div>
+    <div class="summary" id="summary"></div>
+    <div class="chips" id="chips"></div>
+  </header>
+
+  <div id="prio"></div>
+  <div class="list" id="list"></div>
+  <div id="state"></div>
+</div>
+
+<button class="fab" onclick="openEdit(null)">＋</button>
+
+<!-- edit sheet -->
+<div class="overlay" id="overlay" onclick="if(event.target===this)closeEdit()">
+  <div class="sheet">
+    <div class="grab"></div>
+    <h2 id="sheetTitle">案件を追加</h2>
+    <div class="field">
+      <label>案件名</label>
+      <input class="fi" id="f-name" type="text" placeholder="例：Accord50周年動画 編集">
+    </div>
+    <div class="field">
+      <label>クライアント</label>
+      <input class="fi" id="f-client" type="text" placeholder="例：Honda">
+    </div>
+    <div class="field">
+      <label>締切</label>
+      <input class="fi" id="f-deadline" type="date">
+    </div>
+    <div class="field">
+      <label>ステージ</label>
+      <select class="fi" id="f-stage"></select>
+    </div>
+    <div class="field">
+      <label>メモ</label>
+      <textarea class="fi" id="f-note" placeholder="補足・連絡事項など"></textarea>
+    </div>
+    <div class="body-actions">
+      <button class="btn btn-primary wide" onclick="saveEdit()">保存</button>
+      <button class="btn btn-sec" onclick="closeEdit()">キャンセル</button>
+    </div>
+    <div style="text-align:center; margin-top:12px;">
+      <button class="btn btn-ghost" id="deleteBtn" onclick="deleteProject()" style="display:none;">この案件を削除</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ==================== 設定 ==================== */
+const PROJECT_ID = 'keiriauto-6f8f1';
+const COL = 'schedule_projects';
+const BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+
+// 進捗ステージ（5段階）。既存の status(active/done) は stage から自動同期する。
+const STAGES = [
+  {key:'quote',    label:'見積',   color:'var(--s-quote)'},
+  {key:'progress', label:'進行',   color:'var(--s-progress)'},
+  {key:'review',   label:'確認待ち', color:'var(--s-review)'},
+  {key:'delivery', label:'納品',   color:'var(--s-delivery)'},
+  {key:'done',     label:'完了',   color:'var(--s-done)'},
+];
+const stageOf = k => STAGES.find(s=>s.key===k) || STAGES[1];
+
+/* ==================== Firestore REST ==================== */
+function toFs(v){
+  if(v===null||v===undefined) return {nullValue:null};
+  if(typeof v==='boolean') return {booleanValue:v};
+  if(typeof v==='number') return Number.isInteger(v)?{integerValue:String(v)}:{doubleValue:v};
+  if(typeof v==='string') return {stringValue:v};
+  if(Array.isArray(v)) return {arrayValue:{values:v.map(toFs)}};
+  if(typeof v==='object'){const fields={};for(const k in v)fields[k]=toFs(v[k]);return {mapValue:{fields}};}
+  return {stringValue:String(v)};
+}
+function fromFs(val){
+  if(!val) return null;
+  if('stringValue' in val) return val.stringValue;
+  if('integerValue' in val) return parseInt(val.integerValue,10);
+  if('doubleValue' in val) return val.doubleValue;
+  if('booleanValue' in val) return val.booleanValue;
+  if('nullValue' in val) return null;
+  if('arrayValue' in val) return (val.arrayValue.values||[]).map(fromFs);
+  if('mapValue' in val){const o={};const f=val.mapValue.fields||{};for(const k in f)o[k]=fromFs(f[k]);return o;}
+  if('timestampValue' in val) return val.timestampValue;
+  return null;
+}
+function docToProject(doc){
+  const o = fromFs({mapValue:{fields:doc.fields||{}}}) || {};
+  if(o.id===undefined||o.id===null){
+    const seg = doc.name.split('/').pop();
+    o.id = /^\d+$/.test(seg) ? parseInt(seg,10) : seg;
+  }
+  return normalize(o);
+}
+// 既存データ補正：stage欠落なら status から推定
+function normalize(p){
+  p.tasks = Array.isArray(p.tasks) ? p.tasks : [];
+  p.name = p.name||''; p.client = p.client||''; p.deadline = p.deadline||'';
+  p.note = p.note||'';
+  if(!p.stage){ p.stage = (p.status==='done') ? 'done' : 'progress'; }
+  p.status = (p.stage==='done') ? 'done' : 'active';
+  return p;
+}
+async function apiList(){
+  const r = await fetch(`${BASE}/${COL}?pageSize=300`);
+  if(!r.ok) throw new Error('list '+r.status);
+  const j = await r.json();
+  return (j.documents||[]).map(docToProject);
+}
+async function apiSave(p){
+  normalize(p);
+  const fields = {};
+  ['id','name','client','deadline','status','stage','note'].forEach(k=>fields[k]=toFs(p[k]));
+  fields.tasks = toFs(p.tasks);
+  const r = await fetch(`${BASE}/${COL}/${p.id}`,{
+    method:'PATCH', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({fields})
+  });
+  if(!r.ok) throw new Error('save '+r.status);
+  return r.json();
+}
+async function apiDelete(id){
+  const r = await fetch(`${BASE}/${COL}/${id}`,{method:'DELETE'});
+  if(!r.ok) throw new Error('delete '+r.status);
+}
+
+/* ==================== 状態 ==================== */
+let projects = [];
+let filter = 'working';   // working | all | <stageKey>
+let expandedId = null;
+let editingId = null;
+let prioOpen = true;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function todayStr(){const d=new Date();const z=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`;}
+function dlInfo(dl, isDone){
+  if(!dl) return null;
+  const diff = Math.ceil((new Date(dl+'T00:00:00') - new Date(todayStr()+'T00:00:00'))/86400000);
+  let txt, cls='';
+  if(diff<0){txt=`${Math.abs(diff)}日超過`; cls='over';}
+  else if(diff===0){txt='今日'; cls='soon';}
+  else if(diff===1){txt='明日'; cls='soon';}
+  else if(diff<=3){txt=`あと${diff}日`; cls='soon';}
+  else {txt=`あと${diff}日`;}
+  if(isDone) cls='';
+  return {diff,txt,cls};
+}
+function progress(p){
+  const t=p.tasks||[]; const done=t.filter(x=>x.done).length;
+  return {done, total:t.length, pct: t.length?Math.round(done/t.length*100):0};
+}
+
+/* ==================== 描画 ==================== */
+function render(){
+  renderSummary();
+  renderChips();
+  renderPrio();
+  renderList();
+}
+
+function renderSummary(){
+  const active = projects.filter(p=>p.stage!=='done');
+  const openTasks = active.reduce((n,p)=>n+(p.tasks||[]).filter(t=>!t.done).length,0);
+  const soon = active.filter(p=>{const i=dlInfo(p.deadline,false); return i && i.diff<=3;}).length;
+  $('sub').textContent = `案件 ${active.length}件`;
+  $('summary').innerHTML = `
+    <div class="stat"><div class="n">${active.length}</div><div class="l">進行中の案件</div></div>
+    <div class="stat ${soon?'danger':''}"><div class="n">${soon}</div><div class="l">締切3日以内</div></div>
+    <div class="stat"><div class="n">${openTasks}</div><div class="l">未完タスク</div></div>`;
+}
+
+function renderChips(){
+  const count = f => projects.filter(p=> f==='working'?p.stage!=='done' : f==='all'?true : p.stage===f).length;
+  const chips = [{k:'working',label:'進行中'}, ...STAGES.map(s=>({k:s.key,label:s.label,color:s.color})), {k:'all',label:'すべて'}];
+  $('chips').innerHTML = chips.map(c=>`
+    <button class="chip ${filter===c.k?'on':''}" onclick="setFilter('${c.k}')">
+      ${c.color?`<span class="dot" style="background:${c.color}"></span>`:''}${c.label}<span class="cnt">${count(c.k)}</span>
+    </button>`).join('');
+}
+window.setFilter = f => { filter=f; render(); };
+
+function renderPrio(){
+  const open = projects.filter(p=>p.stage!=='done')
+    .flatMap(p=>(p.tasks||[]).filter(t=>t.priority&&!t.done).map(t=>({t,p})));
+  if(open.length===0){ $('prio').innerHTML=''; return; }
+  $('prio').innerHTML = `
+    <div class="prio-card">
+      <h3>⭐ 優先タスク（${open.length}）</h3>
+      ${open.map(({t,p})=>`
+        <div class="prio-row">
+          <div class="check" onclick="toggleTask('${p.id}','${t.id}')"></div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:600;">${esc(t.label)}</div>
+            <div style="font-size:10px;color:var(--ink-mute);">${esc(p.name)}</div>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function renderList(){
+  let arr = projects.filter(p=> filter==='working'?p.stage!=='done' : filter==='all'?true : p.stage===filter);
+  // 締切昇順（空は末尾）→ ステージ順
+  arr.sort((a,b)=>{
+    const ad=a.deadline||'9999-99-99', bd=b.deadline||'9999-99-99';
+    if(ad!==bd) return ad<bd?-1:1;
+    return STAGES.findIndex(s=>s.key===a.stage)-STAGES.findIndex(s=>s.key===b.stage);
+  });
+  if(arr.length===0){
+    $('list').innerHTML = `<div class="empty"><div class="ic">◔</div><div class="t">この条件の案件はありません</div></div>`;
+    return;
+  }
+  $('list').innerHTML = arr.map(p=>{
+    const st=stageOf(p.stage), pr=progress(p), isDone=p.stage==='done';
+    const di=dlInfo(p.deadline,isDone);
+    const expanded = String(expandedId)===String(p.id);
+    return `<div class="proj">
+      <div class="proj-head" onclick="toggleExpand('${p.id}')">
+        <div class="proj-info">
+          <span class="stage-pill" style="background:${st.color}">${st.label}</span>
+          <div class="proj-name" style="${isDone?'color:var(--ink-mute);':''}">${esc(p.name)||'（無題）'}</div>
+          ${p.client?`<div class="proj-client">${esc(p.client)}</div>`:''}
+        </div>
+        <div class="proj-right">
+          <div class="pct">${pr.pct}<span>%</span></div>
+          <div class="frac">${pr.done}/${pr.total}</div>
+        </div>
+      </div>
+      <div class="bar"><div class="bar-fill" style="width:${pr.pct}%;${isDone?'background:var(--s-done);':''}"></div></div>
+      <div class="proj-meta">
+        ${di?`<span class="dl ${di.cls}">締切 ${p.deadline}・${di.txt}</span>`:`<span class="dl" style="color:var(--ink-faint);">締切なし</span>`}
+        <span class="chevron">${expanded?'▲':'▼'}</span>
+      </div>
+      ${expanded?renderBody(p):''}
+    </div>`;
+  }).join('');
+}
+
+function renderBody(p){
+  const tasks=p.tasks||[];
+  return `<div class="body">
+    ${p.note?`<div class="note">📝 ${esc(p.note)}</div>`:''}
+    <div class="stage-steps">
+      ${STAGES.map(s=>`<div class="step ${p.stage===s.key?'on':''}" style="${p.stage===s.key?`background:${s.color}`:''}" onclick="setStage('${p.id}','${s.key}')">${s.label}</div>`).join('')}
+    </div>
+    <div style="margin-top:14px;">
+      ${tasks.length===0?`<div style="text-align:center;font-size:11px;color:var(--ink-mute);padding:8px;">タスクなし</div>`:
+      tasks.map(t=>`
+        <div class="task">
+          <div class="check ${t.done?'on':''}" onclick="toggleTask('${p.id}','${t.id}')">${t.done?'✓':''}</div>
+          <div class="task-label ${t.done?'done':''}">${esc(t.label)}</div>
+          <span class="star" onclick="togglePrio('${p.id}','${t.id}')">${t.priority?'⭐':'☆'}</span>
+          <button class="task-del" onclick="delTask('${p.id}','${t.id}')">×</button>
+        </div>`).join('')}
+    </div>
+    <div class="add-row">
+      <input class="fi" type="text" id="ti-${p.id}" placeholder="タスクを追加（Enter）"
+        onkeydown="if(event.key==='Enter'&&!event.isComposing){addTask('${p.id}',this)}">
+      <button class="btn btn-sec" onclick="addTask('${p.id}',document.getElementById('ti-${p.id}'))">＋</button>
+    </div>
+    <div class="body-actions">
+      <button class="btn btn-sec wide" onclick="openEdit('${p.id}')">編集</button>
+    </div>
+  </div>`;
+}
+
+/* ==================== 操作 ==================== */
+window.toggleExpand = id => { expandedId = (String(expandedId)===String(id))?null:id; renderList(); };
+
+function find(id){ return projects.find(p=>String(p.id)===String(id)); }
+
+async function persist(p){
+  try{ await apiSave(p); }
+  catch(e){ showBanner('保存に失敗しました（通信）', 'err'); console.error(e); }
+}
+
+window.setStage = async (id,key)=>{
+  const p=find(id); if(!p) return;
+  p.stage=key; normalize(p);
+  render();
+  await persist(p);
+};
+
+window.toggleTask = async (pid,tid)=>{
+  const p=find(pid); if(!p) return;
+  const t=(p.tasks||[]).find(x=>String(x.id)===String(tid)); if(!t) return;
+  t.done=!t.done; render(); await persist(p);
+};
+window.togglePrio = async (pid,tid)=>{
+  const p=find(pid); if(!p) return;
+  const t=(p.tasks||[]).find(x=>String(x.id)===String(tid)); if(!t) return;
+  t.priority=!t.priority; render(); await persist(p);
+};
+window.delTask = async (pid,tid)=>{
+  const p=find(pid); if(!p) return;
+  p.tasks=(p.tasks||[]).filter(x=>String(x.id)!==String(tid));
+  renderList(); renderPrio(); await persist(p);
+};
+window.addTask = async (pid,inp)=>{
+  const p=find(pid); if(!p) return;
+  const label=(inp.value||'').trim(); if(!label) return;
+  p.tasks=p.tasks||[]; p.tasks.push({id:Date.now(),label,done:false,priority:false});
+  inp.value='';
+  renderList(); renderSummary();
+  // フォーカス維持のため再描画後に入力へ戻す
+  const again=document.getElementById('ti-'+pid); if(again) again.focus();
+  await persist(p);
+};
+
+/* ---- 案件の追加/編集 ---- */
+window.openEdit = (id)=>{
+  editingId = id;
+  const p = id?find(id):null;
+  $('sheetTitle').textContent = p?'案件を編集':'案件を追加';
+  $('f-name').value = p?p.name:'';
+  $('f-client').value = p?p.client:'';
+  $('f-deadline').value = p?p.deadline:'';
+  $('f-note').value = p?p.note:'';
+  $('f-stage').innerHTML = STAGES.map(s=>`<option value="${s.key}" ${p&&p.stage===s.key?'selected':(!p&&s.key==='progress'?'selected':'')}>${s.label}</option>`).join('');
+  $('deleteBtn').style.display = p?'inline-block':'none';
+  $('overlay').classList.add('on');
+};
+window.closeEdit = ()=> $('overlay').classList.remove('on');
+
+window.saveEdit = async ()=>{
+  const name=$('f-name').value.trim();
+  if(!name){ $('f-name').focus(); return; }
+  let p;
+  if(editingId){ p=find(editingId); }
+  else { p={id:Date.now(), tasks:[]}; projects.push(p); }
+  p.name=name;
+  p.client=$('f-client').value.trim();
+  p.deadline=$('f-deadline').value;
+  p.note=$('f-note').value;
+  p.stage=$('f-stage').value;
+  normalize(p);
+  if(!editingId) expandedId=p.id;
+  closeEdit(); render();
+  await persist(p);
+};
+
+window.deleteProject = async ()=>{
+  if(!editingId) return;
+  if(!confirm('この案件を削除します。よろしいですか？')) return;
+  const id=editingId;
+  projects=projects.filter(p=>String(p.id)!==String(id));
+  closeEdit(); render();
+  try{ await apiDelete(id); }
+  catch(e){ showBanner('削除に失敗しました（通信）','err'); console.error(e); }
+};
+
+/* ==================== 起動 ==================== */
+function showBanner(msg,cls){
+  $('state').innerHTML = `<div class="banner ${cls}">${esc(msg)}</div>`;
+  if(cls!=='err' && cls!=='load') setTimeout(()=>{$('state').innerHTML='';},2000);
+}
+async function reload(){
+  $('reloadBtn').textContent='…';
+  showBanner('読み込み中…','load');
+  try{
+    projects = await apiList();
+    $('state').innerHTML='';
+    render();
+  }catch(e){
+    showBanner('データを取得できませんでした。通信環境を確認してください。','err');
+    console.error(e);
+  }
+  $('reloadBtn').textContent='↻';
+}
+reload();
+</script>
+</body>
+</html>
