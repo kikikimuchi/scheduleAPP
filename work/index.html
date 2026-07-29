@@ -74,7 +74,6 @@
   }
   .chip .dot{display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; vertical-align:1px;}
   .chip.on{background:var(--ink); color:var(--card); border-color:var(--ink);}
-  .chip.chip-work.on{background:var(--accent); color:#fff; border-color:var(--accent);}
   .chip .cnt{opacity:.6; margin-left:4px; font-weight:700;}
 
   /* project card */
@@ -282,8 +281,9 @@ const BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databas
 // 進捗ステージ（5段階）。既存の status(active/done) は stage から自動同期する。
 const STAGES = [
   {key:'quote',    label:'見積',   color:'var(--s-quote)'},
-  {key:'progress', label:'制作',   color:'var(--s-progress)'},
+  {key:'progress', label:'進行',   color:'var(--s-progress)'},
   {key:'review',   label:'確認待ち', color:'var(--s-review)'},
+  {key:'delivery', label:'納品',   color:'var(--s-delivery)'},
   {key:'done',     label:'完了',   color:'var(--s-done)'},
 ];
 const stageOf = k => STAGES.find(s=>s.key===k) || STAGES[1];
@@ -325,7 +325,6 @@ function normalize(p){
   p.note = p.note||'';
   p.amount = (typeof p.amount==='number' && isFinite(p.amount)) ? p.amount : null;
   if(!p.stage){ p.stage = (p.status==='done') ? 'done' : 'progress'; }
-  if(p.stage==='delivery') p.stage='done';   // 「納品」ステージ廃止に伴う移行
   p.status = (p.stage==='done') ? 'done' : 'active';
   return p;
 }
@@ -422,9 +421,9 @@ function renderSummary(){
 
 function renderChips(){
   const count = f => projects.filter(p=> f==='working'?p.stage!=='done' : f==='all'?true : p.stage===f).length;
-  const chips = [{k:'working',label:'未完了'}, ...STAGES.map(s=>({k:s.key,label:s.label,color:s.color})), {k:'all',label:'すべて'}];
+  const chips = [{k:'working',label:'進行中'}, ...STAGES.map(s=>({k:s.key,label:s.label,color:s.color})), {k:'all',label:'すべて'}];
   $('chips').innerHTML = chips.map(c=>`
-    <button class="chip ${c.k==='working'?'chip-work':''} ${filter===c.k?'on':''}" onclick="setFilter('${c.k}')">
+    <button class="chip ${filter===c.k?'on':''}" onclick="setFilter('${c.k}')">
       ${c.color?`<span class="dot" style="background:${c.color}"></span>`:''}${c.label}<span class="cnt">${count(c.k)}</span>
     </button>`).join('');
 }
