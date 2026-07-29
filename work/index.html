@@ -14,6 +14,8 @@
     /* stage colors */
     --s-quote:#64748b; --s-progress:#3b82f6; --s-review:#f59e0b;
     --s-delivery:#8b5cf6; --s-done:#10b981;
+    /* tag colors */
+    --tag-dir:#8b5cf6; --tag-shoot:#06b6d4; --tag-edit:#ec4899; --tag-jimu:#64748b;
     --shadow:0 1px 3px rgba(20,30,55,.06), 0 4px 16px rgba(20,30,55,.05);
   }
   @media (prefers-color-scheme: dark){
@@ -105,6 +107,21 @@
   .dl.soon{color:var(--warn);}
   .amount{font-weight:700; color:var(--ink-soft); font-variant-numeric:tabular-nums;}
   .chevron{margin-left:auto; color:var(--ink-faint); font-size:12px;}
+
+  /* tags */
+  .tags{display:flex; flex-wrap:wrap; gap:5px; margin-top:6px;}
+  .tag{
+    display:inline-block; font-size:10px; font-weight:700; color:#fff;
+    padding:2px 8px; border-radius:20px; letter-spacing:.02em;
+  }
+  .tag-select{display:flex; flex-wrap:wrap; gap:8px;}
+  .tag-toggle{
+    border:1.5px solid var(--line); background:var(--bg); color:var(--ink-soft);
+    padding:8px 14px; border-radius:20px; font-size:13px; font-weight:700;
+    cursor:pointer; font-family:inherit;
+  }
+  .tag-toggle.on{color:#fff; border-color:transparent;}
+  .tag-toggle:active{transform:scale(.96);}
 
   /* expanded body */
   .body{padding:2px 14px 14px; border-top:1px solid var(--line);}
@@ -252,6 +269,10 @@
       <input class="fi" id="f-deadline" type="date">
     </div>
     <div class="field">
+      <label>タグ</label>
+      <div class="tag-select" id="f-tags"></div>
+    </div>
+    <div class="field" id="amount-field">
       <label>金額（円）</label>
       <input class="fi" id="f-amount" type="number" inputmode="numeric" min="0" step="1000" placeholder="例：150000">
     </div>
@@ -288,6 +309,16 @@ const STAGES = [
 ];
 const stageOf = k => STAGES.find(s=>s.key===k) || STAGES[1];
 
+// 案件タグ。事務は「事務作業タスク管理」用で、金額なし・案件数にカウントしない特別扱い。
+const JIMU = '事務';
+const WORK_TAGS = ['ディレクション','撮影','編集'];
+const ALL_TAGS = [...WORK_TAGS, JIMU];
+const TAG_COLOR = {
+  'ディレクション':'var(--tag-dir)', '撮影':'var(--tag-shoot)',
+  '編集':'var(--tag-edit)', [JIMU]:'var(--tag-jimu)',
+};
+const isJimu = p => (p.tags||[]).includes(JIMU);
+
 /* ==================== Firestore REST ==================== */
 function toFs(v){
   if(v===null||v===undefined) return {nullValue:null};
@@ -323,7 +354,9 @@ function normalize(p){
   p.tasks = Array.isArray(p.tasks) ? p.tasks : [];
   p.name = p.name||''; p.client = p.client||''; p.deadline = p.deadline||'';
   p.note = p.note||'';
+  p.tags = Array.isArray(p.tags) ? p.tags.filter(t=>typeof t==='string') : [];
   p.amount = (typeof p.amount==='number' && isFinite(p.amount)) ? p.amount : null;
+  if(p.tags.includes(JIMU)) p.amount = null;   // 事務は金額を持たない
   if(!p.stage){ p.stage = (p.status==='done') ? 'done' : 'progress'; }
   if(p.stage==='delivery') p.stage='done';   // 「納品」ステージ廃止に伴う移行
   p.status = (p.stage==='done') ? 'done' : 'active';
@@ -340,6 +373,7 @@ async function apiSave(p){
   const fields = {};
   ['id','name','client','deadline','status','stage','note','amount'].forEach(k=>fields[k]=toFs(p[k]));
   fields.tasks = toFs(p.tasks);
+  fields.tags = toFs(p.tags);
   const r = await fetch(`${BASE}/${COL}/${p.id}`,{
     method:'PATCH', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({fields})
@@ -409,20 +443,34 @@ window.setTaskFilter = f => { taskFilter=f; renderTasksView(); };
 function renderSummary(){
   $('summary').style.display='';
   const active = projects.filter(p=>p.stage!=='done');
+  const cases = active.filter(p=>!isJimu(p));   // 事務は案件に数えない
   const openTasks = active.reduce((n,p)=>n+(p.tasks||[]).filter(t=>!t.done).length,0);
-  const soon = active.filter(p=>{const i=dlInfo(p.deadline,false); return i && i.diff<=3;}).length;
-  const total = active.reduce((n,p)=>n+(typeof p.amount==='number'&&isFinite(p.amount)?p.amount:0),0);
-  $('sub').textContent = `案件 ${active.length}件`;
+  const soon = cases.filter(p=>{const i=dlInfo(p.deadline,false); return i && i.diff<=3;}).length;
+  const total = cases.reduce((n,p)=>n+(typeof p.amount==='number'&&isFinite(p.amount)?p.amount:0),0);
+  $('sub').textContent = `案件 ${cases.length}件`;
   $('summary').innerHTML = `
-    <div class="stat"><div class="n">${active.length}</div><div class="l">進行中の案件</div></div>
+    <div class="stat"><div class="n">${cases.length}</div><div class="l">進行中の案件</div></div>
     <div class="stat ${soon?'danger':''}"><div class="n">${soon}</div><div class="l">締切3日以内</div></div>
     <div class="stat"><div class="n">${openTasks}</div><div class="l">未完タスク</div></div>
     <div class="stat"><div class="n" style="font-size:15px;">${total?fmtYen(total):'¥0'}</div><div class="l">2026年度売上</div></div>`;
 }
 
+// 案件フィルタ判定。事務は案件系フィルタ（未完了/各ステージ）に出さず、専用の jimu と all にのみ出す。
+function matchFilter(p, f){
+  if(f==='all') return true;
+  if(f==='jimu') return isJimu(p);
+  if(isJimu(p)) return false;
+  if(f==='working') return p.stage!=='done';
+  return p.stage===f;
+}
 function renderChips(){
-  const count = f => projects.filter(p=> f==='working'?p.stage!=='done' : f==='all'?true : p.stage===f).length;
-  const chips = [{k:'working',label:'未完了'}, ...STAGES.map(s=>({k:s.key,label:s.label,color:s.color})), {k:'all',label:'すべて'}];
+  const count = f => projects.filter(p=>matchFilter(p,f)).length;
+  const chips = [
+    {k:'working',label:'未完了'},
+    ...STAGES.map(s=>({k:s.key,label:s.label,color:s.color})),
+    {k:'jimu',label:'事務',color:'var(--tag-jimu)'},
+    {k:'all',label:'すべて'},
+  ];
   $('chips').innerHTML = chips.map(c=>`
     <button class="chip ${c.k==='working'?'chip-work':''} ${filter===c.k?'on':''}" onclick="setFilter('${c.k}')">
       ${c.color?`<span class="dot" style="background:${c.color}"></span>`:''}${c.label}<span class="cnt">${count(c.k)}</span>
@@ -463,9 +511,12 @@ function renderTasksView(){
   } else {
     html += groups.map(g=>{
       const st=stageOf(g.p.stage);
+      const pill=isJimu(g.p)
+        ? `<span class="stage-pill" style="background:var(--tag-jimu)">事務</span>`
+        : `<span class="stage-pill" style="background:${st.color}">${st.label}</span>`;
       return `<div class="task-group">
         <div class="task-group-head">
-          <span class="stage-pill" style="background:${st.color}">${st.label}</span>
+          ${pill}
           <span class="tg-name">${esc(g.p.name)||'（無題）'}</span>
         </div>
         ${g.ts.map(t=>`
@@ -509,7 +560,7 @@ window.addTaskFromView = async ()=>{
 };
 
 function renderList(){
-  let arr = projects.filter(p=> filter==='working'?p.stage!=='done' : filter==='all'?true : p.stage===filter);
+  let arr = projects.filter(p=>matchFilter(p,filter));
   // 締切昇順（空は末尾）→ ステージ順
   arr.sort((a,b)=>{
     const ad=a.deadline||'9999-99-99', bd=b.deadline||'9999-99-99';
@@ -521,15 +572,23 @@ function renderList(){
     return;
   }
   $('list').innerHTML = arr.map(p=>{
-    const st=stageOf(p.stage), pr=progress(p), isDone=p.stage==='done';
+    const st=stageOf(p.stage), pr=progress(p), isDone=p.stage==='done', jimu=isJimu(p);
     const di=dlInfo(p.deadline,isDone);
     const expanded = String(expandedId)===String(p.id);
+    const pill = jimu
+      ? `<span class="stage-pill" style="background:var(--tag-jimu)">事務</span>`
+      : `<span class="stage-pill" style="background:${st.color}">${st.label}</span>`;
+    const workTags = (p.tags||[]).filter(t=>t!==JIMU);
+    const tagsHtml = workTags.length
+      ? `<div class="tags">${workTags.map(t=>`<span class="tag" style="background:${TAG_COLOR[t]||'var(--ink-mute)'}">${esc(t)}</span>`).join('')}</div>`
+      : '';
     return `<div class="proj">
       <div class="proj-head" onclick="toggleExpand('${p.id}')">
         <div class="proj-info">
-          <span class="stage-pill" style="background:${st.color}">${st.label}</span>
+          ${pill}
           <div class="proj-name" style="${isDone?'color:var(--ink-mute);':''}">${esc(p.name)||'（無題）'}</div>
           ${p.client?`<div class="proj-client">${esc(p.client)}</div>`:''}
+          ${tagsHtml}
         </div>
         <div class="proj-right">
           <div class="pct">${pr.pct}<span>%</span></div>
@@ -629,8 +688,26 @@ window.openEdit = (id)=>{
   $('f-amount').value = (p && p.amount!=null) ? p.amount : '';
   $('f-note').value = p?p.note:'';
   $('f-stage').innerHTML = STAGES.map(s=>`<option value="${s.key}" ${p&&p.stage===s.key?'selected':(!p&&s.key==='progress'?'selected':'')}>${s.label}</option>`).join('');
+  const tags = p ? (p.tags||[]) : [];
+  $('f-tags').innerHTML = ALL_TAGS.map(t=>`
+    <button type="button" class="tag-toggle ${tags.includes(t)?'on':''}" data-tag="${t}"
+      style="${tags.includes(t)?`background:${TAG_COLOR[t]}`:''}" onclick="toggleTagSel(this)">${t}</button>`).join('');
+  updateJimuUI();
   $('deleteBtn').style.display = p?'inline-block':'none';
   $('overlay').classList.add('on');
+};
+function currentTags(){
+  return [...document.querySelectorAll('#f-tags .tag-toggle.on')].map(b=>b.dataset.tag);
+}
+function updateJimuUI(){
+  // 事務は金額を持たないので金額欄を隠す
+  $('amount-field').style.display = currentTags().includes(JIMU) ? 'none' : '';
+}
+window.toggleTagSel = (btn)=>{
+  const on = !btn.classList.contains('on');
+  btn.classList.toggle('on', on);
+  btn.style.background = on ? (TAG_COLOR[btn.dataset.tag]||'') : '';
+  updateJimuUI();
 };
 window.closeEdit = ()=> $('overlay').classList.remove('on');
 
@@ -643,8 +720,9 @@ window.saveEdit = async ()=>{
   p.name=name;
   p.client=$('f-client').value.trim();
   p.deadline=$('f-deadline').value;
+  p.tags = currentTags();
   const amt=$('f-amount').value.trim();
-  p.amount = amt==='' ? null : Number(amt);
+  p.amount = (p.tags.includes(JIMU) || amt==='') ? null : Number(amt);
   p.note=$('f-note').value;
   p.stage=$('f-stage').value;
   normalize(p);
