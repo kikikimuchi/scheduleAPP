@@ -76,16 +76,6 @@
   .chip.on{background:var(--ink); color:var(--card); border-color:var(--ink);}
   .chip .cnt{opacity:.6; margin-left:4px; font-weight:700;}
 
-  /* priority section */
-  .prio-card{
-    background:linear-gradient(180deg,var(--accent-soft),var(--card));
-    border:1px solid var(--line); border-radius:16px; padding:12px 14px;
-    margin-top:12px; box-shadow:var(--shadow);
-  }
-  .prio-card h3{margin:0 0 8px; font-size:12px; font-weight:700; color:var(--ink-soft); letter-spacing:.03em;}
-  .prio-row{display:flex; align-items:center; gap:9px; padding:6px 0;}
-  .prio-row + .prio-row{border-top:1px solid var(--line);}
-
   /* project card */
   .list{margin-top:12px;}
   .proj{
@@ -180,6 +170,32 @@
   .banner.err{background:rgba(239,68,68,.12); color:var(--danger);}
   .banner.load{background:var(--accent-soft); color:var(--accent);}
 
+  /* tabs */
+  .tabs{
+    display:flex; gap:5px; margin-top:12px; padding:4px;
+    background:var(--card); border:1px solid var(--line); border-radius:13px;
+  }
+  .tab{
+    flex:1; border:none; background:none; color:var(--ink-mute);
+    font-weight:700; font-size:13.5px; padding:8px; border-radius:9px;
+    cursor:pointer; font-family:inherit;
+  }
+  .tab.on{background:var(--accent); color:#fff;}
+  .tab:active{transform:scale(.97);}
+
+  /* tasks page */
+  .task-add-bar{
+    background:var(--card); border:1px solid var(--line); border-radius:16px;
+    padding:13px 14px; margin-bottom:12px; box-shadow:var(--shadow);
+  }
+  .task-group{
+    background:var(--card); border:1px solid var(--line); border-radius:16px;
+    margin-bottom:11px; box-shadow:var(--shadow); padding:4px 14px 8px;
+  }
+  .task-group-head{display:flex; align-items:center; gap:8px; padding:10px 0 6px;}
+  .task-group-head .stage-pill{margin-bottom:0;}
+  .tg-name{font-size:13.5px; font-weight:700; word-break:break-word;}
+
   /* modal */
   .overlay{
     position:fixed; inset:0; z-index:50; background:rgba(15,20,35,.5);
@@ -206,16 +222,16 @@
       <div class="sp"></div>
       <button class="icon-btn" onclick="reload()" title="再読込" id="reloadBtn">↻</button>
     </div>
+    <div class="tabs" id="tabs"></div>
     <div class="summary" id="summary"></div>
     <div class="chips" id="chips"></div>
   </header>
 
-  <div id="prio"></div>
   <div class="list" id="list"></div>
   <div id="state"></div>
 </div>
 
-<button class="fab" onclick="openEdit(null)">＋</button>
+<button class="fab" id="fab" onclick="openEdit(null)">＋</button>
 
 <!-- edit sheet -->
 <div class="overlay" id="overlay" onclick="if(event.target===this)closeEdit()">
@@ -337,10 +353,11 @@ async function apiDelete(id){
 
 /* ==================== 状態 ==================== */
 let projects = [];
+let view = 'projects';    // projects | tasks
 let filter = 'working';   // working | all | <stageKey>
+let taskFilter = 'open';  // open | priority | done | all
 let expandedId = null;
 let editingId = null;
-let prioOpen = true;
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -369,13 +386,27 @@ function fmtYen(n){
 
 /* ==================== 描画 ==================== */
 function render(){
-  renderSummary();
-  renderChips();
-  renderPrio();
-  renderList();
+  renderTabs();
+  $('fab').style.display = (view==='tasks') ? 'none' : 'flex';
+  if(view==='tasks'){
+    $('summary').style.display='none';
+    renderTasksView();
+  } else {
+    renderSummary();
+    renderChips();
+    renderList();
+  }
 }
+function renderTabs(){
+  $('tabs').innerHTML = `
+    <button class="tab ${view==='projects'?'on':''}" onclick="setView('projects')">案件</button>
+    <button class="tab ${view==='tasks'?'on':''}" onclick="setView('tasks')">タスク</button>`;
+}
+window.setView = v => { view=v; expandedId=null; render(); };
+window.setTaskFilter = f => { taskFilter=f; renderTasksView(); };
 
 function renderSummary(){
+  $('summary').style.display='';
   const active = projects.filter(p=>p.stage!=='done');
   const openTasks = active.reduce((n,p)=>n+(p.tasks||[]).filter(t=>!t.done).length,0);
   const soon = active.filter(p=>{const i=dlInfo(p.deadline,false); return i && i.diff<=3;}).length;
@@ -398,23 +429,83 @@ function renderChips(){
 }
 window.setFilter = f => { filter=f; render(); };
 
-function renderPrio(){
-  const open = projects.filter(p=>p.stage!=='done')
-    .flatMap(p=>(p.tasks||[]).filter(t=>t.priority&&!t.done).map(t=>({t,p})));
-  if(open.length===0){ $('prio').innerHTML=''; return; }
-  $('prio').innerHTML = `
-    <div class="prio-card">
-      <h3>⭐ 優先タスク（${open.length}）</h3>
-      ${open.map(({t,p})=>`
-        <div class="prio-row">
-          <div class="check" onclick="toggleTask('${p.id}','${t.id}')"></div>
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:13px;font-weight:600;">${esc(t.label)}</div>
-            <div style="font-size:10px;color:var(--ink-mute);">${esc(p.name)}</div>
-          </div>
-        </div>`).join('')}
-    </div>`;
+function renderTaskChips(){
+  const all = projects.flatMap(p=>(p.tasks||[]).map(t=>({t,p})));
+  const cnt = {
+    open: all.filter(x=>!x.t.done).length,
+    priority: all.filter(x=>x.t.priority&&!x.t.done).length,
+    done: all.filter(x=>x.t.done).length,
+    all: all.length,
+  };
+  const chips=[{k:'open',label:'未完'},{k:'priority',label:'⭐優先'},{k:'done',label:'完了'},{k:'all',label:'すべて'}];
+  $('chips').innerHTML = chips.map(c=>`
+    <button class="chip ${taskFilter===c.k?'on':''}" onclick="setTaskFilter('${c.k}')">${c.label}<span class="cnt">${cnt[c.k]}</span></button>`).join('');
 }
+
+function renderTasksView(){
+  renderTaskChips();
+  const match = t => taskFilter==='open' ? !t.done
+    : taskFilter==='priority' ? (t.priority&&!t.done)
+    : taskFilter==='done' ? t.done : true;
+  const groups = projects.map(p=>{
+    const ts=(p.tasks||[]).filter(match).sort((a,b)=>(b.priority?1:0)-(a.priority?1:0));
+    return {p, ts};
+  }).filter(g=>g.ts.length>0);
+  groups.sort((a,b)=>{
+    const ad=a.p.deadline||'9999-99-99', bd=b.p.deadline||'9999-99-99';
+    if(ad!==bd) return ad<bd?-1:1;
+    return STAGES.findIndex(s=>s.key===a.p.stage)-STAGES.findIndex(s=>s.key===b.p.stage);
+  });
+  let html = renderAddTaskBar();
+  if(groups.length===0){
+    html += `<div class="empty"><div class="ic">☑</div><div class="t">この条件のタスクはありません</div></div>`;
+  } else {
+    html += groups.map(g=>{
+      const st=stageOf(g.p.stage);
+      return `<div class="task-group">
+        <div class="task-group-head">
+          <span class="stage-pill" style="background:${st.color}">${st.label}</span>
+          <span class="tg-name">${esc(g.p.name)||'（無題）'}</span>
+        </div>
+        ${g.ts.map(t=>`
+          <div class="task">
+            <div class="check ${t.done?'on':''}" onclick="toggleTask('${g.p.id}','${t.id}')">${t.done?'✓':''}</div>
+            <div class="task-label ${t.done?'done':''}">${esc(t.label)}</div>
+            <span class="star" onclick="togglePrio('${g.p.id}','${t.id}')">${t.priority?'⭐':'☆'}</span>
+            <button class="task-del" onclick="delTask('${g.p.id}','${t.id}')">×</button>
+          </div>`).join('')}
+      </div>`;
+    }).join('');
+  }
+  $('list').innerHTML = html;
+}
+
+function renderAddTaskBar(){
+  const opts = projects.filter(p=>p.stage!=='done')
+    .map(p=>`<option value="${p.id}">${esc(p.name)||'（無題）'}</option>`).join('');
+  if(!opts) return '';
+  return `<div class="task-add-bar">
+    <label style="display:block;font-size:11px;font-weight:700;color:var(--ink-mute);margin-bottom:6px;">タスクを追加する案件</label>
+    <select class="fi" id="tv-proj">${opts}</select>
+    <div class="add-row" style="margin-top:8px;">
+      <input class="fi" type="text" id="tv-input" placeholder="タスク内容（Enter）"
+        onkeydown="if(event.key==='Enter'&&!event.isComposing){addTaskFromView()}">
+      <button class="btn btn-sec" onclick="addTaskFromView()">＋</button>
+    </div>
+  </div>`;
+}
+window.addTaskFromView = async ()=>{
+  const sel=$('tv-proj'), inp=$('tv-input');
+  if(!sel||!inp) return;
+  const p=find(sel.value); if(!p) return;
+  const label=(inp.value||'').trim(); if(!label) return;
+  p.tasks=p.tasks||[]; p.tasks.push({id:Date.now(),label,done:false,priority:false});
+  const keep=sel.value;
+  renderTasksView();
+  const s2=$('tv-proj'); if(s2) s2.value=keep;
+  const again=$('tv-input'); if(again) again.focus();
+  await persist(p);
+};
 
 function renderList(){
   let arr = projects.filter(p=> filter==='working'?p.stage!=='done' : filter==='all'?true : p.stage===filter);
@@ -513,7 +604,7 @@ window.togglePrio = async (pid,tid)=>{
 window.delTask = async (pid,tid)=>{
   const p=find(pid); if(!p) return;
   p.tasks=(p.tasks||[]).filter(x=>String(x.id)!==String(tid));
-  renderList(); renderPrio(); await persist(p);
+  render(); await persist(p);
 };
 window.addTask = async (pid,inp)=>{
   const p=find(pid); if(!p) return;
