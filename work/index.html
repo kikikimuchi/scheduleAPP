@@ -58,10 +58,8 @@
 
   /* filter chips */
   .chips{
-    display:flex; gap:7px; overflow-x:auto; padding:12px 0 4px; margin:0 -14px;
-    padding-left:14px; padding-right:14px; scrollbar-width:none;
+    display:flex; flex-wrap:wrap; gap:7px; padding:12px 0 4px;
   }
-  .chips::-webkit-scrollbar{display:none;}
   .chip{
     flex-shrink:0; border:1px solid var(--line); background:var(--card);
     color:var(--ink-soft); padding:7px 13px; border-radius:20px; font-size:12px;
@@ -99,6 +97,7 @@
   .dl.over{color:var(--danger);}
   .dl.soon{color:var(--warn);}
   .amount{font-weight:700; color:var(--ink-soft); font-variant-numeric:tabular-nums;}
+  .amount.paid{color:var(--s-done);}
   .chevron{margin-left:auto; color:var(--ink-faint); font-size:12px;}
 
   /* tags */
@@ -122,7 +121,8 @@
     background:rgba(255,255,255,.04); border-radius:10px; padding:10px 12px; font-size:12px;
     color:var(--ink-soft); white-space:pre-wrap; margin:12px 0; line-height:1.65;
   }
-  .task{display:flex; align-items:center; gap:10px; padding:8px 2px; border-bottom:1px solid var(--line);}
+  .task{display:flex; align-items:center; gap:10px; padding:8px 2px; border-bottom:1px solid var(--line);
+    user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;}
   .task:last-of-type{border-bottom:none;}
   .check{
     width:22px; height:22px; border-radius:7px; border:2px solid var(--ink-faint);
@@ -296,6 +296,10 @@
       <label>金額（円）</label>
       <input class="fi" id="f-amount" type="number" inputmode="numeric" min="0" step="1000" placeholder="例：150000">
     </div>
+    <div class="field" id="paid-field">
+      <label>入金日（未入金なら空欄）</label>
+      <input class="fi" id="f-paid" type="date">
+    </div>
     <div class="field">
       <label>ステージ</label>
       <select class="fi" id="f-stage"></select>
@@ -388,7 +392,8 @@ function normalize(p){
   p.note = p.note||'';
   p.tags = Array.isArray(p.tags) ? p.tags.filter(t=>typeof t==='string') : [];
   p.amount = (typeof p.amount==='number' && isFinite(p.amount)) ? p.amount : null;
-  if(p.tags.includes(JIMU)) p.amount = null;   // 事務は金額を持たない
+  p.paidDate = p.paidDate || '';
+  if(p.tags.includes(JIMU)){ p.amount = null; p.paidDate = ''; }   // 事務は金額・入金日を持たない
   if(!p.stage){ p.stage = (p.status==='done') ? 'done' : 'progress'; }
   if(p.stage==='delivery') p.stage='done';   // 「納品」ステージ廃止に伴う移行
   p.status = (p.stage==='done') ? 'done' : 'active';
@@ -403,7 +408,7 @@ async function apiList(){
 async function apiSave(p){
   normalize(p);
   const fields = {};
-  ['id','name','client','deadline','status','stage','note','amount'].forEach(k=>fields[k]=toFs(p[k]));
+  ['id','name','client','deadline','status','stage','note','amount','paidDate'].forEach(k=>fields[k]=toFs(p[k]));
   fields.tasks = toFs(p.tasks);
   fields.tags = toFs(p.tags);
   const r = await fetch(`${BASE}/${COL}/${p.id}`,{
@@ -482,13 +487,17 @@ function renderSummary(){
     const i=dlInfo(p.deadline,false);
     return n + ((i && i.diff<=3) ? (p.tasks||[]).filter(t=>!t.done).length : 0);
   },0);
-  const total = cases.reduce((n,p)=>n+(typeof p.amount==='number'&&isFinite(p.amount)?p.amount:0),0);
-  $('sub').textContent = `案件 ${cases.length}件`;
+  // 売上＝入金済（入金日あり）の金額合計。完了案件も含め、事務は除外。
+  const paidTotal = projects
+    .filter(p=>!isJimu(p) && p.paidDate && typeof p.amount==='number' && isFinite(p.amount))
+    .reduce((n,p)=>n+p.amount,0);
+  const totalCases = projects.filter(p=>!isJimu(p)).length;
+  $('sub').textContent = `総案件 ${totalCases}件`;
   $('summary').innerHTML = `
     <div class="stat"><div class="n">${cases.length}</div><div class="l">進行中の案件</div></div>
     <div class="stat"><div class="n">${openTasks}</div><div class="l">未完タスク</div></div>
-    <div class="stat ${soonTasks?'danger':''}"><div class="n">${soonTasks}</div><div class="l">締切3日以内</div></div>
-    <div class="stat tap" onclick="openSalesModal()"><div class="n" style="font-size:15px;">${total?fmtYen(total):'¥0'}</div><div class="l">2026年度売上 ›</div></div>`;
+    <div class="stat ${soonTasks?'danger':''}"><div class="n">${soonTasks}</div><div class="l">3日以内タスク</div></div>
+    <div class="stat tap" onclick="openSalesModal()"><div class="n" style="font-size:15px;">${paidTotal?fmtYen(paidTotal):'¥0'}</div><div class="l">2026年度売上 ›</div></div>`;
 }
 
 // 案件フィルタ判定。事務は案件系フィルタ（未完了/各ステージ）に出さず、専用の jimu と all にのみ出す。
@@ -638,7 +647,7 @@ function renderList(){
       <div class="bar"><div class="bar-fill" style="width:${pr.pct}%;${isDone?'background:var(--s-done);':''}"></div></div>
       <div class="proj-meta">
         ${di?`<span class="dl ${di.cls}">締切 ${p.deadline}・${di.txt}</span>`:`<span class="dl" style="color:var(--ink-faint);">締切なし</span>`}
-        ${p.amount!=null?`<span class="amount">${fmtYen(p.amount)}</span>`:''}
+        ${p.amount!=null?`<span class="amount ${p.paidDate?'paid':''}">${fmtYen(p.amount)}${p.paidDate?' ✓':''}</span>`:''}
         <span class="chevron">${expanded?'▲':'▼'}</span>
       </div>
       ${expanded?renderBody(p):''}
@@ -706,7 +715,11 @@ function dndStart(e){
   try{ e.target.setPointerCapture(e.pointerId); }catch(_){}
   row.classList.add('dragging');
   list.classList.add('dragging-active');
+  const prevSel = document.body.style.userSelect;
+  document.body.style.userSelect='none';
+  document.body.style.webkitUserSelect='none';
   const move = ev=>{
+    ev.preventDefault();
     const y = ev.clientY;
     const others = [...list.querySelectorAll('.task:not(.dragging)')];
     let before=null;
@@ -722,6 +735,8 @@ function dndStart(e){
     document.removeEventListener('pointercancel', up);
     row.classList.remove('dragging');
     list.classList.remove('dragging-active');
+    document.body.style.userSelect=prevSel;
+    document.body.style.webkitUserSelect=prevSel;
     const p = find(list.dataset.pid); if(!p) return;
     const ids = [...list.querySelectorAll('.task')].map(el=>el.dataset.tid);
     reorderVisible(p, ids);
@@ -734,37 +749,36 @@ function dndStart(e){
 
 /* ---- 売上モーダル（月別グラフ） ---- */
 window.openSalesModal = ()=>{
-  // 事務を除く、金額入りの案件を締切の「月」で集計
-  const set = projects.filter(p=>!isJimu(p) && typeof p.amount==='number' && isFinite(p.amount) && p.amount>0);
+  // 事務を除く、金額入りの案件を「入金日の月」で集計（入金済のみ＝実際の売上）
+  const withAmount = projects.filter(p=>!isJimu(p) && typeof p.amount==='number' && isFinite(p.amount) && p.amount>0);
+  const paid = withAmount.filter(p=>/^\d{4}-\d{2}/.test(p.paidDate||''));
+  const unpaid = withAmount.filter(p=>!/^\d{4}-\d{2}/.test(p.paidDate||''));
   const byMonth = {};
-  set.forEach(p=>{
-    const m = (p.deadline && /^\d{4}-\d{2}/.test(p.deadline)) ? p.deadline.slice(0,7) : '未定';
-    byMonth[m] = (byMonth[m]||0) + p.amount;
-  });
-  const dated = Object.keys(byMonth).filter(m=>m!=='未定').sort();
-  const order = [...dated]; if(byMonth['未定']!=null) order.push('未定');
-  const total = set.reduce((n,p)=>n+p.amount,0);
-  const datedTotal = dated.reduce((n,m)=>n+byMonth[m],0);
-  const avg = dated.length ? Math.round(datedTotal/dated.length) : 0;
-  const max = Math.max(1, ...order.map(m=>byMonth[m]));
-  const monLabel = m => m==='未定' ? '未定' : `${m.slice(2,4)}/${parseInt(m.slice(5,7),10)}`;
-  const rows = order.length ? order.map(m=>{
+  paid.forEach(p=>{ const m=p.paidDate.slice(0,7); byMonth[m]=(byMonth[m]||0)+p.amount; });
+  const months = Object.keys(byMonth).sort();
+  const total = paid.reduce((n,p)=>n+p.amount,0);
+  const avg = months.length ? Math.round(total/months.length) : 0;
+  const unpaidTotal = unpaid.reduce((n,p)=>n+p.amount,0);
+  const max = Math.max(1, ...months.map(m=>byMonth[m]));
+  const monLabel = m => `${m.slice(2,4)}/${parseInt(m.slice(5,7),10)}`;
+  const rows = months.length ? months.map(m=>{
     const v=byMonth[m], w=Math.round(v/max*100);
     return `<div class="sm-row">
       <div class="sm-mon">${monLabel(m)}</div>
       <div class="sm-track"><div class="sm-bar" style="width:${w}%"></div></div>
       <div class="sm-val">${fmtYen(v)}</div>
     </div>`;
-  }).join('') : `<div class="empty" style="padding:24px;"><div class="t">金額が登録された案件がありません</div></div>`;
+  }).join('') : `<div class="empty" style="padding:24px;"><div class="t">入金日が登録された案件がありません</div></div>`;
   $('salesBody').innerHTML = `
     <div class="sm-head">
-      <div class="sm-stat"><div class="n">${fmtYen(total)}</div><div class="l">合計</div></div>
+      <div class="sm-stat"><div class="n">${fmtYen(total)}</div><div class="l">入金合計</div></div>
       <div class="sm-stat"><div class="n">${avg?fmtYen(avg):'¥0'}</div><div class="l">月平均</div></div>
-      <div class="sm-stat"><div class="n">${dated.length}</div><div class="l">対象月数</div></div>
+      <div class="sm-stat"><div class="n">${months.length}</div><div class="l">入金月数</div></div>
     </div>
     ${rows}
-    <div style="font-size:10.5px;color:var(--ink-mute);margin-top:12px;line-height:1.6;">
-      ※ 事務タグを除く「金額入りの案件」を締切の月で集計。月平均は金額がある月数で割った値です。
+    ${unpaid.length?`<div style="margin-top:12px;font-size:12px;color:var(--warn);font-weight:700;">未入金 ${fmtYen(unpaidTotal)}（${unpaid.length}件）</div>`:''}
+    <div style="font-size:10.5px;color:var(--ink-mute);margin-top:10px;line-height:1.6;">
+      ※ 事務タグを除く「金額入りの案件」を入金日の月で集計。月平均は入金があった月数で割った値です。
     </div>`;
   $('salesOverlay').classList.add('on');
 };
@@ -812,6 +826,7 @@ window.openEdit = (id)=>{
   $('f-client').value = p?p.client:'';
   $('f-deadline').value = p?p.deadline:'';
   $('f-amount').value = (p && p.amount!=null) ? p.amount : '';
+  $('f-paid').value = p ? (p.paidDate||'') : '';
   $('f-note').value = p?p.note:'';
   $('f-stage').innerHTML = STAGES.map(s=>`<option value="${s.key}" ${p&&p.stage===s.key?'selected':(!p&&s.key==='progress'?'selected':'')}>${s.label}</option>`).join('');
   const tags = p ? (p.tags||[]) : [];
@@ -826,8 +841,10 @@ function currentTags(){
   return [...document.querySelectorAll('#f-tags .tag-toggle.on')].map(b=>b.dataset.tag);
 }
 function updateJimuUI(){
-  // 事務は金額を持たないので金額欄を隠す
-  $('amount-field').style.display = currentTags().includes(JIMU) ? 'none' : '';
+  // 事務は金額・入金日を持たないので両欄を隠す
+  const hide = currentTags().includes(JIMU) ? 'none' : '';
+  $('amount-field').style.display = hide;
+  $('paid-field').style.display = hide;
 }
 window.toggleTagSel = (btn)=>{
   const on = !btn.classList.contains('on');
@@ -849,6 +866,7 @@ window.saveEdit = async ()=>{
   p.tags = currentTags();
   const amt=$('f-amount').value.trim();
   p.amount = (p.tags.includes(JIMU) || amt==='') ? null : Number(amt);
+  p.paidDate = p.tags.includes(JIMU) ? '' : $('f-paid').value;
   p.note=$('f-note').value;
   p.stage=$('f-stage').value;
   normalize(p);
