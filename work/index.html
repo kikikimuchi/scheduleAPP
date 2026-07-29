@@ -62,9 +62,10 @@
   }
   .chip{
     flex-shrink:0; border:1px solid var(--line); background:var(--card);
-    color:var(--ink-soft); padding:7px 13px; border-radius:20px; font-size:12px;
+    color:var(--ink-soft); padding:7px 13px; border-radius:8px; font-size:12px;
     font-weight:600; cursor:pointer; white-space:nowrap;
   }
+  .chip-break{flex-basis:100%; height:0;}
   .chip .dot{display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; vertical-align:1px;}
   .chip.on{background:var(--ink); color:var(--card); border-color:var(--ink);}
   .chip.chip-work.on{background:var(--accent); color:#fff; border-color:var(--accent);}
@@ -341,7 +342,7 @@ const STAGES = [
   {key:'quote',    label:'見積',   color:'var(--s-quote)'},
   {key:'progress', label:'進行',   color:'var(--s-progress)'},
   {key:'review',   label:'確認',   color:'var(--s-review)'},
-  {key:'done',     label:'完了',   color:'var(--s-done)'},
+  {key:'done',     label:'納品',   color:'var(--s-done)'},
 ];
 const stageOf = k => STAGES.find(s=>s.key===k) || STAGES[1];
 
@@ -504,22 +505,23 @@ function renderSummary(){
 function matchFilter(p, f){
   if(f==='all') return true;
   if(f==='jimu') return isJimu(p);
-  if(isJimu(p)) return false;
-  if(f==='working') return p.stage!=='done';
+  if(f==='working') return p.stage!=='done';   // 事務も含む
+  if(isJimu(p)) return false;                    // ステージ別フィルタには事務を出さない
   return p.stage===f;
 }
 function renderChips(){
   const count = f => projects.filter(p=>matchFilter(p,f)).length;
-  const chips = [
-    {k:'working',label:'未完了'},
-    {k:'jimu',label:'事務',color:'var(--tag-jimu)'},
-    ...STAGES.map(s=>({k:s.key,label:s.label,color:s.color})),
-    {k:'all',label:'すべて'},
-  ];
-  $('chips').innerHTML = chips.map(c=>`
+  const chipHtml = c => `
     <button class="chip ${c.k==='working'?'chip-work':''} ${filter===c.k?'on':''}" onclick="setFilter('${c.k}')">
       ${c.color?`<span class="dot" style="background:${c.color}"></span>`:''}${c.label}<span class="cnt">${count(c.k)}</span>
-    </button>`).join('');
+    </button>`;
+  const row1 = [
+    {k:'working',label:'未完了'},
+    {k:'all',label:'すべて'},
+    {k:'jimu',label:'事務',color:'var(--tag-jimu)'},
+  ];
+  const row2 = STAGES.map(s=>({k:s.key,label:s.label,color:s.color}));
+  $('chips').innerHTML = row1.map(chipHtml).join('') + `<div class="chip-break"></div>` + row2.map(chipHtml).join('');
 }
 window.setFilter = f => { filter=f; render(); };
 
@@ -531,7 +533,7 @@ function renderTaskChips(){
     done: all.filter(x=>x.t.done).length,
     all: all.length,
   };
-  const chips=[{k:'open',label:'未完'},{k:'priority',label:'⭐優先'},{k:'done',label:'完了'},{k:'all',label:'すべて'}];
+  const chips=[{k:'open',label:'未完'},{k:'priority',label:'★優先'},{k:'done',label:'完了'},{k:'all',label:'すべて'}];
   $('chips').innerHTML = chips.map(c=>`
     <button class="chip ${taskFilter===c.k?'on':''}" onclick="setTaskFilter('${c.k}')">${c.label}<span class="cnt">${cnt[c.k]}</span></button>`).join('');
 }
