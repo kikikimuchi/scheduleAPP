@@ -307,6 +307,12 @@
       <label>タグ</label>
       <div class="tag-select" id="f-tags"></div>
     </div>
+    <div class="field">
+      <label>区分</label>
+      <div class="tag-select">
+        <button type="button" class="tag-toggle" id="f-personal" onclick="togglePersonal(this)">個人案件（会社設立前）</button>
+      </div>
+    </div>
     <div class="field" id="amount-field">
       <label>金額（円）</label>
       <input class="fi" id="f-amount" type="number" inputmode="numeric" min="0" step="1000" placeholder="例：150000">
@@ -369,6 +375,7 @@ const TAG_COLOR = {
   '編集':'var(--tag-edit)', [JIMU]:'var(--tag-jimu)',
 };
 const isJimu = p => (p.tags||[]).includes(JIMU);
+const PERSONAL_COLOR = '#6b8fb0';   // 個人案件（会社設立前）バッジ色
 
 // 売上集計の対象会計年度（2026年5月〜2027年4月の12か月）
 function fyMonths(){
@@ -416,6 +423,7 @@ function normalize(p){
   p.tags = Array.isArray(p.tags) ? p.tags.filter(t=>typeof t==='string') : [];
   p.amount = (typeof p.amount==='number' && isFinite(p.amount)) ? p.amount : null;
   p.paidDate = p.paidDate || '';
+  p.personal = !!p.personal;   // 会社設立前の個人案件（会社の売上に含めない）
   if(p.tags.includes(JIMU)){ p.amount = null; p.paidDate = ''; }   // 事務は金額・入金日を持たない
   if(!p.stage){ p.stage = (p.status==='done') ? 'done' : 'progress'; }
   if(p.stage==='delivery') p.stage='done';   // 「納品」ステージ廃止に伴う移行
@@ -431,7 +439,7 @@ async function apiList(){
 async function apiSave(p){
   normalize(p);
   const fields = {};
-  ['id','name','client','deadline','status','stage','note','amount','paidDate'].forEach(k=>fields[k]=toFs(p[k]));
+  ['id','name','client','deadline','status','stage','note','amount','paidDate','personal'].forEach(k=>fields[k]=toFs(p[k]));
   fields.tasks = toFs(p.tasks);
   fields.tags = toFs(p.tags);
   const r = await fetch(`${BASE}/${COL}/${p.id}`,{
@@ -512,7 +520,7 @@ function renderSummary(){
   },0);
   // 売上＝会計年度(2026/5〜2027/4)に入金済の税別金額合計。完了案件も含め、事務は除外。
   const paidTotal = projects
-    .filter(p=>!isJimu(p) && typeof p.amount==='number' && isFinite(p.amount)
+    .filter(p=>!isJimu(p) && !p.personal && typeof p.amount==='number' && isFinite(p.amount)
       && /^\d{4}-\d{2}/.test(p.paidDate||'') && FY_SET.has(p.paidDate.slice(0,7)))
     .reduce((n,p)=>n+p.amount,0);
   const totalCases = projects.filter(p=>!isJimu(p)).length;
@@ -540,9 +548,9 @@ function renderChips(){
       ${c.color?`<span class="dot" style="background:${c.color}"></span>`:''}${c.label}<span class="cnt">${count(c.k)}</span>
     </button>`;
   const row1 = [
+    {k:'jimu',label:'事務',color:'var(--tag-jimu)'},
     {k:'working',label:'未完了'},
     {k:'all',label:'すべて'},
-    {k:'jimu',label:'事務',color:'var(--tag-jimu)'},
   ];
   const row2 = STAGES.map(s=>({k:s.key,label:s.label,color:s.color}));
   $('chips').innerHTML = row1.map(chipHtml).join('') + `<div class="chip-break"></div>` + row2.map(chipHtml).join('');
@@ -654,9 +662,10 @@ function renderList(){
       ? `<span class="stage-pill" style="background:var(--tag-jimu)">事務</span>`
       : `<span class="stage-pill" style="background:${st.color}">${st.label}</span>`;
     const workTags = (p.tags||[]).filter(t=>t!==JIMU);
-    const tagsHtml = workTags.length
-      ? `<div class="tags">${workTags.map(t=>`<span class="tag" style="background:${TAG_COLOR[t]||'var(--ink-mute)'}">${esc(t)}</span>`).join('')}</div>`
-      : '';
+    const badges = [];
+    if(p.personal) badges.push(`<span class="tag" style="background:${PERSONAL_COLOR}">個人</span>`);
+    workTags.forEach(t=>badges.push(`<span class="tag" style="background:${TAG_COLOR[t]||'var(--ink-mute)'}">${esc(t)}</span>`));
+    const tagsHtml = badges.length ? `<div class="tags">${badges.join('')}</div>` : '';
     return `<div class="proj">
       <div class="proj-head" onclick="toggleExpand('${p.id}')">
         <div class="proj-info">
@@ -777,8 +786,12 @@ function dndStart(e){
 window.openSalesModal = ()=>{
   const months = fyMonths();  // 2026-05 .. 2027-04
   const inFy = p => /^\d{4}-\d{2}/.test(p.paidDate||'') && FY_SET.has(p.paidDate.slice(0,7));
-  const withAmount = projects.filter(p=>!isJimu(p) && typeof p.amount==='number' && isFinite(p.amount) && p.amount>0);
-  const paid = withAmount.filter(inFy);                         // 会計年度に入金済
+  const withAmount = projects.filter(p=>!isJimu(p) && !p.personal && typeof p.amount==='number' && isFinite(p.amount) && p.amount>0);
+  const paid = withAmount.filter(inFy);                         // 会計年度に入金済（会社売上・個人案件は除外）
+  // 個人売上（会社設立前）：総額のみ
+  const personalTotal = projects
+    .filter(p=>!isJimu(p) && p.personal && typeof p.amount==='number' && isFinite(p.amount))
+    .reduce((n,p)=>n+p.amount,0);
   const unpaid = withAmount.filter(p=>!/^\d{4}-\d{2}/.test(p.paidDate||''));  // 未入金
   const unpaidTotal = unpaid.reduce((n,p)=>n+p.amount,0);
 
@@ -825,6 +838,8 @@ window.openSalesModal = ()=>{
     </div>
     <div class="sm-sec-title">月別売上（2026年5月〜2027年4月）</div>
     <div class="sm-cols">${cols}</div>
+    <div class="sm-sec-title">クライアント別売上</div>
+    ${pieHtml}
     <div class="sm-sec-title">税金の積立目安</div>
     <div class="sm-tax">
       <div class="sm-tax-row"><span>税別売上合計</span><span class="v">${fmtYen(total)}</span></div>
@@ -834,8 +849,7 @@ window.openSalesModal = ()=>{
     <div style="font-size:10.5px;color:var(--ink-mute);margin-top:8px;line-height:1.6;">
       ※ 入力金額は税別。消費税(10%)は預り金として確保推奨。所得税・住民税などは年間の利益に応じて別途必要です。
     </div>
-    <div class="sm-sec-title">クライアント別売上</div>
-    ${pieHtml}
+    ${personalTotal?`<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink-mute);">個人売上（会社設立前）：<span style="font-weight:800;color:var(--ink-soft);font-size:13px;">${fmtYen(personalTotal)}</span></div>`:''}
     ${unpaid.length?`<div style="margin-top:14px;font-size:12px;color:var(--warn);font-weight:700;">未入金 ${fmtYen(unpaidTotal)}（${unpaid.length}件）</div>`:''}`;
   $('salesOverlay').classList.add('on');
 };
@@ -892,9 +906,17 @@ window.openEdit = (id)=>{
   $('f-tags').innerHTML = ALL_TAGS.map(t=>`
     <button type="button" class="tag-toggle ${tags.includes(t)?'on':''}" data-tag="${t}"
       style="${tags.includes(t)?`background:${TAG_COLOR[t]}`:''}" onclick="toggleTagSel(this)">${t}</button>`).join('');
+  const per = !!(p && p.personal);
+  $('f-personal').classList.toggle('on', per);
+  $('f-personal').style.background = per ? PERSONAL_COLOR : '';
   updateJimuUI();
   $('deleteBtn').style.display = p?'inline-block':'none';
   $('overlay').classList.add('on');
+};
+window.togglePersonal = (btn)=>{
+  const on = !btn.classList.contains('on');
+  btn.classList.toggle('on', on);
+  btn.style.background = on ? PERSONAL_COLOR : '';
 };
 function currentTags(){
   return [...document.querySelectorAll('#f-tags .tag-toggle.on')].map(b=>b.dataset.tag);
@@ -926,6 +948,7 @@ window.saveEdit = async ()=>{
   const amt=$('f-amount').value.trim();
   p.amount = (p.tags.includes(JIMU) || amt==='') ? null : Number(amt);
   p.paidDate = p.tags.includes(JIMU) ? '' : $('f-paid').value;
+  p.personal = $('f-personal').classList.contains('on');
   p.note=$('f-note').value;
   p.stage=$('f-stage').value;
   normalize(p);
