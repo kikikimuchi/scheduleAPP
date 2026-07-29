@@ -13,7 +13,7 @@
     --accent:#7d92f7; --accent-soft:#242b44;
     --danger:#ef8a8c; --warn:#e3b263;
     /* stage colors（彩度を抑えめに） */
-    --s-quote:#818b9d; --s-progress:#6f95e6; --s-review:#e3b263; --s-done:#54c298;
+    --s-quote:#d9c15c; --s-progress:#6f95e6; --s-review:#e389b9; --s-done:#54c298;
     /* tag colors */
     --tag-dir:#9a8cf1; --tag-shoot:#54c6da; --tag-edit:#e88bc0; --tag-jimu:#818b9d;
     --shadow:0 1px 3px rgba(0,0,0,.28), 0 6px 20px rgba(0,0,0,.30);
@@ -61,8 +61,8 @@
     display:flex; flex-wrap:wrap; gap:7px; padding:12px 0 4px;
   }
   .chip{
-    flex-shrink:0; border:1px solid var(--line); background:var(--card);
-    color:var(--ink-soft); padding:7px 13px; border-radius:8px; font-size:12px;
+    flex:1 1 0; text-align:center; border:1px solid var(--line); background:var(--card);
+    color:var(--ink-soft); padding:7px 10px; border-radius:8px; font-size:12px;
     font-weight:600; cursor:pointer; white-space:nowrap;
   }
   .chip-break{flex-basis:100%; height:0;}
@@ -229,11 +229,24 @@
   .sm-stat{flex:1; background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:10px 12px;}
   .sm-stat .n{font-size:16px; font-weight:800; line-height:1.1;}
   .sm-stat .l{font-size:10px; color:var(--ink-mute); margin-top:4px; font-weight:600;}
-  .sm-row{display:flex; align-items:center; gap:9px; padding:5px 0;}
-  .sm-mon{width:44px; flex-shrink:0; font-size:11px; font-weight:700; color:var(--ink-soft); text-align:right;}
-  .sm-track{flex:1; height:16px; background:var(--bg); border-radius:5px; overflow:hidden;}
-  .sm-bar{height:100%; background:var(--accent); border-radius:5px; min-width:2px;}
-  .sm-val{width:78px; flex-shrink:0; font-size:11px; font-weight:700; text-align:right; font-variant-numeric:tabular-nums;}
+  .sm-sec-title{font-size:12px; font-weight:800; margin:20px 0 8px; color:var(--ink-soft);}
+  .sm-cols{display:flex; align-items:flex-end; gap:3px; margin-top:6px;}
+  .sm-col{flex:1; min-width:0; text-align:center;}
+  .sm-coltrack{height:120px; display:flex; align-items:flex-end;}
+  .sm-colbar{width:100%; background:var(--accent); border-radius:4px 4px 0 0; min-height:2px;}
+  .sm-collabel{font-size:9px; color:var(--ink-mute); margin-top:4px;}
+  .sm-tax{background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:10px 14px;}
+  .sm-tax-row{display:flex; justify-content:space-between; align-items:baseline; padding:3px 0; font-size:13px;}
+  .sm-tax-row .v{font-weight:800; font-variant-numeric:tabular-nums;}
+  .sm-tax-row.big .v{font-size:18px; color:var(--warn);}
+  .pie-wrap{display:flex; gap:16px; align-items:center; flex-wrap:wrap;}
+  .pie{width:120px; height:120px; border-radius:50%; flex-shrink:0; position:relative;}
+  .pie::after{content:''; position:absolute; inset:26px; background:var(--card); border-radius:50%;}
+  .pie-legend{flex:1; min-width:150px;}
+  .pie-item{display:flex; align-items:center; gap:8px; padding:3px 0; font-size:12px;}
+  .pie-sw{width:11px; height:11px; border-radius:2px; flex-shrink:0;}
+  .pie-name{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .pie-val{font-weight:700; font-variant-numeric:tabular-nums;}
 
   /* modal */
   .overlay{
@@ -283,7 +296,8 @@
     </div>
     <div class="field">
       <label>クライアント</label>
-      <input class="fi" id="f-client" type="text" placeholder="例：Honda">
+      <input class="fi" id="f-client" type="text" placeholder="例：Honda" list="client-list" autocomplete="off">
+      <datalist id="client-list"></datalist>
     </div>
     <div class="field">
       <label>締切</label>
@@ -342,7 +356,7 @@ const STAGES = [
   {key:'quote',    label:'見積',   color:'var(--s-quote)'},
   {key:'progress', label:'進行',   color:'var(--s-progress)'},
   {key:'review',   label:'確認',   color:'var(--s-review)'},
-  {key:'done',     label:'納品',   color:'var(--s-done)'},
+  {key:'done',     label:'完了',   color:'var(--s-done)'},
 ];
 const stageOf = k => STAGES.find(s=>s.key===k) || STAGES[1];
 
@@ -355,6 +369,14 @@ const TAG_COLOR = {
   '編集':'var(--tag-edit)', [JIMU]:'var(--tag-jimu)',
 };
 const isJimu = p => (p.tags||[]).includes(JIMU);
+
+// 売上集計の対象会計年度（2026年5月〜2027年4月の12か月）
+function fyMonths(){
+  const out=[]; let y=2026, m=5;
+  for(let i=0;i<12;i++){ out.push(`${y}-${String(m).padStart(2,'0')}`); m++; if(m>12){m=1;y++;} }
+  return out;
+}
+const FY_SET = new Set(fyMonths());
 
 /* ==================== Firestore REST ==================== */
 function toFs(v){
@@ -488,9 +510,10 @@ function renderSummary(){
     const i=dlInfo(p.deadline,false);
     return n + ((i && i.diff<=3) ? (p.tasks||[]).filter(t=>!t.done).length : 0);
   },0);
-  // 売上＝入金済（入金日あり）の金額合計。完了案件も含め、事務は除外。
+  // 売上＝会計年度(2026/5〜2027/4)に入金済の税別金額合計。完了案件も含め、事務は除外。
   const paidTotal = projects
-    .filter(p=>!isJimu(p) && p.paidDate && typeof p.amount==='number' && isFinite(p.amount))
+    .filter(p=>!isJimu(p) && typeof p.amount==='number' && isFinite(p.amount)
+      && /^\d{4}-\d{2}/.test(p.paidDate||'') && FY_SET.has(p.paidDate.slice(0,7)))
     .reduce((n,p)=>n+p.amount,0);
   const totalCases = projects.filter(p=>!isJimu(p)).length;
   $('sub').textContent = `総案件 ${totalCases}件`;
@@ -505,8 +528,9 @@ function renderSummary(){
 function matchFilter(p, f){
   if(f==='all') return true;
   if(f==='jimu') return isJimu(p);
-  if(f==='working') return p.stage!=='done';   // 事務も含む
-  if(isJimu(p)) return false;                    // ステージ別フィルタには事務を出さない
+  if(f==='working') return p.stage!=='done';   // 未完了：事務も含む
+  if(f==='done') return p.stage==='done';       // 完了：事務も含む
+  if(isJimu(p)) return false;                    // 見積/進行/確認 は事務を出さない
   return p.stage===f;
 }
 function renderChips(){
@@ -751,37 +775,68 @@ function dndStart(e){
 
 /* ---- 売上モーダル（月別グラフ） ---- */
 window.openSalesModal = ()=>{
-  // 事務を除く、金額入りの案件を「入金日の月」で集計（入金済のみ＝実際の売上）
+  const months = fyMonths();  // 2026-05 .. 2027-04
+  const inFy = p => /^\d{4}-\d{2}/.test(p.paidDate||'') && FY_SET.has(p.paidDate.slice(0,7));
   const withAmount = projects.filter(p=>!isJimu(p) && typeof p.amount==='number' && isFinite(p.amount) && p.amount>0);
-  const paid = withAmount.filter(p=>/^\d{4}-\d{2}/.test(p.paidDate||''));
-  const unpaid = withAmount.filter(p=>!/^\d{4}-\d{2}/.test(p.paidDate||''));
-  const byMonth = {};
-  paid.forEach(p=>{ const m=p.paidDate.slice(0,7); byMonth[m]=(byMonth[m]||0)+p.amount; });
-  const months = Object.keys(byMonth).sort();
-  const total = paid.reduce((n,p)=>n+p.amount,0);
-  const avg = months.length ? Math.round(total/months.length) : 0;
+  const paid = withAmount.filter(inFy);                         // 会計年度に入金済
+  const unpaid = withAmount.filter(p=>!/^\d{4}-\d{2}/.test(p.paidDate||''));  // 未入金
   const unpaidTotal = unpaid.reduce((n,p)=>n+p.amount,0);
+
+  // 月別（縦棒・固定12か月）
+  const byMonth={}; months.forEach(m=>byMonth[m]=0);
+  paid.forEach(p=>{ byMonth[p.paidDate.slice(0,7)] += p.amount; });
+  const total = paid.reduce((n,p)=>n+p.amount,0);
+  const activeMonths = months.filter(m=>byMonth[m]>0).length;
+  const avg = activeMonths ? Math.round(total/activeMonths) : 0;
   const max = Math.max(1, ...months.map(m=>byMonth[m]));
-  const monLabel = m => `${m.slice(2,4)}/${parseInt(m.slice(5,7),10)}`;
-  const rows = months.length ? months.map(m=>{
-    const v=byMonth[m], w=Math.round(v/max*100);
-    return `<div class="sm-row">
-      <div class="sm-mon">${monLabel(m)}</div>
-      <div class="sm-track"><div class="sm-bar" style="width:${w}%"></div></div>
-      <div class="sm-val">${fmtYen(v)}</div>
+  const cols = months.map(m=>{
+    const v=byMonth[m], h=Math.max(Math.round(v/max*100),3);
+    return `<div class="sm-col">
+      <div class="sm-coltrack">${v>0?`<div class="sm-colbar" style="height:${h}%" title="${fmtYen(v)}"></div>`:''}</div>
+      <div class="sm-collabel">${parseInt(m.slice(5,7),10)}</div>
     </div>`;
-  }).join('') : `<div class="empty" style="padding:24px;"><div class="t">入金日が登録された案件がありません</div></div>`;
+  }).join('');
+
+  // 税金（入力は税別 → 消費税10%を預り金として算出）
+  const shohi = Math.round(total*0.10);
+
+  // クライアント別（円グラフ）
+  const byClient={};
+  paid.forEach(p=>{ const c=(p.client||'').trim()||'未設定'; byClient[c]=(byClient[c]||0)+p.amount; });
+  const clients = Object.entries(byClient).sort((a,b)=>b[1]-a[1]);
+  const PIE=['#6f95e6','#e389b9','#54c298','#d9c15c','#9a8cf1','#54c6da','#e88bc0','#818b9d'];
+  let acc=0; const stops=[], legend=[];
+  clients.forEach(([c,v],i)=>{
+    const col=PIE[i%PIE.length];
+    const s=acc/(total||1)*360; acc+=v; const e=acc/(total||1)*360;
+    stops.push(`${col} ${s}deg ${e}deg`);
+    legend.push(`<div class="pie-item"><span class="pie-sw" style="background:${col}"></span><span class="pie-name">${esc(c)}</span><span class="pie-val">${fmtYen(v)}・${Math.round(v/total*100)}%</span></div>`);
+  });
+  const pieHtml = total>0 ? `<div class="pie-wrap">
+      <div class="pie" style="background:conic-gradient(${stops.join(',')})"></div>
+      <div class="pie-legend">${legend.join('')}</div>
+    </div>` : `<div class="empty" style="padding:16px;"><div class="t">入金データがありません</div></div>`;
+
   $('salesBody').innerHTML = `
     <div class="sm-head">
       <div class="sm-stat"><div class="n">${fmtYen(total)}</div><div class="l">入金合計</div></div>
       <div class="sm-stat"><div class="n">${avg?fmtYen(avg):'¥0'}</div><div class="l">月平均</div></div>
-      <div class="sm-stat"><div class="n">${months.length}</div><div class="l">入金月数</div></div>
+      <div class="sm-stat"><div class="n">${activeMonths}</div><div class="l">入金月数</div></div>
     </div>
-    ${rows}
-    ${unpaid.length?`<div style="margin-top:12px;font-size:12px;color:var(--warn);font-weight:700;">未入金 ${fmtYen(unpaidTotal)}（${unpaid.length}件）</div>`:''}
-    <div style="font-size:10.5px;color:var(--ink-mute);margin-top:10px;line-height:1.6;">
-      ※ 事務タグを除く「金額入りの案件」を入金日の月で集計。月平均は入金があった月数で割った値です。
-    </div>`;
+    <div class="sm-sec-title">月別売上（2026年5月〜2027年4月）</div>
+    <div class="sm-cols">${cols}</div>
+    <div class="sm-sec-title">税金の積立目安</div>
+    <div class="sm-tax">
+      <div class="sm-tax-row"><span>税別売上合計</span><span class="v">${fmtYen(total)}</span></div>
+      <div class="sm-tax-row big"><span>預り消費税（10%）</span><span class="v">${fmtYen(shohi)}</span></div>
+      <div class="sm-tax-row"><span>税込合計</span><span class="v">${fmtYen(total+shohi)}</span></div>
+    </div>
+    <div style="font-size:10.5px;color:var(--ink-mute);margin-top:8px;line-height:1.6;">
+      ※ 入力金額は税別。消費税(10%)は預り金として確保推奨。所得税・住民税などは年間の利益に応じて別途必要です。
+    </div>
+    <div class="sm-sec-title">クライアント別売上</div>
+    ${pieHtml}
+    ${unpaid.length?`<div style="margin-top:14px;font-size:12px;color:var(--warn);font-weight:700;">未入金 ${fmtYen(unpaidTotal)}（${unpaid.length}件）</div>`:''}`;
   $('salesOverlay').classList.add('on');
 };
 window.closeSales = ()=> $('salesOverlay').classList.remove('on');
@@ -826,6 +881,8 @@ window.openEdit = (id)=>{
   $('sheetTitle').textContent = p?'案件を編集':'案件を追加';
   $('f-name').value = p?p.name:'';
   $('f-client').value = p?p.client:'';
+  $('client-list').innerHTML = [...new Set(projects.map(x=>(x.client||'').trim()).filter(Boolean))]
+    .map(c=>`<option value="${esc(c)}"></option>`).join('');
   $('f-deadline').value = p?p.deadline:'';
   $('f-amount').value = (p && p.amount!=null) ? p.amount : '';
   $('f-paid').value = p ? (p.paidDate||'') : '';
