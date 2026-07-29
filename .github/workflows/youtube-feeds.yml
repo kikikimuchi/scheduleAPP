@@ -22,6 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0      # rebase 時に共通祖先をたどれるよう全履歴を取得
 
       - uses: actions/setup-node@v4
         with:
@@ -47,7 +49,8 @@ jobs:
           fi
 
       - name: Commit if changed
-        # 毎時スケジュールと手動実行が重なるとpushが競合するので、最新mainの上に生成物を載せ直して再試行。
+        # 毎時スケジュールと手動実行が重なるとpushが競合するので、最新mainの上にrebaseして再試行。
+        # 生成物(data/*.json)だけをコミットし、他ファイル(work/index.html等)には一切触れないこと。
         run: |
           if git diff --quiet -- youtube-reader/web/data/videos.json youtube-reader/web/data/discover.json; then
             echo "変更なし。コミットしません。"
@@ -55,15 +58,20 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # 生成物以外に差分があってもコミットに含めない（誤って他ファイルを巻き戻さないため）
           git add youtube-reader/web/data/videos.json youtube-reader/web/data/discover.json
           git commit -m "chore: refresh YouTube feeds (videos/discover)"
           for i in 1 2 3 4 5; do
             if git push; then echo "pushed"; exit 0; fi
-            echo "push rejected — 最新mainに載せ直して再試行 ($i)"
+            echo "push rejected — 最新mainの上にrebaseして再試行 ($i)"
             git fetch origin main
-            git reset --soft origin/main
-            git add youtube-reader/web/data/videos.json youtube-reader/web/data/discover.json
-            git commit -m "chore: refresh YouTube feeds (videos/discover)" || true
+            # データファイルだけのコミットを最新mainの上に載せ直す。
+            # 他ファイルは触っていないので競合しない。万一競合したら中断して失敗させる。
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              echo "rebase 競合のため中断" >&2
+              exit 1
+            fi
             sleep $((i * 3))
           done
           echo "push failed after retries" >&2
