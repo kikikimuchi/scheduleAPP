@@ -232,8 +232,9 @@
   .sm-sec-title{font-size:11.5px; font-weight:800; margin:11px 0 4px; color:var(--ink-soft);}
   .sm-cols{display:flex; align-items:flex-end; gap:3px; margin-top:2px;}
   .sm-col{flex:1; min-width:0; text-align:center;}
-  .sm-coltrack{height:70px; display:flex; align-items:flex-end;}
-  .sm-colbar{width:100%; background:var(--accent); border-radius:3px 3px 0 0; min-height:2px;}
+  .sm-coltrack{height:72px; position:relative;}
+  .sm-colzero{position:absolute; left:0; right:0; height:1px; background:var(--line);}
+  .sm-colbar{position:absolute; left:0; right:0; background:var(--accent); border-radius:3px;}
   .sm-collabel{font-size:9px; color:var(--ink-mute); margin-top:3px;}
   .sm-tax{background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:7px 12px;}
   .sm-tax-row{display:flex; justify-content:space-between; align-items:baseline; padding:2px 0; font-size:12.5px;}
@@ -315,8 +316,12 @@
       </div>
     </div>
     <div class="field" id="amount-field">
-      <label>金額（円）</label>
+      <label>金額（円・税別）</label>
       <input class="fi" id="f-amount" type="number" inputmode="numeric" min="0" step="1000">
+    </div>
+    <div class="field" id="expense-field">
+      <label>経費概算（円）</label>
+      <input class="fi" id="f-expense" type="number" inputmode="numeric" min="0" step="1000">
     </div>
     <div class="field" id="paid-field">
       <label>入金日（未入金なら空欄）</label>
@@ -423,9 +428,10 @@ function normalize(p){
   p.note = p.note||'';
   p.tags = Array.isArray(p.tags) ? p.tags.filter(t=>typeof t==='string') : [];
   p.amount = (typeof p.amount==='number' && isFinite(p.amount)) ? p.amount : null;
+  p.expense = (typeof p.expense==='number' && isFinite(p.expense)) ? p.expense : null;   // 経費概算
   p.paidDate = p.paidDate || '';
   p.personal = !!p.personal;   // 会社設立前の個人案件（会社の売上に含めない）
-  if(p.tags.includes(JIMU)){ p.amount = null; p.paidDate = ''; }   // 事務は金額・入金日を持たない
+  if(p.tags.includes(JIMU)){ p.amount = null; p.expense = null; p.paidDate = ''; }   // 事務は金額・経費・入金日を持たない
   if(!p.stage){ p.stage = (p.status==='done') ? 'done' : 'progress'; }
   if(p.stage==='delivery') p.stage='done';   // 「納品」ステージ廃止に伴う移行
   p.status = (p.stage==='done') ? 'done' : 'active';
@@ -440,7 +446,7 @@ async function apiList(){
 async function apiSave(p){
   normalize(p);
   const fields = {};
-  ['id','name','client','deadline','status','stage','note','amount','paidDate','personal'].forEach(k=>fields[k]=toFs(p[k]));
+  ['id','name','client','deadline','status','stage','note','amount','expense','paidDate','personal'].forEach(k=>fields[k]=toFs(p[k]));
   fields.tasks = toFs(p.tasks);
   fields.tags = toFs(p.tags);
   const r = await fetch(`${BASE}/${COL}/${p.id}`,{
@@ -485,7 +491,8 @@ function progress(p){
 }
 function fmtYen(n){
   if(typeof n!=='number'||!isFinite(n)) return '';
-  return '¥'+Math.round(n).toLocaleString('ja-JP');
+  const s = n<0 ? '-' : '';
+  return s+'¥'+Math.abs(Math.round(n)).toLocaleString('ja-JP');
 }
 
 /* ==================== 描画 ==================== */
@@ -803,24 +810,40 @@ window.openSalesModal = ()=>{
   const unpaid = withAmount.filter(p=>!/^\d{4}-\d{2}/.test(p.paidDate||''));  // 未入金
   const unpaidTotal = unpaid.reduce((n,p)=>n+p.amount,0);
 
-  // 月別（縦棒・固定12か月）
-  const byMonth={}; months.forEach(m=>byMonth[m]=0);
-  paid.forEach(p=>{ byMonth[p.paidDate.slice(0,7)] += p.amount; });
-  const total = paid.reduce((n,p)=>n+p.amount,0);
-  const avg = Math.round(total/months.length);   // 12か月平均（入金ゼロの月も含めて割る）
-  const max = Math.max(1, ...months.map(m=>byMonth[m]));
+  // 月別（売上・経費・差引）
+  const revByMonth={}, expByMonth={}; months.forEach(m=>{revByMonth[m]=0; expByMonth[m]=0;});
+  paid.forEach(p=>{ const m=p.paidDate.slice(0,7); revByMonth[m]+=p.amount; expByMonth[m]+=(p.expense||0); });
+  const netByMonth={}; months.forEach(m=>netByMonth[m]=revByMonth[m]-expByMonth[m]);
+  const revTotal = paid.reduce((n,p)=>n+p.amount,0);
+  const expTotal = paid.reduce((n,p)=>n+(p.expense||0),0);
+  const netTotal = revTotal - expTotal;
+  const avgNet = Math.round(netTotal/months.length);   // 差引額の12か月平均（ゼロの月も含む）
+
+  // 差引額の縦棒（プラスは上=アクセント、マイナスは下=赤）
+  const H=72;
+  const nets = months.map(m=>netByMonth[m]);
+  const maxN = Math.max(0, ...nets), minN = Math.min(0, ...nets);
+  const range = (maxN - minN) || 1;
+  const zeroY = maxN/range*H;   // 上端からゼロ線までのpx
   const cols = months.map(m=>{
-    const v=byMonth[m], h=Math.max(Math.round(v/max*100),3);
+    const v=netByMonth[m];
+    let bar='';
+    if(v!==0){
+      const hh=Math.max(Math.abs(v)/range*H, 2);
+      const top=v>0 ? (zeroY-hh) : zeroY;
+      const col=v>0 ? 'var(--accent)' : 'var(--danger)';
+      bar=`<div class="sm-colbar" style="top:${top}px;height:${hh}px;background:${col}" title="${fmtYen(v)}"></div>`;
+    }
     return `<div class="sm-col">
-      <div class="sm-coltrack">${v>0?`<div class="sm-colbar" style="height:${h}%" title="${fmtYen(v)}"></div>`:''}</div>
+      <div class="sm-coltrack"><div class="sm-colzero" style="top:${zeroY}px"></div>${bar}</div>
       <div class="sm-collabel">${parseInt(m.slice(5,7),10)}</div>
     </div>`;
   }).join('');
 
-  // 税金（入力は税別 → 消費税10%を預り金として算出）
-  const shohi = Math.round(total*0.10);
+  // 税金（売上ベース：入力は税別 → 消費税10%を預り金として算出）
+  const shohi = Math.round(revTotal*0.10);
 
-  // クライアント別（円グラフ）
+  // クライアント別（円グラフ・売上ベース）
   const byClient={};
   paid.forEach(p=>{ const c=(p.client||'').trim()||'未設定'; byClient[c]=(byClient[c]||0)+p.amount; });
   const clients = Object.entries(byClient).sort((a,b)=>b[1]-a[1]);
@@ -828,32 +851,34 @@ window.openSalesModal = ()=>{
   let acc=0; const stops=[], legend=[];
   clients.forEach(([c,v],i)=>{
     const col=PIE[i%PIE.length];
-    const s=acc/(total||1)*360; acc+=v; const e=acc/(total||1)*360;
+    const s=acc/(revTotal||1)*360; acc+=v; const e=acc/(revTotal||1)*360;
     stops.push(`${col} ${s}deg ${e}deg`);
-    legend.push(`<div class="pie-item"><span class="pie-sw" style="background:${col}"></span><span class="pie-name">${esc(c)}</span><span class="pie-val">${fmtYen(v)}・${Math.round(v/total*100)}%</span></div>`);
+    legend.push(`<div class="pie-item"><span class="pie-sw" style="background:${col}"></span><span class="pie-name">${esc(c)}</span><span class="pie-val">${fmtYen(v)}・${Math.round(v/revTotal*100)}%</span></div>`);
   });
-  const pieHtml = total>0 ? `<div class="pie-wrap">
+  const pieHtml = revTotal>0 ? `<div class="pie-wrap">
       <div class="pie" style="background:conic-gradient(${stops.join(',')})"></div>
       <div class="pie-legend">${legend.join('')}</div>
     </div>` : `<div class="empty" style="padding:16px;"><div class="t">入金データがありません</div></div>`;
 
   $('salesBody').innerHTML = `
     <div class="sm-head">
-      <div class="sm-stat"><div class="n">${fmtYen(total)}</div><div class="l">入金合計</div></div>
-      <div class="sm-stat"><div class="n">${avg?fmtYen(avg):'¥0'}</div><div class="l">月平均（12か月）</div></div>
+      <div class="sm-stat"><div class="n">${fmtYen(revTotal)}</div><div class="l">売上</div></div>
+      <div class="sm-stat"><div class="n">${fmtYen(expTotal)}</div><div class="l">経費</div></div>
+      <div class="sm-stat"><div class="n" style="${netTotal<0?'color:var(--danger);':''}">${fmtYen(netTotal)}</div><div class="l">差引額</div></div>
     </div>
-    <div class="sm-sec-title">月別売上（2026年5月〜2027年4月）</div>
+    <div class="sm-sec-title">月別差引額（2026年5月〜2027年4月）</div>
     <div class="sm-cols">${cols}</div>
+    <div style="font-size:11px;color:var(--ink-mute);margin-top:6px;">月平均（差引・12か月）：<span style="font-weight:800;color:var(--ink-soft);">${fmtYen(avgNet)}</span></div>
     <div class="sm-sec-title">クライアント別売上</div>
     ${pieHtml}
     <div class="sm-sec-title">税金の積立目安</div>
     <div class="sm-tax">
-      <div class="sm-tax-row"><span>税別売上合計</span><span class="v">${fmtYen(total)}</span></div>
+      <div class="sm-tax-row"><span>税別売上合計</span><span class="v">${fmtYen(revTotal)}</span></div>
       <div class="sm-tax-row big"><span>預り消費税（10%）</span><span class="v">${fmtYen(shohi)}</span></div>
-      <div class="sm-tax-row"><span>税込合計</span><span class="v">${fmtYen(total+shohi)}</span></div>
+      <div class="sm-tax-row"><span>税込合計</span><span class="v">${fmtYen(revTotal+shohi)}</span></div>
     </div>
     <div style="font-size:10px;color:var(--ink-mute);margin-top:5px;line-height:1.5;">
-      ※ 入力金額は税別。消費税(10%)は預り金として確保推奨。月平均は対象12か月（入金ゼロの月も含む）で割った値です。所得税・住民税などは年間の利益に応じて別途必要です。
+      ※ 入力金額は税別。差引額＝売上−経費概算。月平均は差引額を対象12か月（ゼロの月も含む）で割った値。消費税(10%)は売上に対する預り金の目安で、所得税・住民税などは別途必要です。
     </div>
     ${personalTotal?`<div style="margin-top:9px;padding-top:8px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink-mute);">個人売上（会社設立前）：<span style="font-weight:800;color:var(--ink-soft);font-size:13px;">${fmtYen(personalTotal)}</span>（税込 ${fmtYen(Math.round(personalTotal*1.1))}）</div>`:''}
     ${unpaid.length?`<div style="margin-top:8px;font-size:12px;color:var(--warn);font-weight:700;">未入金 ${fmtYen(unpaidTotal)}（${unpaid.length}件）</div>`:''}`;
@@ -922,7 +947,8 @@ window.openEdit = (id)=>{
   $('sheetTitle').textContent = p?'案件を編集':'案件を追加';
   $('f-name').value = p?p.name:'';
   const cur = p ? (p.client||'') : '';
-  const clients = [...new Set(projects.map(x=>(x.client||'').trim()).filter(Boolean))].sort();
+  const clients = [...new Set(projects.map(x=>(x.client||'').trim()).filter(Boolean))]
+    .filter(c=>c!=='自分').sort();
   $('f-client-sel').innerHTML =
     `<option value="">（未設定）</option>`
     + clients.map(c=>`<option value="${esc(c)}" ${c===cur?'selected':''}>${esc(c)}</option>`).join('')
@@ -930,6 +956,7 @@ window.openEdit = (id)=>{
   $('f-client-new').style.display='none'; $('f-client-new').value='';
   $('f-deadline').value = p?p.deadline:'';
   $('f-amount').value = (p && p.amount!=null) ? p.amount : '';
+  $('f-expense').value = (p && p.expense!=null) ? p.expense : '';
   $('f-paid').value = p ? (p.paidDate||'') : '';
   $('f-note').value = p?p.note:'';
   $('f-stage').innerHTML = STAGES.map(s=>`<option value="${s.key}" ${p&&p.stage===s.key?'selected':(!p&&s.key==='progress'?'selected':'')}>${s.label}</option>`).join('');
@@ -961,6 +988,7 @@ function updateJimuUI(){
   // 事務は金額・入金日を持たないので両欄を隠す
   const hide = currentTags().includes(JIMU) ? 'none' : '';
   $('amount-field').style.display = hide;
+  $('expense-field').style.display = hide;
   $('paid-field').style.display = hide;
 }
 window.toggleTagSel = (btn)=>{
@@ -984,6 +1012,8 @@ window.saveEdit = async ()=>{
   p.tags = currentTags();
   const amt=$('f-amount').value.trim();
   p.amount = (p.tags.includes(JIMU) || amt==='') ? null : Number(amt);
+  const exp=$('f-expense').value.trim();
+  p.expense = (p.tags.includes(JIMU) || exp==='') ? null : Number(exp);
   p.paidDate = p.tags.includes(JIMU) ? '' : $('f-paid').value;
   p.personal = $('f-personal').classList.contains('on');
   p.note=$('f-note').value;
