@@ -110,16 +110,14 @@
   .tags-sm{margin:4px 0 2px;}
   .tags-sm .tag{font-size:9px; padding:1px 6px;}
   .task-due{
-    display:inline-flex; align-items:stretch; font-size:10px; font-weight:700; color:var(--ink-faint);
-    border:1px solid var(--line); border-radius:6px; white-space:nowrap; flex-shrink:0;
-    line-height:1.4; overflow:hidden;
+    position:relative; font-size:10px; font-weight:700; color:var(--ink-faint);
+    padding:3px 8px; border:1px solid var(--line); border-radius:6px; white-space:nowrap;
+    cursor:pointer; flex-shrink:0; line-height:1.4;
   }
   .task-due.set{color:var(--ink-soft);}
   .task-due.soon{color:var(--warn); border-color:var(--warn);}
   .task-due.over{color:var(--danger); border-color:var(--danger);}
-  .due-pick{position:relative; padding:2px 6px; cursor:pointer; display:inline-flex; align-items:center;}
-  .due-pick input{position:absolute; inset:0; width:100%; height:100%; opacity:0; border:none; padding:0;}
-  .due-x{padding:2px 6px; cursor:pointer; border-left:1px solid var(--line); color:var(--ink-faint); display:inline-flex; align-items:center;}
+  .task-due input{position:absolute; inset:0; width:100%; height:100%; opacity:0; border:none; padding:0;}
   .tag-select{display:flex; flex-wrap:wrap; gap:8px;}
   .tag-toggle{
     border:1.5px solid var(--line); background:var(--bg); color:var(--ink-soft);
@@ -729,17 +727,22 @@ function renderList(){
 function taskDueHtml(pid, t){
   const di = t.due ? dlInfo(t.due, t.done) : null;
   const cls = (t.due?'set ':'') + (t.done ? '' : (di ? di.cls : ''));
-  const pick = `<label class="due-pick">${t.due?fmtMD(t.due):'期限'}<input type="date" value="${t.due||''}" onchange="setTaskDue('${pid}','${t.id}',this.value)"></label>`;
-  const clear = t.due ? `<span class="due-x" onclick="setTaskDue('${pid}','${t.id}','')">×</span>` : '';
-  return `<span class="task-due ${cls}">${pick}${clear}</span>`;
+  // 日付ピッカー内の「消去」で空にでき、onchange で削除される
+  return `<label class="task-due ${cls}">${t.due?fmtMD(t.due):'期限'}<input type="date" value="${t.due||''}" onchange="setTaskDue('${pid}','${t.id}',this.value)"></label>`;
 }
 function renderBody(p){
   const tasks=p.tasks||[];
   const workTags=(p.tags||[]).filter(t=>t!==JIMU);
   return `<div class="body">
+    <div class="add-row" style="margin-top:12px;">
+      <input class="fi" type="text" id="ti-${p.id}" placeholder="タスクを追加（Enter）"
+        onkeydown="if(event.key==='Enter'&&!event.isComposing){addTask('${p.id}',this)}">
+      <button class="btn btn-sec" onclick="addTask('${p.id}',document.getElementById('ti-${p.id}'))">＋</button>
+      <button class="btn btn-sec" onclick="openEdit('${p.id}')">編集</button>
+    </div>
     ${workTags.length?`<div class="tags tags-sm">${workTags.map(t=>`<span class="tag" style="background:${TAG_COLOR[t]||'var(--ink-mute)'}">${esc(t)}</span>`).join('')}</div>`:''}
     ${p.note?`<div class="note">📝 ${esc(p.note)}</div>`:''}
-    <div class="dnd-list" data-pid="${p.id}" style="margin-top:12px;">
+    <div class="dnd-list" data-pid="${p.id}" style="margin-top:10px;">
       ${tasks.length===0?`<div style="text-align:center;font-size:11px;color:var(--ink-mute);padding:8px;">タスクなし</div>`:
       tasks.map(t=>`
         <div class="task" data-tid="${t.id}">
@@ -751,17 +754,9 @@ function renderBody(p){
           <button class="task-del" onclick="delTask('${p.id}','${t.id}')">×</button>
         </div>`).join('')}
     </div>
-    <div class="add-row">
-      <input class="fi" type="text" id="ti-${p.id}" placeholder="タスクを追加（Enter）"
-        onkeydown="if(event.key==='Enter'&&!event.isComposing){addTask('${p.id}',this)}">
-      <button class="btn btn-sec" onclick="addTask('${p.id}',document.getElementById('ti-${p.id}'))">＋</button>
-    </div>
     <div class="steps-label">進捗</div>
     <div class="stage-steps">
       ${STAGES.map(s=>`<div class="step ${p.stage===s.key?'on':''}" style="${p.stage===s.key?`background:${s.color}`:''}" onclick="setStage('${p.id}','${s.key}')">${s.label}</div>`).join('')}
-    </div>
-    <div class="body-actions">
-      <button class="btn btn-sec wide" onclick="openEdit('${p.id}')">編集</button>
     </div>
   </div>`;
 }
