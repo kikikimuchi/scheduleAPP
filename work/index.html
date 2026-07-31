@@ -219,6 +219,14 @@
   .task-group-head .stage-pill{margin-bottom:0;}
   .tg-name{font-size:13.5px; font-weight:700; word-break:break-word;}
 
+  /* 完了した事務の折りたたみ */
+  .jimu-done-toggle{
+    width:100%; margin:6px 0 11px; padding:11px 14px; border:1px dashed var(--line);
+    background:var(--card); color:var(--ink-mute); border-radius:12px;
+    font-size:12.5px; font-weight:700; cursor:pointer; font-family:inherit; text-align:center;
+  }
+  .jimu-done-toggle:active{transform:scale(.99);}
+
   /* tappable sales stat */
   .stat.tap{cursor:pointer;}
   .stat.tap:active{transform:scale(.97);}
@@ -497,6 +505,8 @@ let projects = [];
 let view = 'projects';    // projects | tasks
 let filter = 'working';   // working | all | jimu | <stageKey>
 let taskFilter = 'open';  // open | priority | done | all | jimu
+let jimuDoneOpen = false;     // 案件：完了した事務の折りたたみ
+let jimuDoneOpenTask = false; // タスク：完了した事務の折りたたみ
 let expandedId = null;
 let editingId = null;
 
@@ -597,6 +607,8 @@ function renderChips(){
   $('chips').innerHTML = row1 + `<div class="chip-break"></div>` + row2;
 }
 window.setFilter = f => { filter=f; render(); };
+window.toggleJimuDone = ()=>{ jimuDoneOpen = !jimuDoneOpen; renderList(); };
+window.toggleJimuDoneTask = ()=>{ jimuDoneOpenTask = !jimuDoneOpenTask; renderTasksView(); };
 
 function renderTaskChips(){
   const nonJimu = projects.filter(p=>!isJimu(p)).flatMap(p=>(p.tasks||[]));
@@ -621,50 +633,59 @@ function renderTaskChips(){
     </button>`).join('');
 }
 
+function taskGroupHtml(g){
+  const st=stageOf(g.p.stage);
+  const pill=isJimu(g.p)
+    ? `<span class="stage-pill" style="background:var(--tag-jimu)">事務</span>`
+    : `<span class="stage-pill" style="background:${st.color}">${st.label}</span>`;
+  return `<div class="task-group">
+    <div class="task-group-head">
+      ${pill}
+      <span class="tg-name">${esc(g.p.name)||'（無題）'}</span>
+    </div>
+    <div class="dnd-list" data-pid="${g.p.id}">
+    ${g.ts.map(t=>`
+      <div class="task" data-tid="${t.id}">
+        <span class="drag-handle" title="ドラッグで並び替え">⣿</span>
+        <div class="check ${t.done?'on':''}" onclick="toggleTask('${g.p.id}','${t.id}')">${t.done?'✓':''}</div>
+        <div class="task-label ${t.done?'done':''}" onclick="startEditTask('${g.p.id}','${t.id}',this)">${esc(t.label)}</div>
+        ${taskDueHtml(g.p.id,t)}
+        <span class="star ${t.priority?'on':''}" onclick="togglePrio('${g.p.id}','${t.id}')">${t.priority?'★':'☆'}</span>
+        <button class="task-del" onclick="delTask('${g.p.id}','${t.id}')">×</button>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
 function renderTasksView(){
   renderTaskChips();
-  const match = t => taskFilter==='open' ? !t.done
-    : taskFilter==='priority' ? (t.priority&&!t.done)
-    : taskFilter==='done' ? t.done : true;   // 'all'/'jimu' は true
-  const groups = projects.map(p=>{
-    // 事務フィルタ時は事務案件のタスクのみ、それ以外は事務を除外（並び順はD&D順を尊重）
-    let ts;
-    if(taskFilter==='jimu') ts = isJimu(p) ? (p.tasks||[]) : [];
-    else ts = isJimu(p) ? [] : (p.tasks||[]).filter(match);
-    return {p, ts};
-  }).filter(g=>g.ts.length>0);
-  groups.sort((a,b)=>{
+  const sortGroups = gs => gs.sort((a,b)=>{
     const ad=a.p.deadline||'9999-99-99', bd=b.p.deadline||'9999-99-99';
     if(ad!==bd) return ad<bd?-1:1;
     return STAGES.findIndex(s=>s.key===a.p.stage)-STAGES.findIndex(s=>s.key===b.p.stage);
   });
   let html = renderAddTaskBar();
+  // 事務タブ：未完了は通常表示、完了タスクは一番下の折りたたみ（デフォルト閉じ）へ
+  if(taskFilter==='jimu'){
+    const jp = projects.filter(p=>isJimu(p));
+    const activeGroups = sortGroups(jp.map(p=>({p, ts:(p.tasks||[]).filter(t=>!t.done)})).filter(g=>g.ts.length));
+    const doneGroups   = sortGroups(jp.map(p=>({p, ts:(p.tasks||[]).filter(t=>t.done)})).filter(g=>g.ts.length));
+    const doneCount = doneGroups.reduce((n,g)=>n+g.ts.length,0);
+    html += activeGroups.map(taskGroupHtml).join('');
+    if(doneCount){
+      html += `<button class="jimu-done-toggle" onclick="toggleJimuDoneTask()">完了した事務タスク（${doneCount}）${jimuDoneOpenTask?'▲':'▼'}</button>`;
+      if(jimuDoneOpenTask) html += doneGroups.map(taskGroupHtml).join('');
+    }
+    if(!activeGroups.length && !doneCount) html += `<div class="empty"><div class="ic">☑</div><div class="t">事務タスクはありません</div></div>`;
+    $('list').innerHTML = html; attachDnd(); return;
+  }
+  const match = t => taskFilter==='open' ? !t.done
+    : taskFilter==='priority' ? (t.priority&&!t.done)
+    : taskFilter==='done' ? t.done : true;   // 'all' は true
+  const groups = sortGroups(projects.map(p=>({p, ts: isJimu(p) ? [] : (p.tasks||[]).filter(match)})).filter(g=>g.ts.length>0));
   if(groups.length===0){
     html += `<div class="empty"><div class="ic">☑</div><div class="t">この条件のタスクはありません</div></div>`;
   } else {
-    html += groups.map(g=>{
-      const st=stageOf(g.p.stage);
-      const pill=isJimu(g.p)
-        ? `<span class="stage-pill" style="background:var(--tag-jimu)">事務</span>`
-        : `<span class="stage-pill" style="background:${st.color}">${st.label}</span>`;
-      return `<div class="task-group">
-        <div class="task-group-head">
-          ${pill}
-          <span class="tg-name">${esc(g.p.name)||'（無題）'}</span>
-        </div>
-        <div class="dnd-list" data-pid="${g.p.id}">
-        ${g.ts.map(t=>`
-          <div class="task" data-tid="${t.id}">
-            <span class="drag-handle" title="ドラッグで並び替え">⣿</span>
-            <div class="check ${t.done?'on':''}" onclick="toggleTask('${g.p.id}','${t.id}')">${t.done?'✓':''}</div>
-            <div class="task-label ${t.done?'done':''}" onclick="startEditTask('${g.p.id}','${t.id}',this)">${esc(t.label)}</div>
-            ${taskDueHtml(g.p.id,t)}
-            <span class="star ${t.priority?'on':''}" onclick="togglePrio('${g.p.id}','${t.id}')">${t.priority?'★':'☆'}</span>
-            <button class="task-del" onclick="delTask('${g.p.id}','${t.id}')">×</button>
-          </div>`).join('')}
-        </div>
-      </div>`;
-    }).join('');
+    html += groups.map(taskGroupHtml).join('');
   }
   $('list').innerHTML = html;
   attachDnd();
@@ -709,38 +730,52 @@ function renderList(){
     $('list').innerHTML = `<div class="empty"><div class="ic">◔</div><div class="t">この条件の案件はありません</div></div>`;
     return;
   }
-  $('list').innerHTML = arr.map(p=>{
-    const st=stageOf(p.stage), pr=progress(p), isDone=p.stage==='done', jimu=isJimu(p);
-    const di=dlInfo(p.deadline,isDone);
-    const expanded = String(expandedId)===String(p.id);
-    const pill = jimu
-      ? `<span class="stage-pill" style="background:var(--tag-jimu)">事務</span>`
-      : `<span class="stage-pill" style="background:${st.color}">${st.label}</span>`;
-    // カード頭は個人バッジのみ。作業タグ（ディレクション等）は展開時に小さく表示する。
-    const tagsHtml = p.personal ? `<div class="tags"><span class="tag" style="background:${PERSONAL_COLOR}">個人</span></div>` : '';
-    return `<div class="proj">
-      <div class="proj-head" onclick="toggleExpand('${p.id}')">
-        <div class="proj-info">
-          ${pill}
-          <div class="proj-name" style="${isDone?'color:var(--ink-mute);':''}">${esc(p.name)||'（無題）'}</div>
-          ${p.client?`<div class="proj-client">${esc(p.client)}</div>`:''}
-          ${tagsHtml}
-        </div>
-        <div class="proj-right">
-          <div class="pct">${pr.pct}<span>%</span></div>
-          <div class="frac">${pr.done}/${pr.total}</div>
-        </div>
-      </div>
-      <div class="bar"><div class="bar-fill" style="width:${pr.pct}%;${isDone?'background:var(--s-done);':''}"></div></div>
-      <div class="proj-meta">
-        ${di?`<span class="dl ${di.cls}">締切 ${p.deadline}・${di.txt}</span>`:`<span class="dl" style="color:var(--ink-faint);">締切なし</span>`}
-        ${p.amount!=null?`<span class="amount ${p.paidDate?'paid':''}">${fmtYen(p.amount)}${p.paidDate?' ✓':''}</span>`:''}
-        <span class="chevron">${expanded?'▲':'▼'}</span>
-      </div>
-      ${expanded?renderBody(p):''}
-    </div>`;
-  }).join('');
+  // 事務ビューでは、完了した事務を一番下の折りたたみ（デフォルト閉じ）に収める
+  if(filter==='jimu'){
+    const active = arr.filter(p=>p.stage!=='done');
+    const done   = arr.filter(p=>p.stage==='done');
+    let html = active.map(projCard).join('');
+    if(!active.length && !done.length) html = '';
+    if(done.length){
+      html += `<button class="jimu-done-toggle" onclick="toggleJimuDone()">完了した事務（${done.length}）${jimuDoneOpen?'▲':'▼'}</button>`;
+      if(jimuDoneOpen) html += done.map(projCard).join('');
+    }
+    $('list').innerHTML = html || `<div class="empty"><div class="ic">◔</div><div class="t">事務はありません</div></div>`;
+    attachDnd();
+    return;
+  }
+  $('list').innerHTML = arr.map(projCard).join('');
   attachDnd();
+}
+function projCard(p){
+  const st=stageOf(p.stage), pr=progress(p), isDone=p.stage==='done', jimu=isJimu(p);
+  const di=dlInfo(p.deadline,isDone);
+  const expanded = String(expandedId)===String(p.id);
+  const pill = jimu
+    ? `<span class="stage-pill" style="background:var(--tag-jimu)">事務</span>`
+    : `<span class="stage-pill" style="background:${st.color}">${st.label}</span>`;
+  const tagsHtml = p.personal ? `<div class="tags"><span class="tag" style="background:${PERSONAL_COLOR}">個人</span></div>` : '';
+  return `<div class="proj">
+    <div class="proj-head" onclick="toggleExpand('${p.id}')">
+      <div class="proj-info">
+        ${pill}
+        <div class="proj-name" style="${isDone?'color:var(--ink-mute);':''}">${esc(p.name)||'（無題）'}</div>
+        ${p.client?`<div class="proj-client">${esc(p.client)}</div>`:''}
+        ${tagsHtml}
+      </div>
+      <div class="proj-right">
+        <div class="pct">${pr.pct}<span>%</span></div>
+        <div class="frac">${pr.done}/${pr.total}</div>
+      </div>
+    </div>
+    <div class="bar"><div class="bar-fill" style="width:${pr.pct}%;${isDone?'background:var(--s-done);':''}"></div></div>
+    <div class="proj-meta">
+      ${di?`<span class="dl ${di.cls}">締切 ${p.deadline}・${di.txt}</span>`:`<span class="dl" style="color:var(--ink-faint);">締切なし</span>`}
+      ${p.amount!=null?`<span class="amount ${p.paidDate?'paid':''}">${fmtYen(p.amount)}${p.paidDate?' ✓':''}</span>`:''}
+      <span class="chevron">${expanded?'▲':'▼'}</span>
+    </div>
+    ${expanded?renderBody(p):''}
+  </div>`;
 }
 
 function taskDueHtml(pid, t){
