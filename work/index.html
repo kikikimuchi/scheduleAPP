@@ -110,14 +110,13 @@
   .tags-sm{margin:4px 0 2px;}
   .tags-sm .tag{font-size:9px; padding:1px 6px;}
   .task-due{
-    position:relative; font-size:10px; font-weight:700; color:var(--ink-faint);
-    padding:3px 8px; border:1px solid var(--line); border-radius:6px; white-space:nowrap;
-    cursor:pointer; flex-shrink:0; line-height:1.4;
+    font-size:10px; font-weight:700; color:var(--ink-faint);
+    padding:4px 9px; border:1px solid var(--line); border-radius:6px; white-space:nowrap;
+    cursor:pointer; flex-shrink:0; line-height:1.4; background:none; font-family:inherit;
   }
   .task-due.set{color:var(--ink-soft);}
   .task-due.soon{color:var(--warn); border-color:var(--warn);}
   .task-due.over{color:var(--danger); border-color:var(--danger);}
-  .task-due input{position:absolute; inset:0; width:100%; height:100%; opacity:0; border:none; padding:0;}
   .tag-select{display:flex; flex-wrap:wrap; gap:8px;}
   .tag-toggle{
     border:1.5px solid var(--line); background:var(--bg); color:var(--ink-soft);
@@ -365,6 +364,25 @@
     <div id="salesBody"></div>
     <div class="body-actions" style="margin-top:10px;">
       <button class="btn btn-sec wide" onclick="closeSales()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- task due sheet -->
+<div class="overlay" id="dueOverlay" onclick="if(event.target===this)closeDue()">
+  <div class="sheet">
+    <div class="grab"></div>
+    <h2>タスクの期限</h2>
+    <div class="field">
+      <label>期限日</label>
+      <input class="fi" id="due-input" type="date">
+    </div>
+    <div class="body-actions">
+      <button class="btn btn-primary wide" onclick="saveDue()">保存</button>
+      <button class="btn btn-sec" onclick="closeDue()">キャンセル</button>
+    </div>
+    <div style="text-align:center; margin-top:10px;">
+      <button class="btn btn-ghost" id="due-del" onclick="deleteDue()" style="color:var(--danger);">この期限を削除</button>
     </div>
   </div>
 </div>
@@ -727,8 +745,8 @@ function renderList(){
 function taskDueHtml(pid, t){
   const di = t.due ? dlInfo(t.due, t.done) : null;
   const cls = (t.due?'set ':'') + (t.done ? '' : (di ? di.cls : ''));
-  // 日付ピッカー内の「消去」で空にでき、onchange で削除される
-  return `<label class="task-due ${cls}">${t.due?fmtMD(t.due):'期限'}<input type="date" value="${t.due||''}" onchange="setTaskDue('${pid}','${t.id}',this.value)"></label>`;
+  // タップで期限シートを開く（日付選択と削除ができる）
+  return `<button type="button" class="task-due ${cls}" onclick="openDue('${pid}','${t.id}')">${t.due?fmtMD(t.due):'期限'}</button>`;
 }
 function renderBody(p){
   const tasks=p.tasks||[];
@@ -939,6 +957,25 @@ window.setTaskDue = async (pid,tid,val)=>{
   const t=(p.tasks||[]).find(x=>String(x.id)===String(tid)); if(!t) return;
   t.due = val||'';
   render(); await persist(p);
+};
+let dueEditing = null;
+window.openDue = (pid,tid)=>{
+  const p=find(pid); const t=(p?.tasks||[]).find(x=>String(x.id)===String(tid));
+  dueEditing = {pid,tid};
+  $('due-input').value = (t && t.due) || '';
+  $('due-del').style.display = (t && t.due) ? 'inline-block' : 'none';
+  $('dueOverlay').classList.add('on');
+};
+window.closeDue = ()=> $('dueOverlay').classList.remove('on');
+window.saveDue = ()=>{
+  if(!dueEditing) return;
+  const {pid,tid}=dueEditing; closeDue();
+  setTaskDue(pid, tid, $('due-input').value);
+};
+window.deleteDue = ()=>{
+  if(!dueEditing) return;
+  const {pid,tid}=dueEditing; closeDue();
+  setTaskDue(pid, tid, '');
 };
 window.startEditTask = (pid,tid,el)=>{
   const p=find(pid); if(!p) return;
