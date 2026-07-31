@@ -107,6 +107,17 @@
     display:inline-block; font-size:10px; font-weight:700; color:#fff;
     padding:2px 8px; border-radius:20px; letter-spacing:.02em;
   }
+  .tags-sm{margin:4px 0 2px;}
+  .tags-sm .tag{font-size:9px; padding:1px 6px;}
+  .task-due{
+    position:relative; font-size:10px; font-weight:700; color:var(--ink-faint);
+    padding:2px 6px; border:1px solid var(--line); border-radius:6px; white-space:nowrap;
+    cursor:pointer; flex-shrink:0; line-height:1.4;
+  }
+  .task-due.set{color:var(--ink-soft);}
+  .task-due.soon{color:var(--warn); border-color:var(--warn);}
+  .task-due.over{color:var(--danger); border-color:var(--danger);}
+  .task-due input{position:absolute; inset:0; width:100%; height:100%; opacity:0; border:none; padding:0;}
   .tag-select{display:flex; flex-wrap:wrap; gap:8px;}
   .tag-toggle{
     border:1.5px solid var(--line); background:var(--bg); color:var(--ink-soft);
@@ -494,6 +505,10 @@ function fmtYen(n){
   const s = n<0 ? '-' : '';
   return s+'¥'+Math.abs(Math.round(n)).toLocaleString('ja-JP');
 }
+function fmtMD(d){
+  if(!d || !/^\d{4}-\d{2}-\d{2}/.test(d)) return '';
+  const [,m,dd]=d.split('-'); return `${+m}/${+dd}`;
+}
 
 /* ==================== 描画 ==================== */
 function render(){
@@ -623,6 +638,7 @@ function renderTasksView(){
             <span class="drag-handle" title="ドラッグで並び替え">⣿</span>
             <div class="check ${t.done?'on':''}" onclick="toggleTask('${g.p.id}','${t.id}')">${t.done?'✓':''}</div>
             <div class="task-label ${t.done?'done':''}" onclick="startEditTask('${g.p.id}','${t.id}',this)">${esc(t.label)}</div>
+            ${taskDueHtml(g.p.id,t)}
             <span class="star ${t.priority?'on':''}" onclick="togglePrio('${g.p.id}','${t.id}')">${t.priority?'★':'☆'}</span>
             <button class="task-del" onclick="delTask('${g.p.id}','${t.id}')">×</button>
           </div>`).join('')}
@@ -680,11 +696,8 @@ function renderList(){
     const pill = jimu
       ? `<span class="stage-pill" style="background:var(--tag-jimu)">事務</span>`
       : `<span class="stage-pill" style="background:${st.color}">${st.label}</span>`;
-    const workTags = (p.tags||[]).filter(t=>t!==JIMU);
-    const badges = [];
-    if(p.personal) badges.push(`<span class="tag" style="background:${PERSONAL_COLOR}">個人</span>`);
-    workTags.forEach(t=>badges.push(`<span class="tag" style="background:${TAG_COLOR[t]||'var(--ink-mute)'}">${esc(t)}</span>`));
-    const tagsHtml = badges.length ? `<div class="tags">${badges.join('')}</div>` : '';
+    // カード頭は個人バッジのみ。作業タグ（ディレクション等）は展開時に小さく表示する。
+    const tagsHtml = p.personal ? `<div class="tags"><span class="tag" style="background:${PERSONAL_COLOR}">個人</span></div>` : '';
     return `<div class="proj">
       <div class="proj-head" onclick="toggleExpand('${p.id}')">
         <div class="proj-info">
@@ -710,9 +723,17 @@ function renderList(){
   attachDnd();
 }
 
+function taskDueHtml(pid, t){
+  const di = t.due ? dlInfo(t.due, t.done) : null;
+  const cls = t.done ? '' : (di ? di.cls : '');
+  const label = t.due ? fmtMD(t.due) : '期限';
+  return `<label class="task-due ${t.due?'set':''} ${cls}">${label}<input type="date" value="${t.due||''}" onchange="setTaskDue('${pid}','${t.id}',this.value)"></label>`;
+}
 function renderBody(p){
   const tasks=p.tasks||[];
+  const workTags=(p.tags||[]).filter(t=>t!==JIMU);
   return `<div class="body">
+    ${workTags.length?`<div class="tags tags-sm">${workTags.map(t=>`<span class="tag" style="background:${TAG_COLOR[t]||'var(--ink-mute)'}">${esc(t)}</span>`).join('')}</div>`:''}
     ${p.note?`<div class="note">📝 ${esc(p.note)}</div>`:''}
     <div class="stage-steps">
       ${STAGES.map(s=>`<div class="step ${p.stage===s.key?'on':''}" style="${p.stage===s.key?`background:${s.color}`:''}" onclick="setStage('${p.id}','${s.key}')">${s.label}</div>`).join('')}
@@ -724,6 +745,7 @@ function renderBody(p){
           <span class="drag-handle" title="ドラッグで並び替え">⣿</span>
           <div class="check ${t.done?'on':''}" onclick="toggleTask('${p.id}','${t.id}')">${t.done?'✓':''}</div>
           <div class="task-label ${t.done?'done':''}" onclick="startEditTask('${p.id}','${t.id}',this)">${esc(t.label)}</div>
+          ${taskDueHtml(p.id,t)}
           <span class="star ${t.priority?'on':''}" onclick="togglePrio('${p.id}','${t.id}')">${t.priority?'★':'☆'}</span>
           <button class="task-del" onclick="delTask('${p.id}','${t.id}')">×</button>
         </div>`).join('')}
@@ -910,6 +932,12 @@ window.togglePrio = async (pid,tid)=>{
 window.delTask = async (pid,tid)=>{
   const p=find(pid); if(!p) return;
   p.tasks=(p.tasks||[]).filter(x=>String(x.id)!==String(tid));
+  render(); await persist(p);
+};
+window.setTaskDue = async (pid,tid,val)=>{
+  const p=find(pid); if(!p) return;
+  const t=(p.tasks||[]).find(x=>String(x.id)===String(tid)); if(!t) return;
+  t.due = val||'';
   render(); await persist(p);
 };
 window.startEditTask = (pid,tid,el)=>{
