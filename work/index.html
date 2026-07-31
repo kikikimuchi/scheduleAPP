@@ -466,7 +466,6 @@ async function apiDelete(id){
 let projects = [];
 let view = 'projects';    // projects | tasks
 let filter = 'working';   // working | all | jimu | <stageKey>
-let jimuOpen = false;     // 事務チップをプルダウンで表示中か
 let taskFilter = 'open';  // open | priority | done | all
 let expandedId = null;
 let editingId = null;
@@ -557,16 +556,16 @@ function renderChips(){
     <button class="chip ${c.k==='working'?'chip-work':''} ${filter===c.k?'on':''}" onclick="setFilter('${c.k}')">
       ${c.color?`<span class="dot" style="background:${c.color}"></span>`:''}${c.label}<span class="cnt">${count(c.k)}</span>
     </button>`;
-  const showJimu = jimuOpen || filter==='jimu';
+  const jimuActive = filter==='jimu';
+  const jimuBtn = `<button class="chip chip-toggle ${jimuActive?'on':''}" style="${jimuActive?'background:var(--tag-jimu);color:#fff;border-color:transparent;':''}" onclick="toggleJimu()">事務 ${jimuActive?'▲':'▼'}${jimuActive?`<span class="cnt">${count('jimu')}</span>`:''}</button>`;
   const row1 =
     chipHtml({k:'working',label:'未完了'})
     + chipHtml({k:'all',label:'すべて'})
-    + `<button class="chip chip-toggle" onclick="toggleJimuChip()">その他 ${showJimu?'▲':'▼'}</button>`
-    + (showJimu ? chipHtml({k:'jimu',label:'事務',color:'var(--tag-jimu)'}) : '');
+    + jimuBtn;
   const row2 = STAGES.map(s=>chipHtml({k:s.key,label:s.label,color:s.color})).join('');
   $('chips').innerHTML = row1 + `<div class="chip-break"></div>` + row2;
 }
-window.toggleJimuChip = ()=>{ jimuOpen = !jimuOpen; renderChips(); };
+window.toggleJimu = ()=>{ setFilter(filter==='jimu' ? 'working' : 'jimu'); };
 window.setFilter = f => { filter=f; render(); };
 
 function renderTaskChips(){
