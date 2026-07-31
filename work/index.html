@@ -66,6 +66,7 @@
     font-weight:600; cursor:pointer; white-space:nowrap;
   }
   .chip-break{flex-basis:100%; height:0;}
+  .chip-toggle{color:var(--ink-mute); border-style:dashed;}
   .chip .dot{display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; vertical-align:1px;}
   .chip.on{background:var(--ink); color:var(--card); border-color:var(--ink);}
   .chip.chip-work.on{background:var(--accent); color:#fff; border-color:var(--accent);}
@@ -464,7 +465,8 @@ async function apiDelete(id){
 /* ==================== 状態 ==================== */
 let projects = [];
 let view = 'projects';    // projects | tasks
-let filter = 'working';   // working | all | <stageKey>
+let filter = 'working';   // working | all | jimu | <stageKey>
+let jimuOpen = false;     // 事務チップをプルダウンで表示中か
 let taskFilter = 'open';  // open | priority | done | all
 let expandedId = null;
 let editingId = null;
@@ -555,14 +557,16 @@ function renderChips(){
     <button class="chip ${c.k==='working'?'chip-work':''} ${filter===c.k?'on':''}" onclick="setFilter('${c.k}')">
       ${c.color?`<span class="dot" style="background:${c.color}"></span>`:''}${c.label}<span class="cnt">${count(c.k)}</span>
     </button>`;
-  const row1 = [
-    {k:'jimu',label:'事務',color:'var(--tag-jimu)'},
-    {k:'working',label:'未完了'},
-    {k:'all',label:'すべて'},
-  ];
-  const row2 = STAGES.map(s=>({k:s.key,label:s.label,color:s.color}));
-  $('chips').innerHTML = row1.map(chipHtml).join('') + `<div class="chip-break"></div>` + row2.map(chipHtml).join('');
+  const showJimu = jimuOpen || filter==='jimu';
+  const row1 =
+    chipHtml({k:'working',label:'未完了'})
+    + chipHtml({k:'all',label:'すべて'})
+    + `<button class="chip chip-toggle" onclick="toggleJimuChip()">その他 ${showJimu?'▲':'▼'}</button>`
+    + (showJimu ? chipHtml({k:'jimu',label:'事務',color:'var(--tag-jimu)'}) : '');
+  const row2 = STAGES.map(s=>chipHtml({k:s.key,label:s.label,color:s.color})).join('');
+  $('chips').innerHTML = row1 + `<div class="chip-break"></div>` + row2;
 }
+window.toggleJimuChip = ()=>{ jimuOpen = !jimuOpen; renderChips(); };
 window.setFilter = f => { filter=f; render(); };
 
 function renderTaskChips(){
