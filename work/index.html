@@ -66,7 +66,6 @@
     font-weight:600; cursor:pointer; white-space:nowrap;
   }
   .chip-break{flex-basis:100%; height:0;}
-  .chip-toggle{color:var(--ink-mute); border-style:dashed;}
   .chip .dot{display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; vertical-align:1px;}
   .chip.on{background:var(--ink); color:var(--card); border-color:var(--ink);}
   .chip.chip-work.on{background:var(--accent); color:#fff; border-color:var(--accent);}
@@ -466,7 +465,7 @@ async function apiDelete(id){
 let projects = [];
 let view = 'projects';    // projects | tasks
 let filter = 'working';   // working | all | jimu | <stageKey>
-let taskFilter = 'open';  // open | priority | done | all
+let taskFilter = 'open';  // open | priority | done | all | jimu
 let expandedId = null;
 let editingId = null;
 
@@ -543,11 +542,10 @@ function renderSummary(){
 
 // 案件フィルタ判定。事務は案件系フィルタ（未完了/各ステージ）に出さず、専用の jimu と all にのみ出す。
 function matchFilter(p, f){
+  if(f==='jimu') return isJimu(p);        // 事務ボタンでのみ事務を表示
+  if(isJimu(p)) return false;             // 未完了/すべて/各ステージには事務を出さない
   if(f==='all') return true;
-  if(f==='jimu') return isJimu(p) && p.stage!=='done';   // 事務：未完了のみ（完了したら消える）
-  if(f==='working') return p.stage!=='done';              // 未完了：事務も含む
-  if(f==='done') return p.stage==='done';                 // 完了：事務も含む
-  if(isJimu(p)) return false;                              // 見積/進行/確認 は事務を出さない
+  if(f==='working') return p.stage!=='done';
   return p.stage===f;
 }
 function renderChips(){
@@ -556,31 +554,31 @@ function renderChips(){
     <button class="chip ${c.k==='working'?'chip-work':''} ${filter===c.k?'on':''}" onclick="setFilter('${c.k}')">
       ${c.color?`<span class="dot" style="background:${c.color}"></span>`:''}${c.label}<span class="cnt">${count(c.k)}</span>
     </button>`;
-  const jimuActive = filter==='jimu';
-  const jimuBtn = `<button class="chip chip-toggle ${jimuActive?'on':''}" style="${jimuActive?'background:var(--tag-jimu);color:#fff;border-color:transparent;':''}" onclick="toggleJimu()">事務 ${jimuActive?'▲':'▼'}${jimuActive?`<span class="cnt">${count('jimu')}</span>`:''}</button>`;
   const row1 =
     chipHtml({k:'working',label:'未完了'})
     + chipHtml({k:'all',label:'すべて'})
-    + jimuBtn;
+    + chipHtml({k:'jimu',label:'事務',color:'var(--tag-jimu)'});
   const row2 = STAGES.map(s=>chipHtml({k:s.key,label:s.label,color:s.color})).join('');
   $('chips').innerHTML = row1 + `<div class="chip-break"></div>` + row2;
 }
-window.toggleJimu = ()=>{ setFilter(filter==='jimu' ? 'working' : 'jimu'); };
 window.setFilter = f => { filter=f; render(); };
 
 function renderTaskChips(){
-  const all = projects.flatMap(p=>(p.tasks||[]).map(t=>({t,p})));
+  const nonJimu = projects.filter(p=>!isJimu(p)).flatMap(p=>(p.tasks||[]));
+  const jimuCount = projects.filter(p=>isJimu(p)).reduce((n,p)=>n+(p.tasks||[]).length,0);
   const cnt = {
-    open: all.filter(x=>!x.t.done).length,
-    priority: all.filter(x=>x.t.priority&&!x.t.done).length,
-    done: all.filter(x=>x.t.done).length,
-    all: all.length,
+    open: nonJimu.filter(t=>!t.done).length,
+    priority: nonJimu.filter(t=>t.priority&&!t.done).length,
+    done: nonJimu.filter(t=>t.done).length,
+    all: nonJimu.length,
+    jimu: jimuCount,
   };
   const chips=[
     {k:'open',label:'未完',color:'var(--s-progress)'},
     {k:'priority',label:'★優先',color:'var(--warn)'},
     {k:'done',label:'完了',color:'var(--s-done)'},
     {k:'all',label:'すべて',color:'var(--ink-mute)'},
+    {k:'jimu',label:'事務',color:'var(--tag-jimu)'},
   ];
   $('chips').innerHTML = chips.map(c=>`
     <button class="chip ${taskFilter===c.k?'on':''}" style="${taskFilter===c.k?`background:${c.color};color:#fff;border-color:transparent;`:''}" onclick="setTaskFilter('${c.k}')">
@@ -592,9 +590,12 @@ function renderTasksView(){
   renderTaskChips();
   const match = t => taskFilter==='open' ? !t.done
     : taskFilter==='priority' ? (t.priority&&!t.done)
-    : taskFilter==='done' ? t.done : true;
+    : taskFilter==='done' ? t.done : true;   // 'all'/'jimu' は true
   const groups = projects.map(p=>{
-    const ts=(p.tasks||[]).filter(match);   // 並び順はユーザーのD&D順を尊重（優先ソートしない）
+    // 事務フィルタ時は事務案件のタスクのみ、それ以外は事務を除外（並び順はD&D順を尊重）
+    let ts;
+    if(taskFilter==='jimu') ts = isJimu(p) ? (p.tasks||[]) : [];
+    else ts = isJimu(p) ? [] : (p.tasks||[]).filter(match);
     return {p, ts};
   }).filter(g=>g.ts.length>0);
   groups.sort((a,b)=>{
