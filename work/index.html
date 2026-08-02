@@ -548,7 +548,7 @@ async function apiDelete(id){
 let projects = [];
 let view = 'projects';    // projects | tasks
 let filter = 'working';   // working | all | jimu | <stageKey>
-let taskFilter = 'open';  // open | priority | done | all | jimu
+let taskFilter = 'open';  // open | today | priority | done | all | jimu
 let jimuDoneOpen = false;     // 案件：完了した事務の折りたたみ
 let jimuDoneOpenTask = false; // タスク：完了した事務の折りたたみ
 let expandedId = null;
@@ -658,8 +658,10 @@ window.toggleJimuDoneTask = ()=>{ jimuDoneOpenTask = !jimuDoneOpenTask; renderTa
 function renderTaskChips(){
   const nonJimu = projects.filter(p=>!isJimu(p)).flatMap(p=>(p.tasks||[]));
   const jimuCount = projects.filter(p=>isJimu(p)).reduce((n,p)=>n+(p.tasks||[]).length,0);
+  const todayCount = projects.flatMap(p=>(p.tasks||[])).filter(t=>t.today&&!t.done).length;
   const cnt = {
     open: nonJimu.filter(t=>!t.done).length,
+    today: todayCount,
     priority: nonJimu.filter(t=>t.priority&&!t.done).length,
     done: nonJimu.filter(t=>t.done).length,
     all: nonJimu.length,
@@ -667,6 +669,7 @@ function renderTaskChips(){
   };
   const chips=[
     {k:'open',label:'未完',color:'var(--s-progress)'},
+    {k:'today',label:'今日',color:'var(--accent)'},
     {k:'priority',label:'★優先',color:'var(--warn)'},
     {k:'done',label:'完了',color:'var(--s-done)'},
     {k:'all',label:'すべて',color:'var(--ink-mute)'},
@@ -679,9 +682,8 @@ function renderTaskChips(){
 }
 
 function taskRowHtml(pid, t){
-  // 「今日」ボタンは優先ビューのみ
-  const todayBtn = taskFilter==='priority'
-    ? `<button type="button" class="today-btn ${t.today?'on':''}" onclick="toggleToday('${pid}','${t.id}')">今日</button>` : '';
+  // 「今日」ボタンは全タスクに表示（完了は除く）。押したものは他の一覧から消さず、onで判別できる。
+  const todayBtn = t.done ? '' : `<button type="button" class="today-btn ${t.today?'on':''}" onclick="toggleToday('${pid}','${t.id}')">今日</button>`;
   return `<div class="task" data-tid="${t.id}">
     <span class="drag-handle" title="ドラッグで並び替え">⣿</span>
     <div class="check ${t.done?'on':''}" onclick="toggleTask('${pid}','${t.id}')">${t.done?'✓':''}</div>
@@ -747,19 +749,12 @@ function renderTasksView(){
     if(!activeGroups.length && !doneCount) html += `<div class="empty"><div class="ic">☑</div><div class="t">事務タスクはありません</div></div>`;
     $('list').innerHTML = html; attachDnd(); return;
   }
-  // 優先タブ：今日ボタンで「今日やるタスク」を上部にまとめる
-  if(taskFilter==='priority'){
-    const pri = projects.filter(p=>!isJimu(p)).flatMap(p=>(p.tasks||[]).filter(t=>t.priority&&!t.done).map(t=>({p,t})));
-    const todays = pri.filter(x=>x.t.today);
-    if(todays.length){
-      html += `<div class="task-group today-sec">
-        <div class="task-group-head"><span class="today-head">📌 今日やるタスク（${todays.length}）</span></div>
-        <div>${todays.map(({p,t})=>taskRowHtml(p.id,t)).join('')}</div>
-      </div>`;
-    }
-    const groups = sortGroups(projects.filter(p=>!isJimu(p)).map(p=>({p, ts:(p.tasks||[]).filter(t=>t.priority&&!t.done&&!t.today)})).filter(g=>g.ts.length));
-    html += groups.map(g=>taskGroupHtml(g)).join('');
-    if(!todays.length && !groups.length) html += `<div class="empty"><div class="ic">☑</div><div class="t">優先タスクはありません</div></div>`;
+  // 今日タブ：今日にしたタスクを一覧表示（事務も含む）
+  if(taskFilter==='today'){
+    const groups = sortGroups(projects.map(p=>({p, ts:(p.tasks||[]).filter(t=>t.today&&!t.done)})).filter(g=>g.ts.length));
+    html += groups.length
+      ? groups.map(g=>taskGroupHtml(g)).join('')
+      : `<div class="empty"><div class="ic">☑</div><div class="t">今日のタスクはありません</div></div>`;
     $('list').innerHTML = html; attachDnd(); return;
   }
   const match = t => taskFilter==='open' ? !t.done
