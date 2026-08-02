@@ -550,7 +550,6 @@ let view = 'projects';    // projects | tasks
 let filter = 'working';   // working | all | jimu | <stageKey>
 let taskFilter = 'open';  // open | today | priority | done | all | jimu
 let jimuDoneOpen = false;     // 案件：完了した事務の折りたたみ
-let jimuDoneOpenTask = false; // タスク：完了した事務の折りたたみ
 let splitOpen = {jimu:false, work:false};  // 完了/すべての事務・仕事プルダウン
 let expandedId = null;
 let editingId = null;
@@ -650,12 +649,11 @@ function renderChips(){
 }
 window.setFilter = f => { filter=f; render(); };
 window.toggleJimuDone = ()=>{ jimuDoneOpen = !jimuDoneOpen; renderList(); };
-window.toggleJimuDoneTask = ()=>{ jimuDoneOpenTask = !jimuDoneOpenTask; renderTasksView(); };
 
 function renderTaskChips(){
   const allT = projects.flatMap(p=>(p.tasks||[]));
   const nonJimu = projects.filter(p=>!isJimu(p)).flatMap(p=>(p.tasks||[]));
-  const jimuCount = projects.filter(p=>isJimu(p)).reduce((n,p)=>n+(p.tasks||[]).length,0);
+  const jimuCount = projects.filter(p=>isJimu(p)).reduce((n,p)=>n+(p.tasks||[]).filter(t=>!t.done).length,0);
   const cnt = {
     today: allT.filter(t=>t.today&&!t.done).length,
     priority: allT.filter(t=>t.priority&&!t.done).length,   // 事務も含む
@@ -738,17 +736,10 @@ function renderTasksView(){
   const empty = msg => `<div class="empty"><div class="ic">☑</div><div class="t">${msg}</div></div>`;
   let html = renderAddTaskBar();
 
-  // 事務タブ：事務のみ。完了は下の折りたたみ（デフォルト閉じ）
+  // 事務タブ：未完の事務タスクのみ（完了は「完了」タブで見る）
   if(taskFilter==='jimu'){
     const active = groupsFor(isJimu, t=>!t.done);
-    const done   = groupsFor(isJimu, t=>t.done);
-    const dc = countG(done);
-    html += active.map(g=>taskGroupHtml(g)).join('');
-    if(dc){
-      html += `<button class="jimu-done-toggle" onclick="toggleJimuDoneTask()">完了した事務タスク（${dc}）${jimuDoneOpenTask?'▲':'▼'}</button>`;
-      if(jimuDoneOpenTask) html += done.map(g=>taskGroupHtml(g,false)).join('');
-    }
-    if(!active.length && !dc) html += empty('事務タスクはありません');
+    html += active.length ? active.map(g=>taskGroupHtml(g)).join('') : empty('事務タスクはありません');
     $('list').innerHTML = html; attachDnd(); return;
   }
 
