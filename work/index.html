@@ -227,6 +227,16 @@
   }
   .jimu-done-toggle:active{transform:scale(.99);}
 
+  /* 今日ボタン・今日やるタスク */
+  .today-btn{
+    font-size:10px; font-weight:700; padding:4px 9px; border-radius:6px;
+    border:1px solid var(--accent); background:none; color:var(--accent);
+    cursor:pointer; font-family:inherit; flex-shrink:0; line-height:1.4;
+  }
+  .today-btn.on{background:var(--accent); color:#fff;}
+  .today-sec{border-color:var(--accent);}
+  .today-head{font-size:12.5px; font-weight:800; color:var(--accent);}
+
   /* tappable sales stat */
   .stat.tap{cursor:pointer;}
   .stat.tap:active{transform:scale(.97);}
@@ -668,6 +678,25 @@ function renderTaskChips(){
     </button>`).join('');
 }
 
+function taskRowHtml(pid, t){
+  // 「今日」ボタンは優先ビューのみ
+  const todayBtn = taskFilter==='priority'
+    ? `<button type="button" class="today-btn ${t.today?'on':''}" onclick="toggleToday('${pid}','${t.id}')">今日</button>` : '';
+  return `<div class="task" data-tid="${t.id}">
+    <span class="drag-handle" title="ドラッグで並び替え">⣿</span>
+    <div class="check ${t.done?'on':''}" onclick="toggleTask('${pid}','${t.id}')">${t.done?'✓':''}</div>
+    <div class="task-label ${t.done?'done':''}" onclick="startEditTask('${pid}','${t.id}',this)">${esc(t.label)}</div>
+    ${taskDueHtml(pid,t)}
+    ${todayBtn}
+    <span class="star ${t.priority?'on':''}" onclick="togglePrio('${pid}','${t.id}')">${t.priority?'★':'☆'}</span>
+    <button class="task-del" onclick="delTask('${pid}','${t.id}')">×</button>
+  </div>`;
+}
+window.toggleToday = async (pid,tid)=>{
+  const p=find(pid); if(!p) return;
+  const t=(p.tasks||[]).find(x=>String(x.id)===String(tid)); if(!t) return;
+  t.today=!t.today; renderTasksView(); await persist(p);
+};
 function taskGroupHtml(g, showAdd=true){
   const st=stageOf(g.p.stage);
   const pill=isJimu(g.p)
@@ -679,15 +708,7 @@ function taskGroupHtml(g, showAdd=true){
       <span class="tg-name">${esc(g.p.name)||'（無題）'}</span>
     </div>
     <div class="dnd-list" data-pid="${g.p.id}">
-    ${g.ts.map(t=>`
-      <div class="task" data-tid="${t.id}">
-        <span class="drag-handle" title="ドラッグで並び替え">⣿</span>
-        <div class="check ${t.done?'on':''}" onclick="toggleTask('${g.p.id}','${t.id}')">${t.done?'✓':''}</div>
-        <div class="task-label ${t.done?'done':''}" onclick="startEditTask('${g.p.id}','${t.id}',this)">${esc(t.label)}</div>
-        ${taskDueHtml(g.p.id,t)}
-        <span class="star ${t.priority?'on':''}" onclick="togglePrio('${g.p.id}','${t.id}')">${t.priority?'★':'☆'}</span>
-        <button class="task-del" onclick="delTask('${g.p.id}','${t.id}')">×</button>
-      </div>`).join('')}
+    ${g.ts.map(t=>taskRowHtml(g.p.id,t)).join('')}
     </div>
     ${showAdd?`<div class="add-row" style="margin-top:8px;">
       <input class="fi" type="text" id="tg-ti-${g.p.id}" placeholder="タスクを追加（Enter）"
@@ -724,6 +745,21 @@ function renderTasksView(){
       if(jimuDoneOpenTask) html += doneGroups.map(g=>taskGroupHtml(g,false)).join('');
     }
     if(!activeGroups.length && !doneCount) html += `<div class="empty"><div class="ic">☑</div><div class="t">事務タスクはありません</div></div>`;
+    $('list').innerHTML = html; attachDnd(); return;
+  }
+  // 優先タブ：今日ボタンで「今日やるタスク」を上部にまとめる
+  if(taskFilter==='priority'){
+    const pri = projects.filter(p=>!isJimu(p)).flatMap(p=>(p.tasks||[]).filter(t=>t.priority&&!t.done).map(t=>({p,t})));
+    const todays = pri.filter(x=>x.t.today);
+    if(todays.length){
+      html += `<div class="task-group today-sec">
+        <div class="task-group-head"><span class="today-head">📌 今日やるタスク（${todays.length}）</span></div>
+        <div>${todays.map(({p,t})=>taskRowHtml(p.id,t)).join('')}</div>
+      </div>`;
+    }
+    const groups = sortGroups(projects.filter(p=>!isJimu(p)).map(p=>({p, ts:(p.tasks||[]).filter(t=>t.priority&&!t.done&&!t.today)})).filter(g=>g.ts.length));
+    html += groups.map(g=>taskGroupHtml(g)).join('');
+    if(!todays.length && !groups.length) html += `<div class="empty"><div class="ic">☑</div><div class="t">優先タスクはありません</div></div>`;
     $('list').innerHTML = html; attachDnd(); return;
   }
   const match = t => taskFilter==='open' ? !t.done
