@@ -286,6 +286,40 @@
   .field{margin-bottom:7px;}
   .field label{display:block; font-size:11px; font-weight:700; color:var(--ink-mute); margin-bottom:2px; letter-spacing:.02em;}
   .grab{width:38px; height:4px; background:var(--line); border-radius:3px; margin:0 auto 8px;}
+
+  /* ===== PC（広い画面）専用レイアウト ===== */
+  @media (min-width:900px){
+    .wrap{max-width:1060px; padding:0 24px;}
+    /* カード/タスクグループを複数列に */
+    .list{display:grid; grid-template-columns:repeat(2,1fr); gap:14px; align-items:start;}
+    .proj{margin-bottom:0;}
+    .task-group{margin-bottom:0;}
+    /* 全幅にしたい要素はカラムをまたぐ */
+    .list > .empty,
+    .list > .task-add-bar,
+    .list > .jimu-done-toggle{grid-column:1 / -1;}
+    /* チップは内容幅・左寄せ（間延び防止） */
+    .chips{justify-content:flex-start;}
+    .chip{flex:0 1 auto; padding:7px 18px;}
+    .grab{display:none;}
+    /* モーダルは画面中央にダイアログ表示 */
+    .overlay{align-items:center;}
+    .sheet{
+      border-radius:18px; max-width:560px; max-height:88vh;
+      padding:22px 24px; box-shadow:0 20px 60px rgba(0,0,0,.5);
+    }
+    /* FAB は右下固定 */
+    .fab{right:32px; bottom:32px; width:60px; height:60px;}
+    /* ホバーの手触り */
+    .proj{transition:border-color .15s;}
+    .proj:hover{border-color:var(--ink-faint);}
+    .chip, .tab, .btn, .step, .task-due, .icon-btn{transition:filter .12s;}
+    .chip:hover, .tab:hover, .btn:hover, .step:hover, .task-due:hover, .icon-btn:hover{filter:brightness(1.12);}
+  }
+  @media (min-width:1360px){
+    .wrap{max-width:1320px;}
+    body[data-view="projects"] .list{grid-template-columns:repeat(3,1fr);}
+  }
 </style>
 </head>
 <body>
@@ -542,6 +576,7 @@ function fmtMD(d){
 
 /* ==================== 描画 ==================== */
 function render(){
+  document.body.dataset.view = view;   // PCレイアウトの出し分け用
   renderTabs();
   $('fab').style.display = (view==='tasks') ? 'none' : 'flex';
   if(view==='tasks'){
