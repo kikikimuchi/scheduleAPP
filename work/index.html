@@ -668,7 +668,7 @@ function renderTaskChips(){
     </button>`).join('');
 }
 
-function taskGroupHtml(g){
+function taskGroupHtml(g, showAdd=true){
   const st=stageOf(g.p.stage);
   const pill=isJimu(g.p)
     ? `<span class="stage-pill" style="background:var(--tag-jimu)">事務</span>`
@@ -689,8 +689,21 @@ function taskGroupHtml(g){
         <button class="task-del" onclick="delTask('${g.p.id}','${t.id}')">×</button>
       </div>`).join('')}
     </div>
+    ${showAdd?`<div class="add-row" style="margin-top:8px;">
+      <input class="fi" type="text" id="tg-ti-${g.p.id}" placeholder="タスクを追加（Enter）"
+        onkeydown="if(event.key==='Enter'&&!event.isComposing){addTaskGroup('${g.p.id}',this)}">
+      <button class="btn btn-sec" onclick="addTaskGroup('${g.p.id}',document.getElementById('tg-ti-${g.p.id}'))">＋</button>
+    </div>`:''}
   </div>`;
 }
+window.addTaskGroup = async (pid,inp)=>{
+  const p=find(pid); if(!p) return;
+  const label=(inp.value||'').trim(); if(!label) return;
+  p.tasks=p.tasks||[]; p.tasks.push({id:Date.now(),label,done:false,priority:false});
+  renderTasksView();
+  const again=document.getElementById('tg-ti-'+pid); if(again) again.focus();
+  await persist(p);
+};
 function renderTasksView(){
   renderTaskChips();
   const sortGroups = gs => gs.sort((a,b)=>{
@@ -705,10 +718,10 @@ function renderTasksView(){
     const activeGroups = sortGroups(jp.map(p=>({p, ts:(p.tasks||[]).filter(t=>!t.done)})).filter(g=>g.ts.length));
     const doneGroups   = sortGroups(jp.map(p=>({p, ts:(p.tasks||[]).filter(t=>t.done)})).filter(g=>g.ts.length));
     const doneCount = doneGroups.reduce((n,g)=>n+g.ts.length,0);
-    html += activeGroups.map(taskGroupHtml).join('');
+    html += activeGroups.map(g=>taskGroupHtml(g)).join('');
     if(doneCount){
       html += `<button class="jimu-done-toggle" onclick="toggleJimuDoneTask()">完了した事務タスク（${doneCount}）${jimuDoneOpenTask?'▲':'▼'}</button>`;
-      if(jimuDoneOpenTask) html += doneGroups.map(taskGroupHtml).join('');
+      if(jimuDoneOpenTask) html += doneGroups.map(g=>taskGroupHtml(g,false)).join('');
     }
     if(!activeGroups.length && !doneCount) html += `<div class="empty"><div class="ic">☑</div><div class="t">事務タスクはありません</div></div>`;
     $('list').innerHTML = html; attachDnd(); return;
@@ -720,7 +733,7 @@ function renderTasksView(){
   if(groups.length===0){
     html += `<div class="empty"><div class="ic">☑</div><div class="t">この条件のタスクはありません</div></div>`;
   } else {
-    html += groups.map(taskGroupHtml).join('');
+    html += groups.map(g=>taskGroupHtml(g)).join('');
   }
   $('list').innerHTML = html;
   attachDnd();
