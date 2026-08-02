@@ -241,7 +241,6 @@
   .stat.tap{cursor:pointer;}
   .stat.tap:active{transform:scale(.97);}
   .stat.tap .l{color:var(--accent);}
-  .eye{font-size:12px; margin-left:6px; cursor:pointer; vertical-align:1px;}
 
   /* drag & drop */
   .drag-handle{
@@ -553,7 +552,6 @@ let taskFilter = 'open';  // open | today | priority | done | all | jimu
 let jimuDoneOpen = false;     // 案件：完了した事務の折りたたみ
 let jimuDoneOpenTask = false; // タスク：完了した事務の折りたたみ
 let splitOpen = {jimu:false, work:false};  // 完了/すべての事務・仕事プルダウン
-let salesHidden = true;       // 年間売上を目隠し（デフォルト隠す）
 let expandedId = null;
 let editingId = null;
 
@@ -609,7 +607,6 @@ function renderTabs(){
 window.setView = v => { view=v; expandedId=null; render(); };
 window.setTaskFilter = f => { taskFilter=f; splitOpen={jimu:false,work:false}; renderTasksView(); };
 window.toggleSplit = k => { splitOpen[k]=!splitOpen[k]; renderTasksView(); };
-window.toggleSales = () => { salesHidden=!salesHidden; renderSummary(); };
 
 function renderSummary(){
   $('summary').style.display='';
@@ -621,18 +618,13 @@ function renderSummary(){
     const i=dlInfo(p.deadline,false);
     return n + ((i && i.diff<=3) ? (p.tasks||[]).filter(t=>!t.done).length : 0);
   },0);
-  // 売上＝会計年度(2026/5〜2027/4)に入金済の税別金額合計。完了案件も含め、事務は除外。
-  const paidTotal = projects
-    .filter(p=>!isJimu(p) && !p.personal && typeof p.amount==='number' && isFinite(p.amount)
-      && /^\d{4}-\d{2}/.test(p.paidDate||'') && FY_SET.has(p.paidDate.slice(0,7)))
-    .reduce((n,p)=>n+p.amount,0);
   const totalCases = projects.filter(p=>!isJimu(p)).length;
   $('sub').textContent = `総案件 ${totalCases}件`;
   $('summary').innerHTML = `
     <div class="stat"><div class="n">${cases.length}</div><div class="l">進行中の案件</div></div>
     <div class="stat"><div class="n">${openTasks}</div><div class="l">未完タスク</div></div>
     <div class="stat ${soonTasks?'danger':''}"><div class="n">${soonTasks}</div><div class="l">3日以内タスク</div></div>
-    <div class="stat tap" onclick="openSalesModal()"><div class="n" style="font-size:15px;">${salesHidden?'••••':(paidTotal?fmtYen(paidTotal):'¥0')}<span class="eye" onclick="event.stopPropagation();toggleSales()">${salesHidden?'👁':'🙈'}</span></div><div class="l">2026年度売上 ›</div></div>`;
+    <div class="stat tap" onclick="openSalesModal()"><div class="n" style="font-size:13px;line-height:1.35;">2026年度売上</div><div class="l">タップで表示 ›</div></div>`;
 }
 
 // 案件フィルタ判定。事務は案件系フィルタ（未完了/各ステージ）に出さず、専用の jimu と all にのみ出す。
