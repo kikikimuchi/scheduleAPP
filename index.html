@@ -350,13 +350,37 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 .kokai-streak b{color:var(--ink);font-weight:700;}
 .kokai-edit-link{background:none;border:none;font-size:10px;color:var(--ink-faint);cursor:pointer;padding:2px 4px;letter-spacing:.05em;}
 
-/* ===== PC(>=768px)レイアウト：基本ルールの後に置き確実に上書き。スマホは未変更 ===== */
-@media (min-width: 768px){
-  body{background:#E7E5E1;}
-  /* ヘッダー・本文・タブバーを同じ幅で中央寄せし、ひとつのアプリ枠に */
-  #header{left:auto;right:auto;margin:0 auto;width:100%;max-width:640px;border-left:1px solid var(--bdr);border-right:1px solid var(--bdr);}
-  .pg{max-width:640px;background:var(--bg);box-shadow:0 0 30px rgba(0,0,0,.07);min-height:calc(100vh - 64px);border-left:1px solid var(--bdr);border-right:1px solid var(--bdr);}
-  #tabbar{left:50%;right:auto;transform:translateX(-50%);width:640px;max-width:100%;border-left:1px solid var(--bdr);border-right:1px solid var(--bdr);}
+/* ===== PC(>=900px)レイアウト：左サイドバー・ナビ＋広めのワークスペース。スマホ(<900px)は未変更 ===== */
+@media (min-width: 900px){
+  body{background:#E7E5E1;padding-left:236px;padding-bottom:0;}
+  /* ボトムタブ → 左サイドバー・ナビへ */
+  #tabbar{
+    top:0;bottom:0;left:0;right:auto;width:236px;
+    flex-direction:column;justify-content:flex-start;align-items:stretch;gap:3px;
+    padding:24px 16px;border-top:none;border-right:1px solid var(--bdr);
+    background:rgba(255,255,255,.96);
+  }
+  #tabbar::before{content:"— 2026 —";display:block;font-size:11px;letter-spacing:.24em;color:var(--ink-mute);padding:2px 12px 16px;}
+  .tb{
+    flex:0 0 auto;flex-direction:row;justify-content:flex-start;align-items:center;gap:13px;
+    padding:12px 14px;border-radius:11px;font-size:13px;letter-spacing:.05em;color:var(--ink-soft);
+  }
+  .tb:hover{background:rgba(0,0,0,.04);}
+  .tb svg{width:19px;height:19px;}
+  .tb.on{background:var(--pink-soft);color:var(--ink);font-weight:700;}
+  .tb.on::after{display:none;}
+  /* ヘッダー・本文を中央のワークスペース幅に（横幅を活かす） */
+  #header{left:auto;right:auto;margin:0 auto;width:100%;max-width:820px;padding-left:26px;padding-right:26px;}
+  .pg{
+    max-width:820px;margin:0 auto;background:var(--bg);
+    box-shadow:0 0 0 1px var(--bdr),0 6px 30px rgba(0,0,0,.06);
+    border-radius:0 0 18px 18px;min-height:calc(100vh - 58px);padding:22px 26px 44px;
+  }
+  body.hide-header #pg-ideal{border-radius:18px;margin-top:18px;min-height:calc(100vh - 36px);}
+}
+/* さらに広い画面：2カラムを活かせるブロックを横並びに */
+@media (min-width: 1200px){
+  .pg{max-width:900px;}
 }
 </style>
 </head>
@@ -366,7 +390,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v77</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v78</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -1356,6 +1380,6 @@ if(window.caches){ caches.keys().then(ks=>{ ks.forEach(k=>caches.delete(k)); }).
 </script>
 
 <!-- UI script -->
-<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=77"></script>
+<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=78"></script>
 </body>
 </html>
