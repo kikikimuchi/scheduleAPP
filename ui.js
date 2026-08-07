@@ -1340,6 +1340,7 @@ window.calMonth = function(delta){
   renderCalendar();
 };
 window.renderCalendar = function(){
+  updateCalGymTodayBtn();
   if(_calTab === 'google') return;
   $('cal-year').textContent = `— ${_calYear} —`;
   $('cal-mtxt').textContent = `${_calMonth+1}月`;
@@ -1431,8 +1432,39 @@ window.openDayDetail = function(date){
   $('dd-mode-name').textContent = m.label;
   $('dd-mode-desc').textContent = m.desc;
   $('dd-wake').textContent = cache.wakeTimes[date] || '—';
+  updateDDGymBtn();
   setDayDetailTab('mode');
   openModal('ov-daydetail');
+};
+// 日別モーダルのジム記録トグル（ワンタッチ）
+function updateDDGymBtn(){
+  const b = $('dd-gym-btn'), l = $('dd-gym-lbl');
+  if(!b) return;
+  const on = !!cache.workouts[_ddDate];
+  b.classList.toggle('on', on);
+  if(l) l.textContent = on ? 'ジム記録済み ✓' : 'ジム行った';
+}
+window.ddToggleWorkout = async function(){
+  if(!_ddDate) return;
+  if(cache.workouts[_ddDate]) delete cache.workouts[_ddDate]; else cache.workouts[_ddDate] = true;
+  await window.toggleWorkoutFB(_ddDate);
+  updateDDGymBtn();
+  renderCalendar();
+};
+// カレンダー画面上部「今日ジム行った」トグル（ワンタッチ）
+function updateCalGymTodayBtn(){
+  const b = $('cal-gym-today'), l = $('cal-gym-today-lbl');
+  if(!b) return;
+  const on = !!cache.workouts[getTodayDateString()];
+  b.classList.toggle('on', on);
+  if(l) l.textContent = on ? '今日ジム記録済み ✓' : '今日ジム行った';
+}
+window.toggleTodayWorkout = async function(){
+  const date = getTodayDateString();
+  if(cache.workouts[date]) delete cache.workouts[date]; else cache.workouts[date] = true;
+  await window.toggleWorkoutFB(date);
+  updateCalGymTodayBtn();
+  renderCalendar();
 };
 window.setDayDetailTab = function(t){
   _ddTab = t;
