@@ -9,7 +9,34 @@
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="icon" href="icon.png">
 <title>2026 スケジュール</title>
+<!-- テーマ切替（オリジナル ⇄ まんぼーちゅーぶ）。保存値を描画前に適用してチラつき防止 -->
+<script>
+(function(){ try{ if(localStorage.getItem('scheduleTheme')==='manbo') document.documentElement.setAttribute('data-theme','manbo'); }catch(e){} })();
+window.setAppTheme=function(t){
+  try{
+    if(t==='manbo'){ document.documentElement.setAttribute('data-theme','manbo'); localStorage.setItem('scheduleTheme','manbo'); }
+    else { document.documentElement.removeAttribute('data-theme'); localStorage.setItem('scheduleTheme','default'); }
+  }catch(e){}
+  if(window.updateThemeButtons) window.updateThemeButtons();
+};
+window.updateThemeButtons=function(){
+  var m=document.documentElement.getAttribute('data-theme')==='manbo';
+  var a=document.getElementById('theme-opt-default'), b=document.getElementById('theme-opt-manbo');
+  if(a) a.classList.toggle('on', !m);
+  if(b) b.classList.toggle('on', m);
+};
+document.addEventListener('DOMContentLoaded',function(){ if(window.updateThemeButtons) updateThemeButtons(); });
+</script>
+<!-- まんぼーテーマ用フォント（未使用テーマでは参照されないだけ） -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap" rel="stylesheet">
+<!-- まんぼーテーマ層（data-theme="manbo" のときだけ効く。オリジナルCSSは無改変＝いつでも戻せる） -->
+<link href="theme-manbo.css?v=1" rel="stylesheet">
 <style>
+/* テーマ切替ボタン（どちらのテーマでも見える最小スタイル） */
+.theme-opt{flex:1;padding:12px 8px;border:1px solid var(--bdr-s);border-radius:10px;background:transparent;color:var(--ink-soft);font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.04em;}
+.theme-opt.on{border-color:var(--pink);background:var(--pink-soft);color:var(--ink);}
 :root{
   --pink:#F4A6B5;--pink-soft:#FDEAEE;--pink-dk:#E88FA1;
   --blue:#A8C8E8;--blue-soft:#E8F1FA;
@@ -390,7 +417,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v78</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v79</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -593,7 +620,16 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
     <div style="font-size:13px;font-weight:700;">設定</div>
     <div style="font-size:10px;opacity:.9;margin-left:auto;">目標値や曜日を調整</div>
   </div>
-  
+
+  <div class="card">
+    <div style="font-size:14px;font-weight:700;margin-bottom:4px;">🎨 デザインテーマ</div>
+    <div style="font-size:10px;color:var(--ink-mute);line-height:1.6;margin-bottom:10px;">いつでも切り替え・元に戻せます。</div>
+    <div style="display:flex;gap:8px;">
+      <button class="theme-opt" id="theme-opt-default" onclick="setAppTheme('default')">オリジナル</button>
+      <button class="theme-opt" id="theme-opt-manbo" onclick="setAppTheme('manbo')">まんぼーちゅーぶ</button>
+    </div>
+  </div>
+
   <div class="card">
     <div style="font-size:14px;font-weight:700;margin-bottom:10px;">体重</div>
     <div class="flex-row">
