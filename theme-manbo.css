@@ -1,0 +1,232 @@
+/* =====================================================================
+   まんぼーちゅーぶ テーマ（ダーク宇宙 × レトロ・ピクセルUI）
+   html[data-theme="manbo"] のときだけ適用。オリジナルCSSは無改変。
+   → 設定「デザインテーマ」でいつでもオリジナルへ戻せる。
+   ===================================================================== */
+
+html[data-theme="manbo"]{
+  /* まんぼー固有トークン */
+  --night:#0E1630; --night2:#0A1022; --panel:#15203F; --panel2:#1E2B52;
+  --sky:#5AB0F0; --sky-dk:#2C7FC4; --yellow:#FFD23F; --wood:#8A5A32;
+  --pix:'Press Start 2P','DotGothic16',monospace;
+  --mono:'DotGothic16',monospace;
+  /* 既存トークンを暗色パレットへ再マップ（これだけで大半が着替わる） */
+  --bg:#0E1630; --card:#15203F;
+  --ink:#EAF1FF; --ink-soft:#A6B4D8; --ink-mute:#6E7CA6; --ink-faint:#4C5980;
+  --bdr:rgba(255,255,255,.10); --bdr-s:rgba(255,255,255,.20);
+  --pink:#5AB0F0; --pink-soft:rgba(90,176,240,.16); --pink-dk:#5AB0F0;
+  --lav:#5AB0F0; --lav-soft:rgba(90,176,240,.12);
+  --blue:#5AB0F0; --blue-soft:rgba(90,176,240,.15);
+  --mint:#5AB0F0; --mint-soft:rgba(90,176,240,.12);
+  --beige:#FFD23F; --beige-soft:rgba(255,210,63,.15);
+  --r:8px; --sh:3px 3px 0 rgba(0,0,0,.5);
+}
+
+/* 背景：濃紺グラデ＋星屑 */
+html[data-theme="manbo"] body{
+  background:
+    radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,.55) 50%, transparent 51%),
+    radial-gradient(1px 1px at 72% 18%, rgba(255,255,255,.45) 50%, transparent 51%),
+    radial-gradient(1px 1px at 42% 68%, rgba(255,255,255,.35) 50%, transparent 51%),
+    radial-gradient(1px 1px at 86% 58%, rgba(255,255,255,.5) 50%, transparent 51%),
+    radial-gradient(1px 1px at 56% 44%, rgba(255,255,255,.3) 50%, transparent 51%),
+    radial-gradient(1.4px 1.4px at 12% 82%, rgba(255,255,255,.42) 50%, transparent 51%),
+    radial-gradient(1.4px 1.4px at 90% 88%, rgba(255,255,255,.35) 50%, transparent 51%),
+    linear-gradient(180deg,#101B3A 0%,#0E1630 42%,#0A1022 100%);
+  background-attachment:fixed;
+  background-size:300px 300px,300px 300px,260px 260px,320px 320px,280px 280px,340px 340px,360px 360px,100% 100%;
+  color:var(--ink);
+  font-family:'DotGothic16',"Hiragino Sans","Yu Gothic Medium",system-ui,sans-serif;
+}
+
+/* メタ情報・見出しはドット/ピクセル */
+html[data-theme="manbo"] .hd-year,
+html[data-theme="manbo"] .hd-date,
+html[data-theme="manbo"] .hd-left-num,
+html[data-theme="manbo"] .cal-year,
+html[data-theme="manbo"] .kokai-priority-tag,
+html[data-theme="manbo"] .kokai-cat,
+html[data-theme="manbo"] .kokai-badge,
+html[data-theme="manbo"] .badge{ font-family:var(--mono); }
+html[data-theme="manbo"] .sec-h{ font-family:var(--mono); color:var(--sky); letter-spacing:.14em; }
+
+/* ---- 共通：パネル面（2px枠＋硬いオフセット影） ---- */
+html[data-theme="manbo"] .card,
+html[data-theme="manbo"] .night-card,
+html[data-theme="manbo"] .hero-card,
+html[data-theme="manbo"] .mode-card,
+html[data-theme="manbo"] .meal-quick,
+html[data-theme="manbo"] .mission-card,
+html[data-theme="manbo"] .mode-btn,
+html[data-theme="manbo"] .kokai-hero,
+html[data-theme="manbo"] .kokai-card,
+html[data-theme="manbo"] .kokai-act-card,
+html[data-theme="manbo"] .kokai-content-card{
+  background:var(--panel); border:2px solid var(--bdr-s); border-radius:8px;
+  box-shadow:3px 3px 0 rgba(0,0,0,.5);
+}
+
+/* ---- ボタン：黄CTA＋黒枠、押すと沈む ---- */
+html[data-theme="manbo"] .btn-pri,
+html[data-theme="manbo"] .kokai-rec-btn{
+  background:var(--yellow); background-image:none; color:#0A1022;
+  border:2px solid #0A1022; border-radius:6px; font-weight:800;
+  box-shadow:3px 3px 0 rgba(0,0,0,.5); letter-spacing:.04em;
+}
+html[data-theme="manbo"] .kokai-rec-btn.done{ background:var(--sky); }
+html[data-theme="manbo"] .btn-pri:disabled{ background:var(--panel2); color:var(--ink-mute); border-color:var(--bdr-s); }
+html[data-theme="manbo"] .btn-sec,
+html[data-theme="manbo"] .kokai-undo,
+html[data-theme="manbo"] .kokai-edit-link,
+html[data-theme="manbo"] .mcl,
+html[data-theme="manbo"] .cal-nav,
+html[data-theme="manbo"] .gym-day{
+  background:var(--panel2); color:var(--ink); border:2px solid #0A1022; border-radius:6px;
+  box-shadow:2px 2px 0 rgba(0,0,0,.5);
+}
+/* 押下で物理的に沈む */
+html[data-theme="manbo"] .btn-pri,
+html[data-theme="manbo"] .btn-sec,
+html[data-theme="manbo"] .kokai-rec-btn,
+html[data-theme="manbo"] .kokai-undo,
+html[data-theme="manbo"] .card,
+html[data-theme="manbo"] .kokai-card,
+html[data-theme="manbo"] .meal-quick,
+html[data-theme="manbo"] .mode-card,
+html[data-theme="manbo"] .mode-btn,
+html[data-theme="manbo"] .kokai-day,
+html[data-theme="manbo"] .theme-opt{ transition:transform .22s ease, box-shadow .22s ease; }
+html[data-theme="manbo"] .btn-pri:active,
+html[data-theme="manbo"] .btn-sec:active,
+html[data-theme="manbo"] .kokai-rec-btn:active,
+html[data-theme="manbo"] .kokai-undo:active,
+html[data-theme="manbo"] .meal-quick:active,
+html[data-theme="manbo"] .mode-card:active,
+html[data-theme="manbo"] .mode-btn:active,
+html[data-theme="manbo"] .kokai-card:active,
+html[data-theme="manbo"] .cal-nav:active{
+  transform:translate(1px,1px); box-shadow:1px 1px 0 rgba(0,0,0,.5);
+}
+
+/* ---- 入力欄 ---- */
+html[data-theme="manbo"] .fi,
+html[data-theme="manbo"] textarea.fi,
+html[data-theme="manbo"] select.fi,
+html[data-theme="manbo"] .kokai-memo-in,
+html[data-theme="manbo"] .wake-input-row,
+html[data-theme="manbo"] input[type="time"],
+html[data-theme="manbo"] input[type="date"]{
+  background:var(--panel2); color:var(--ink); border:2px solid var(--bdr-s); border-radius:6px;
+}
+html[data-theme="manbo"] .fi:focus{ box-shadow:0 0 0 2px var(--sky); }
+html[data-theme="manbo"] .fl{ color:var(--ink-soft); }
+html[data-theme="manbo"] input::placeholder,
+html[data-theme="manbo"] textarea::placeholder{ color:var(--ink-faint); }
+
+/* ---- ヘッダー / タブバー ---- */
+html[data-theme="manbo"] #header{ background:rgba(10,16,34,.9); border-bottom:2px solid var(--bdr-s); }
+html[data-theme="manbo"] #tabbar{ background:rgba(10,16,34,.94); border-top:2px solid var(--bdr-s); }
+html[data-theme="manbo"] .tb{ color:var(--ink-faint); }
+html[data-theme="manbo"] .tb.on{ color:var(--sky); }
+html[data-theme="manbo"] .tb.on::after{ background:var(--sky); }
+html[data-theme="manbo"] #app-version{ color:var(--ink-faint); }
+
+/* ---- サブタブ（セグメント） ---- */
+html[data-theme="manbo"] .subtab-wrap{ background:var(--panel2); border:2px solid var(--bdr-s); border-radius:6px; }
+html[data-theme="manbo"] .subtab{ color:var(--ink-mute); }
+html[data-theme="manbo"] .subtab.on{ background:var(--sky); color:#0A1022; border-radius:4px; }
+
+/* ---- モードカラー／heroグラデ → 落ち着いたパネルへ ---- */
+html[data-theme="manbo"] .mc-normal,
+html[data-theme="manbo"] .mc-cafe,
+html[data-theme="manbo"] .mc-gym,
+html[data-theme="manbo"] .mc-shoot,
+html[data-theme="manbo"] .mc-trip_work,
+html[data-theme="manbo"] .mc-trip_private,
+html[data-theme="manbo"] .mc-recovery,
+html[data-theme="manbo"] .mc-rest,
+html[data-theme="manbo"] .mc-custom,
+html[data-theme="manbo"] .hero-pink,
+html[data-theme="manbo"] .hero-amber,
+html[data-theme="manbo"] .hero-blue,
+html[data-theme="manbo"] .hero-purple{ background:var(--panel2)!important; }
+html[data-theme="manbo"] .hero-sub,
+html[data-theme="manbo"] .hero-stat{ color:var(--ink-soft); }
+
+/* ---- チェックボックス類 ---- */
+html[data-theme="manbo"] .task-check,
+html[data-theme="manbo"] .ptask-check,
+html[data-theme="manbo"] .kokai-world-box{
+  background:var(--panel2); border:2px solid var(--bdr-s); border-radius:4px;
+}
+html[data-theme="manbo"] .task-check.on,
+html[data-theme="manbo"] .kokai-world-box.on{ background:var(--sky); border-color:var(--sky); color:#0A1022; }
+
+/* ---- 進捗中タスク強調 ---- */
+html[data-theme="manbo"] .task-row.now,
+html[data-theme="manbo"] .night-row.now{ background:rgba(90,176,240,.14); box-shadow:0 0 0 2px var(--sky) inset; }
+html[data-theme="manbo"] .task-row.now::after,
+html[data-theme="manbo"] .night-row.now::after{ background:var(--sky); color:#0A1022; }
+html[data-theme="manbo"] .task-row.now .task-time{ color:var(--sky); }
+
+/* ---- モーダル ---- */
+html[data-theme="manbo"] .modal{ background:var(--panel); border:2px solid var(--bdr-s); border-radius:8px; }
+html[data-theme="manbo"] .mhd{ background:var(--panel); border-bottom:2px solid var(--bdr-s); }
+
+/* ---- 進捗バー ---- */
+html[data-theme="manbo"] .kokai-bar,
+html[data-theme="manbo"] .kokai-act-bar,
+html[data-theme="manbo"] .proj-bar,
+html[data-theme="manbo"] .mission-bar,
+html[data-theme="manbo"] .hero-bar{ background:rgba(255,255,255,.1); }
+html[data-theme="manbo"] .kokai-bar-fill,
+html[data-theme="manbo"] .kokai-act-bar-fill,
+html[data-theme="manbo"] .mission-bar-fill,
+html[data-theme="manbo"] .hero-bar-fill{ background:var(--sky); }
+
+/* ---- メインカレンダー ---- */
+html[data-theme="manbo"] .cal-cell{ background:var(--panel2); border:2px solid var(--bdr-s); border-radius:6px; }
+html[data-theme="manbo"] .cal-cell.today{ border-color:var(--yellow); }
+html[data-theme="manbo"] .cal-cell.empty{ background:transparent; border:none; }
+html[data-theme="manbo"] .cal-wd.sun{ color:#F0839B; }
+html[data-theme="manbo"] .cal-wd.sat{ color:var(--sky); }
+
+/* ---- KOKAI 個別 ---- */
+html[data-theme="manbo"] .kokai-hero-s{ color:var(--ink-mute); }
+html[data-theme="manbo"] .kokai-priority{
+  background:var(--panel2); border:2px solid var(--sky-dk); border-left:4px solid var(--sky);
+  box-shadow:3px 3px 0 rgba(0,0,0,.5);
+}
+html[data-theme="manbo"] .kokai-priority-tag{ background:var(--sky); color:#0A1022; }
+html[data-theme="manbo"] .kokai-priority-body{ color:var(--ink); }
+html[data-theme="manbo"] .kokai-priority-body b{ color:var(--sky); }
+html[data-theme="manbo"] .kokai-cat{ background:var(--panel2); color:var(--sky); border:2px solid var(--bdr-s); }
+html[data-theme="manbo"] .kokai-chip.todo{ background:var(--panel2); color:var(--ink-mute); }
+html[data-theme="manbo"] .kokai-chip.doing{ background:rgba(90,176,240,.22); color:var(--sky); }
+html[data-theme="manbo"] .kokai-chip.done{ background:var(--sky); color:#0A1022; }
+html[data-theme="manbo"] .kokai-status-opt{ background:var(--panel2); color:var(--ink-soft); border:2px solid var(--bdr-s); }
+html[data-theme="manbo"] .kokai-status-opt.on{ background:var(--sky); color:#0A1022; border-color:var(--sky); }
+html[data-theme="manbo"] .kokai-content-card.blocked{ background:#291A34; border-color:#7A4C63; }
+html[data-theme="manbo"] .kokai-content-title.blocked{ color:var(--ink-soft); }
+html[data-theme="manbo"] .kokai-badge.ok{ background:var(--sky); color:#0A1022; }
+html[data-theme="manbo"] .kokai-badge.ng{ background:#C2566B; color:#fff; }
+html[data-theme="manbo"] .kokai-day{ background:var(--panel2); color:var(--ink-mute); border:2px solid transparent; border-radius:4px; }
+html[data-theme="manbo"] .kokai-day.on{ background:var(--sky); color:#0A1022; font-weight:700; }
+html[data-theme="manbo"] .kokai-day.today{ border-color:var(--yellow); color:var(--yellow); }
+html[data-theme="manbo"] .kokai-day.today.on{ color:#0A1022; }
+html[data-theme="manbo"] .kokai-streak b{ color:var(--sky); }
+html[data-theme="manbo"] .kokai-nudge .dot{ background:var(--yellow); }
+html[data-theme="manbo"] .kokai-cal-wd span.sun{ color:#F0839B; }
+html[data-theme="manbo"] .kokai-cal-wd span.sat{ color:var(--sky); }
+
+/* ---- 締切・期限のトーン ---- */
+html[data-theme="manbo"] .kokai-due.soon{ color:var(--yellow); }
+html[data-theme="manbo"] .kokai-due.over{ color:#F0839B; }
+
+/* ---- 設定のテーマ切替ボタン（ダーク側の見え方） ---- */
+html[data-theme="manbo"] .theme-opt{ border:2px solid var(--bdr-s); color:var(--ink-soft); }
+html[data-theme="manbo"] .theme-opt.on{ border-color:var(--sky); background:rgba(90,176,240,.16); color:var(--ink); }
+
+/* ---- ローディング ---- */
+html[data-theme="manbo"] #loading-overlay{ background:rgba(10,16,34,.85); }
+html[data-theme="manbo"] .spinner{ color:var(--sky); font-family:var(--mono); }
