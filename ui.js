@@ -1468,6 +1468,10 @@ window.toggleTodayWorkout = async function(){
 };
 
 // ============= SHOPPING LIST =============
+window.openShopping = function(){
+  renderShopping();
+  openModal('ov-shopping');
+};
 window.renderShopping = function(){
   const el = $('shopping-list'); if(!el) return;
   const items = (cache.shopping||[]).slice().sort((a,b)=>{
