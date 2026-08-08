@@ -237,6 +237,12 @@ html[data-theme="manbo"] .gym-rec-btn.on{
 }
 html[data-theme="manbo"] .gym-rec-btn:active{ transform:translate(1px,1px); box-shadow:1px 1px 0 rgba(0,0,0,.5); }
 
+/* ---- 買い物リスト ---- */
+html[data-theme="manbo"] .shop-row{ border-bottom:1px solid var(--bdr); }
+html[data-theme="manbo"] .shop-check{ background:var(--panel2); border:2px solid var(--bdr-s); border-radius:5px; }
+html[data-theme="manbo"] .shop-check.on{ background:var(--sky); border-color:var(--sky); color:#0A1022; }
+html[data-theme="manbo"] .shop-del:active{ color:#F0839B; }
+
 /* ---- ローディング ---- */
 html[data-theme="manbo"] #loading-overlay{ background:rgba(10,16,34,.85); }
 html[data-theme="manbo"] .spinner{ color:var(--sky); font-family:var(--mono); }

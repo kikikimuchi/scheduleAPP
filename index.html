@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded',function(){ if(window.updateThemeBu
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap" rel="stylesheet">
 <!-- まんぼーテーマ層（data-theme="manbo" のときだけ効く。オリジナルCSSは無改変＝いつでも戻せる） -->
-<link href="theme-manbo.css?v=2" rel="stylesheet">
+<link href="theme-manbo.css?v=3" rel="stylesheet">
 <style>
 /* テーマ切替ボタン（どちらのテーマでも見える最小スタイル） */
 .theme-opt{flex:1;padding:12px 8px;border:1px solid var(--bdr-s);border-radius:10px;background:transparent;color:var(--ink-soft);font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.04em;}
@@ -70,7 +70,7 @@ body.hide-header #pg-ideal{padding-top:calc(14px + env(safe-area-inset-top,12px)
 
 /* TAB BAR */
 #tabbar{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--bdr);display:flex;z-index:9999;padding-bottom:max(env(safe-area-inset-bottom,0px),20px);padding-top:10px;}
-.tb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:4px 2px;font-size:10px;color:var(--ink-faint);background:none;border:none;cursor:pointer;letter-spacing:.1em;font-weight:500;}
+.tb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:4px 1px;font-size:9.5px;color:var(--ink-faint);background:none;border:none;cursor:pointer;letter-spacing:.02em;font-weight:500;white-space:nowrap;}
 .tb.on{color:var(--ink);}
 .tb.on::after{content:"";display:block;width:16px;height:1px;background:var(--pink);margin-top:2px;}
 .tb svg{width:18px;height:18px;stroke-width:1.5;}
@@ -269,6 +269,15 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 .gym-rec-btn:active{transform:scale(.98);}
 .gym-rec-btn.on{background:linear-gradient(135deg,var(--mint) 0%,var(--blue) 100%);border-color:transparent;color:var(--ink);}
 .gym-rec-btn .gym-rec-emoji{font-size:19px;}
+/* 買い物リスト */
+.shop-row{display:flex;align-items:center;gap:11px;padding:12px 2px;border-bottom:1px solid var(--bdr);}
+.shop-row:last-child{border-bottom:none;}
+.shop-check{width:24px;height:24px;flex:0 0 auto;border-radius:7px;border:2px solid var(--bdr-s);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;line-height:1;padding:0;}
+.shop-check.on{background:linear-gradient(135deg,var(--mint) 0%,var(--blue) 100%);border-color:transparent;}
+.shop-name{flex:1;font-size:14px;color:var(--ink);word-break:break-word;}
+.shop-name.done{text-decoration:line-through;color:var(--ink-faint);}
+.shop-del{flex:0 0 auto;background:none;border:none;color:var(--ink-faint);font-size:20px;cursor:pointer;padding:2px 6px;line-height:1;}
+.shop-del:active{color:var(--pink-dk);}
 
 /* DAY DETAIL MODAL header */
 .dd-h{padding:18px;border-bottom:1px solid var(--bdr);}
@@ -422,7 +431,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v81</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v82</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -691,6 +700,22 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
   </div>
 </div>
 
+<!-- SHOPPING PAGE -->
+<div class="pg" id="pg-shopping">
+  <div style="background:linear-gradient(135deg,var(--mint) 0%,var(--blue) 100%);border-radius:10px;padding:8px 14px;color:var(--ink);margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+    <span style="font-size:14px;">🛒</span>
+    <div style="font-size:13px;font-weight:700;">買い物リスト</div>
+    <div style="font-size:10px;opacity:.85;margin-left:auto;" id="shopping-count"></div>
+  </div>
+  <div class="card">
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <input class="fi" type="text" id="shopping-input" placeholder="買うものを追加" style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault();addShoppingItem();}">
+      <button class="btn-sec" onclick="addShoppingItem()" style="flex:0 0 auto;padding:0 18px;font-size:18px;">＋</button>
+    </div>
+    <div id="shopping-list"></div>
+  </div>
+</div>
+
 <!-- TABBAR -->
 <nav id="tabbar">
   <button class="tb on" data-tb="today" onclick="setTab('today')">
@@ -712,6 +737,10 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
   <button class="tb" data-tb="kokai" onclick="setTab('kokai')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>
     KOKAI
+  </button>
+  <button class="tb" data-tb="shopping" onclick="setTab('shopping')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+    買い物
   </button>
   <button class="tb" data-tb="settings" onclick="setTab('settings')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -893,6 +922,7 @@ const COL = {
   kokaiContents: collection(db, 'schedule_kokaiContents'),
   kokaiActivities: collection(db, 'schedule_kokaiActivities'),
   kokaiActivityLogs: collection(db, 'schedule_kokaiActivityLogs'),
+  shopping: collection(db, 'schedule_shopping'),
 };
 
 // =================== CACHE ===================
@@ -927,6 +957,7 @@ window.cache = {
   kokaiContents: [], // {id, title, scheduledDate, inWorld:bool, published:bool, note}
   kokaiActivities: [], // {id, name, icon, freq:'weekly'|'monthly'|'daily', target, unit, schedule, hasMemo, order}
   kokaiActivityLogs: [], // {id, activityId, date:'YYYY-MM-DD', memo}
+  shopping: [], // {id, name, done:bool, created}
 };
 
 window.DEFAULT_MILESTONES = [
@@ -1243,6 +1274,10 @@ async function loadAll(){
       const snap = await getDocs(COL.kokaiActivityLogs);
       cache.kokaiActivityLogs = snap.docs.map(d=>({ id:d.id, ...d.data() }));
     })());
+    tasks.push((async()=>{
+      const snap = await getDocs(COL.shopping);
+      cache.shopping = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    })());
 
     await Promise.all(tasks);
   } catch(e){ console.error(e); alert('データ読み込みエラー: '+e.message); }
@@ -1274,6 +1309,12 @@ window.saveWaterFB = async (date)=>{
 window.toggleWorkoutFB = async (date)=>{
   if(cache.workouts[date]){ await setDoc(doc(COL.workouts,date), { date, v:true }); }
   else { await deleteDoc(doc(COL.workouts,date)); }
+};
+window.saveShoppingItemFB = async (item)=>{
+  await setDoc(doc(COL.shopping, item.id), { name:item.name, done:!!item.done, created:item.created||0 });
+};
+window.deleteShoppingItemFB = async (id)=>{
+  await deleteDoc(doc(COL.shopping, id));
 };
 window.saveActivitiesFB = async (date)=>{
   const active = cache.activities[date] || [];
@@ -1385,6 +1426,7 @@ window.renderAll = function(){
   if(window.renderIdeal) renderIdeal();
   if(window.renderKokai) renderKokai();
   if(window.renderSettings) renderSettings();
+  if(window.renderShopping) renderShopping();
 };
 
 // TAB SWITCH
