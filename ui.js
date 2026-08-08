@@ -1466,6 +1466,46 @@ window.toggleTodayWorkout = async function(){
   updateCalGymTodayBtn();
   renderCalendar();
 };
+
+// ============= SHOPPING LIST =============
+window.renderShopping = function(){
+  const el = $('shopping-list'); if(!el) return;
+  const items = (cache.shopping||[]).slice().sort((a,b)=>{
+    if(!!a.done !== !!b.done) return a.done ? 1 : -1; // 未完了を上に、完了は下へ
+    return (a.created||0) - (b.created||0);
+  });
+  const remaining = items.filter(i=>!i.done).length;
+  const cnt = $('shopping-count'); if(cnt) cnt.textContent = items.length ? `残り ${remaining} / ${items.length}` : '';
+  if(items.length === 0){
+    el.innerHTML = `<div class="empty-state"><div class="em-ico">🛒</div><div style="font-size:11px;">リストは空です。上の欄から追加できます</div></div>`;
+    return;
+  }
+  el.innerHTML = items.map(it=>`<div class="shop-row">
+      <button class="shop-check ${it.done?'on':''}" onclick="toggleShoppingItem('${it.id}')">${it.done?'✓':''}</button>
+      <span class="shop-name ${it.done?'done':''}">${kesc(it.name)}</span>
+      <button class="shop-del" onclick="deleteShoppingItem('${it.id}')" title="削除">×</button>
+    </div>`).join('');
+};
+window.addShoppingItem = async function(){
+  const inp = $('shopping-input'); if(!inp) return;
+  const name = inp.value.trim(); if(!name) return;
+  const item = { id: 'shop_'+Date.now()+'_'+Math.floor(Math.random()*10000), name, done:false, created: Date.now() };
+  cache.shopping.push(item);
+  inp.value = '';
+  renderShopping();
+  try{ await window.saveShoppingItemFB(item); }catch(e){ console.error(e); }
+};
+window.toggleShoppingItem = async function(id){
+  const it = (cache.shopping||[]).find(x=>x.id===id); if(!it) return;
+  it.done = !it.done;
+  renderShopping();
+  try{ await window.saveShoppingItemFB(it); }catch(e){ console.error(e); }
+};
+window.deleteShoppingItem = async function(id){
+  cache.shopping = (cache.shopping||[]).filter(x=>x.id!==id);
+  renderShopping();
+  try{ await window.deleteShoppingItemFB(id); }catch(e){ console.error(e); }
+};
 window.setDayDetailTab = function(t){
   _ddTab = t;
   $('dd-tab-mode').classList.toggle('on', t==='mode');
