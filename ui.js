@@ -1929,7 +1929,12 @@ function foodLogHTML(){
   const ws = weekStats(date);
   const wkd = weekDeficitStats(date);
   const wkdPct = wkd.target>0 ? Math.max(0, Math.min(wkd.achieved/wkd.target*100, 100)) : 0;
-  const wpw = fnum(cache.settings.workoutPerWeek)||2;
+  // 筋トレ目標: 1日おき運用のため 3⇄4 を自己修正で交互にする。
+  // 先週の実績が4回以上 → 今週は3回、3回以下 → 今週は4回（基準は4）。
+  // これで「週4のはずが3で終わった」場合も、翌週は自動で4のまま＝手動調整不要。
+  const _prevWkRef = (()=>{ const dd = new Date(date+'T00:00'); dd.setDate(dd.getDate()-7); return ymd(dd); })();
+  const _lastWo = weekStats(_prevWkRef).wo;
+  const wpw = _lastWo >= 4 ? 3 : 4;
   const rpw = fnum(cache.settings.runningPerWeek)||4;
   const restTarget = fnum(cache.settings.restPerWeek)||3;
   const doneToday = !!cache.workouts[date];
@@ -2001,6 +2006,7 @@ function foodLogHTML(){
         <div><div style="font-size:10px;color:var(--ink-soft);">🏋️ 筋トレ</div><div style="font-size:16px;font-weight:700;${ws.wo>=wpw?'color:#37a76a;':''}">${ws.wo}<span style="font-size:10px;color:var(--ink-soft);font-weight:600;">/${wpw}回</span></div></div>
         <div><div style="font-size:10px;color:var(--ink-soft);">😴 休養</div><div style="font-size:16px;font-weight:700;">${ws.rest}<span style="font-size:10px;color:var(--ink-soft);font-weight:600;">/${restTarget}日</span></div></div>
       </div>
+      <div style="font-size:9px;color:var(--ink-mute);text-align:center;margin:-8px 0 12px;">🏋️は1日おき運用：先週${_lastWo}回 → 今週の目標 ${wpw}回（実績で3⇄4自動切替）</div>
       <div style="font-size:12px;font-weight:600;margin-bottom:8px;">🔥 今日の消費＋（運動・撮影）${actBonus?` <span style="color:#FF7043;">＋${actBonus}kcal</span>`:''}</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
         ${ACTIVITIES.map(a=>{ const on=acts.includes(a.key);
