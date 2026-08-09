@@ -431,7 +431,7 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
 <div id="header">
   <div>
     <div class="hd-year">— 2026 —</div>
-    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v90</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
+    <div><span class="hd-date" id="hd-date">2026.05.14</span><span class="hd-day" id="hd-day">木</span><span id="app-version" style="font-size:9px;color:var(--ink-mute);margin-left:6px;letter-spacing:.05em;">v91</span><button onclick="forceUpdate()" title="最新に更新" style="margin-left:3px;font-size:11px;background:none;border:none;cursor:pointer;padding:0;line-height:1;vertical-align:middle;">🔄</button></div>
   </div>
   <div class="hd-left">
     <div class="hd-left-lbl">残り</div>
@@ -659,20 +659,6 @@ textarea.fi{height:auto;padding:10px 12px;line-height:1.5;min-height:44px;}
       <div><label class="fl">スタート (%)</label><input class="fi no-spinner" type="number" id="s-start-bf" step="0.1"></div>
       <div><label class="fl">目標 (%)</label><input class="fi no-spinner" type="number" id="s-target-bf" step="0.1"></div>
     </div>
-    
-    <div style="font-size:14px;font-weight:700;margin:14px 0 10px;">YouTube目標本数</div>
-    <div class="flex-row">
-      <div><label class="fl">長尺 (本)</label><input class="fi no-spinner" type="number" id="s-yt-long"></div>
-      <div><label class="fl">ショート (本)</label><input class="fi no-spinner" type="number" id="s-yt-short"></div>
-    </div>
-    
-    <div class="fg" style="margin-top:14px;">
-      <label class="fl">軽バン予算 (円)</label>
-      <input class="fi no-spinner" type="number" id="s-van-budget">
-    </div>
-    
-    <div style="font-size:14px;font-weight:700;margin:14px 0 10px;">ジム曜日 (タップで選択)</div>
-    <div class="gym-days" id="gym-days"></div>
     
     <div class="flex-row" style="margin-top:14px;">
       <div><label class="fl">起床時刻</label><input class="fi" type="time" id="s-wake-time"></div>
@@ -1445,6 +1431,6 @@ if(window.caches){ caches.keys().then(ks=>{ ks.forEach(k=>caches.delete(k)); }).
 </script>
 
 <!-- UI script -->
-<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=90"></script>
+<!-- ?v= は ui.js 更新のたびに番号を上げる（ヘッダの版数表示と合わせる） --><script src="ui.js?v=91"></script>
 </body>
 </html>
