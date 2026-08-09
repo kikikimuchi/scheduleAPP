@@ -1426,47 +1426,41 @@ window.openDayDetail = function(date){
   $('dd-mode-name').textContent = m.label;
   $('dd-mode-desc').textContent = m.desc;
   $('dd-wake').textContent = cache.wakeTimes[date] || '—';
-  updateDDGymBtn();
   setDayDetailTab('mode');
   openModal('ov-daydetail');
-};
-// 日別モーダルのジム記録トグル（ワンタッチ）
-function updateDDGymBtn(){
-  const b = $('dd-gym-btn'), l = $('dd-gym-lbl');
-  if(!b) return;
-  const on = !!cache.workouts[_ddDate];
-  b.classList.toggle('on', on);
-  if(l) l.textContent = on ? 'ジム記録済み ✓' : 'ジム行った';
-}
-window.ddToggleWorkout = async function(){
-  if(!_ddDate) return;
-  if(cache.workouts[_ddDate]) delete cache.workouts[_ddDate]; else cache.workouts[_ddDate] = true;
-  await window.toggleWorkoutFB(_ddDate);
-  updateDDGymBtn();
-  renderCalendar();
 };
 // ============= SHOPPING LIST =============
 window.openShopping = function(){
   renderShopping();
   openModal('ov-shopping');
 };
+let _shopDoneOpen = false;
+window.toggleShopDone = function(){ _shopDoneOpen = !_shopDoneOpen; renderShopping(); };
 window.renderShopping = function(){
   const el = $('shopping-list'); if(!el) return;
-  const items = (cache.shopping||[]).slice().sort((a,b)=>{
-    if(!!a.done !== !!b.done) return a.done ? 1 : -1; // 未完了を上に、完了は下へ
-    return (a.created||0) - (b.created||0);
-  });
-  const remaining = items.filter(i=>!i.done).length;
-  const cnt = $('shopping-count'); if(cnt) cnt.textContent = items.length ? `残り ${remaining} / ${items.length}` : '';
-  if(items.length === 0){
+  const all = (cache.shopping||[]).slice();
+  const active = all.filter(i=>!i.done).sort((a,b)=>(a.created||0)-(b.created||0));
+  const done = all.filter(i=>i.done).sort((a,b)=>(a.created||0)-(b.created||0));
+  const cnt = $('shopping-count'); if(cnt) cnt.textContent = all.length ? `残り ${active.length} / ${all.length}` : '';
+  if(all.length === 0){
     el.innerHTML = `<div class="empty-state"><div class="em-ico">🛒</div><div style="font-size:11px;">リストは空です。上の欄から追加できます</div></div>`;
     return;
   }
-  el.innerHTML = items.map(it=>`<div class="shop-row">
+  const row = it=>`<div class="shop-row">
       <button class="shop-check ${it.done?'on':''}" onclick="toggleShoppingItem('${it.id}')">${it.done?'✓':''}</button>
       <span class="shop-name ${it.done?'done':''}">${kesc(it.name)}</span>
       <button class="shop-del" onclick="deleteShoppingItem('${it.id}')" title="削除">×</button>
-    </div>`).join('');
+    </div>`;
+  let html = active.map(row).join('');
+  if(active.length === 0) html += `<div style="font-size:11px;color:var(--ink-mute);padding:12px 2px;">未完了はありません 🎉</div>`;
+  if(done.length){
+    html += `<button class="shop-done-toggle" onclick="toggleShopDone()">
+        <span>✓ 完了 (${done.length})</span>
+        <span style="font-size:11px;font-weight:600;">${_shopDoneOpen?'▲ 閉じる':'▼ 開く'}</span>
+      </button>`;
+    if(_shopDoneOpen) html += `<div class="shop-done-list">${done.map(row).join('')}</div>`;
+  }
+  el.innerHTML = html;
 };
 window.addShoppingItem = async function(){
   const inp = $('shopping-input'); if(!inp) return;
