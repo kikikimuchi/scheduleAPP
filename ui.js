@@ -2457,22 +2457,11 @@ window.renderSettings = function(){
   if($('s-interim-date')) $('s-interim-date').value = s.interimDate || '';
   $('s-start-bf').value = s.startBodyFat;
   $('s-target-bf').value = s.targetBodyFat;
-  $('s-yt-long').value = s.youtubeLongTarget;
-  $('s-yt-short').value = s.youtubeShortTarget;
-  $('s-van-budget').value = s.vanBudget;
   $('s-wake-time').value = s.wakeTime;
   $('s-sleep-hours').value = s.targetSleepHours;
   if($('s-notify-enabled')) $('s-notify-enabled').checked = !!s.notifyEnabled;
   if($('s-notify-email')) $('s-notify-email').value = s.notifyEmail || '';
   if($('s-notify-lead')) $('s-notify-lead').value = (s.notifyLeadMin!=null ? s.notifyLeadMin : 5);
-
-  const gymDays = ['日','月','火','水','木','金','土'];
-  $('gym-days').innerHTML = gymDays.map(d=>`<button class="gym-day ${(s.gymDays||[]).includes(d)?'on':''}" onclick="toggleGymDay('${d}')">${d}</button>`).join('');
-};
-window.toggleGymDay = async function(d){
-  const arr = cache.settings.gymDays || [];
-  cache.settings.gymDays = arr.includes(d) ? arr.filter(x=>x!==d) : [...arr, d];
-  renderSettings();
 };
 window.saveSettings = async function(){
   cache.settings.startWeight = parseFloat($('s-start-weight').value);
@@ -2481,9 +2470,6 @@ window.saveSettings = async function(){
   if($('s-interim-date')) cache.settings.interimDate = $('s-interim-date').value || '';
   cache.settings.startBodyFat = parseFloat($('s-start-bf').value);
   cache.settings.targetBodyFat = parseFloat($('s-target-bf').value);
-  cache.settings.youtubeLongTarget = parseInt($('s-yt-long').value);
-  cache.settings.youtubeShortTarget = parseInt($('s-yt-short').value);
-  cache.settings.vanBudget = parseInt($('s-van-budget').value);
   cache.settings.wakeTime = $('s-wake-time').value;
   cache.settings.targetSleepHours = parseFloat($('s-sleep-hours').value);
   if($('s-notify-enabled')) cache.settings.notifyEnabled = $('s-notify-enabled').checked;
