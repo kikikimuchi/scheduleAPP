@@ -1290,7 +1290,7 @@ function renderHairTab(){
       </div>
     </div>
     <div class="card">
-      <div class="sec-h">髭脱毛 (5〜9月)</div>
+      <div class="sec-h">髭脱毛 (8〜12月)</div>
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <span style="font-size:24px;font-weight:700;">${hr.beard||0}回</span>
         <div style="display:flex;gap:6px;">
@@ -1300,7 +1300,7 @@ function renderHairTab(){
       </div>
     </div>
     <div class="card">
-      <div class="sec-h">全身脱毛 (10月〜)</div>
+      <div class="sec-h">全身脱毛 (12月〜)</div>
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <span style="font-size:24px;font-weight:700;">${hr.fullBody||0}回</span>
         <div style="display:flex;gap:6px;">
