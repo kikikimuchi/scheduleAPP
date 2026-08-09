@@ -286,7 +286,6 @@ window.renderToday = function(){
   if(vt){
     vt.className = 'mode-card' + (isVac ? ' mc-rest' : '');
     if($('vacation-name')) $('vacation-name').textContent = isVac ? '休暇中（タップで解除）' : '休暇日にする';
-    if($('vacation-desc')) $('vacation-desc').textContent = isVac ? '今日はスケジュールなしでゆっくり休む' : 'タップで今日を休みに（スケジュール非表示）';
   }
 
   // 起床欄を編集中(フォーカス中)は値を書き戻さない（ピッカー操作の妨害＝中間値確定を防ぐ）
@@ -306,8 +305,17 @@ window.renderToday = function(){
 window.toggleTodayVacation = async function(){
   const today = getTodayDateString();
   const isVac = cache.dayModes[today] === 'vacation';
-  await saveDayMode(today, isVac ? null : 'vacation');
-  renderAll();
+  if(isVac){
+    // 休暇解除はそのまま
+    await saveDayMode(today, null);
+    renderAll();
+  } else {
+    // 押し間違い対策：休暇にする前に確認
+    confirmDialog('今日を休暇日にしますか？\n（スケジュールは非表示になります）', async ()=>{
+      await saveDayMode(today, 'vacation');
+      renderAll();
+    }, 'はい', 'いいえ');
+  }
 };
 
 function renderEndOfYearProgress(){
@@ -423,9 +431,12 @@ window.openTomorrow = function(){
   setDayDetailTab('schedule');
 };
 // ============= 確認ダイアログ =============
-window.confirmDialog = function(msg, onOk){
+window.confirmDialog = function(msg, onOk, okLabel, cancelLabel){
   $('cf-msg').textContent = msg;
   const btn = $('cf-ok');
+  if(btn) btn.textContent = okLabel || '削除する';
+  const cbtn = $('cf-cancel');
+  if(cbtn) cbtn.textContent = cancelLabel || 'キャンセル';
   btn.onclick = async ()=>{ closeModal('ov-confirm'); await onOk(); };
   openModal('ov-confirm');
 };
