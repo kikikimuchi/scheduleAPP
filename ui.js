@@ -1843,7 +1843,7 @@ const MEALS = [
 // 運動による消費カロリー＋（タップで加算）
 const ACTIVITIES = [
   { key:'run30', label:'30分ラン', kcal:250, icon:'🏃' },
-  { key:'run60', label:'60分ラン', kcal:500, icon:'🏃‍♂️' },
+  { key:'run60', label:'40分ラン', kcal:350, icon:'🏃‍♂️' },
   { key:'shoot', label:'撮影日', kcal:300, icon:'🎬' },
 ];
 function activeActs(date){ return cache.activities[date] || []; }
