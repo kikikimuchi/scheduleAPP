@@ -1340,7 +1340,6 @@ window.calMonth = function(delta){
   renderCalendar();
 };
 window.renderCalendar = function(){
-  updateCalGymTodayBtn();
   if(_calTab === 'google') return;
   $('cal-year').textContent = `— ${_calYear} —`;
   $('cal-mtxt').textContent = `${_calMonth+1}月`;
@@ -1451,22 +1450,6 @@ window.ddToggleWorkout = async function(){
   updateDDGymBtn();
   renderCalendar();
 };
-// カレンダー画面上部「今日ジム行った」トグル（ワンタッチ）
-function updateCalGymTodayBtn(){
-  const b = $('cal-gym-today'), l = $('cal-gym-today-lbl');
-  if(!b) return;
-  const on = !!cache.workouts[getTodayDateString()];
-  b.classList.toggle('on', on);
-  if(l) l.textContent = on ? '今日ジム記録済み ✓' : '今日ジム行った';
-}
-window.toggleTodayWorkout = async function(){
-  const date = getTodayDateString();
-  if(cache.workouts[date]) delete cache.workouts[date]; else cache.workouts[date] = true;
-  await window.toggleWorkoutFB(date);
-  updateCalGymTodayBtn();
-  renderCalendar();
-};
-
 // ============= SHOPPING LIST =============
 window.openShopping = function(){
   renderShopping();
