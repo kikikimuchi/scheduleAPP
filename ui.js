@@ -184,20 +184,7 @@ function computeDayTasks(date){
   return sortByTime([...modeTasks, ...customs]);
 }
 function computeNightTasks(date){
-  const modeKey = cache.dayModes[date] || 'normal';
-  const shiftMin = getShiftMin(date, modeKey);
-  const overrides = cache.nightOverrides[date] || {};
-  const hidden = cache.nightHidden[date] || [];
-  const nightTasks = nightRawFor(modeKey)
-    .filter(t => !hidden.includes(t.key))
-    .map(t => {
-      const ov = overrides[t.key];
-      if(ov) return {...t, time: shiftTaskTime(ov.time, shiftMin), label: ov.label, icon: ov.icon || guessIcon(ov.label, t.icon), edited:true};
-      return {...t, time: adjustTime(t.time, shiftMin)};
-    });
-  // 追加(カスタム)の寝る前タスクも起床シフトに連動
-  const customs = ((cache.nightCustom||{})[date] || []).map(t => ({key:`custom_${t.id}`, time: shiftTaskTime(t.time, shiftMin), label:t.label, icon: t.icon || guessIcon(t.label,'🌙'), custom:true, id:t.id}));
-  return sortByTime([...nightTasks, ...customs]);
+  return []; // 寝る前ルーティンは廃止
 }
 // 今この瞬間に進行中のタスクのkeyを返す（最後に始まったタスク＝次が始まるまで進行中）
 function activeTaskKey(tasks){
@@ -292,29 +279,35 @@ window.syncNotifySchedule = async function(){
 window.renderToday = function(){
   const today = getTodayDateString();
   const modeKey = cache.dayModes[today] || 'normal';
-  const mode = MODES[modeKey];
-  
-  $('mode-card').className = 'mode-card ' + mode.cls;
-  $('mode-ico').textContent = mode.icon;
-  $('mode-name').textContent = mode.label;
-  $('mode-desc').textContent = mode.desc;
-  
+  const isVac = modeKey === 'vacation';
+
+  // 休暇トグルの見た目
+  const vt = $('vacation-toggle');
+  if(vt){
+    vt.className = 'mode-card' + (isVac ? ' mc-rest' : '');
+    if($('vacation-name')) $('vacation-name').textContent = isVac ? '休暇中（タップで解除）' : '休暇日にする';
+    if($('vacation-desc')) $('vacation-desc').textContent = isVac ? '今日はスケジュールなしでゆっくり休む' : 'タップで今日を休みに（スケジュール非表示）';
+  }
+
   // 起床欄を編集中(フォーカス中)は値を書き戻さない（ピッカー操作の妨害＝中間値確定を防ぐ）
   const wi = $('wake-input');
   if(wi && document.activeElement !== wi) wi.value = cache.wakeTimes[today] || '';
 
   const dayTasks = computeDayTasks(today);
-  const nightTasks = computeNightTasks(today);
-  const nowKey = activeTaskKey([...dayTasks, ...nightTasks]); // 昼夜まとめて「いま」を1つ特定
+  const nowKey = activeTaskKey(dayTasks);
   $('task-list').innerHTML = dayTasks.length === 0
-    ? '<div class="empty-state"><div class="em-ico">○</div><div style="font-size:11px;">タスクが設定されていません</div></div>'
+    ? (isVac
+        ? '<div class="empty-state"><div class="em-ico">🌴</div><div style="font-size:12px;">休暇日 — 今日はゆっくり休もう</div></div>'
+        : '<div class="empty-state"><div class="em-ico">○</div><div style="font-size:11px;">タスクが設定されていません</div></div>')
     : dayTasks.map(t => taskRowHtml(today, t, 'day', nowKey)).join('');
 
-  $('night-list').innerHTML = nightTasks.map(t => taskRowHtml(today, t, 'night', nowKey)).join('');
-  const nightDone = nightTasks.filter(t=>cache.nightChecks[`${today}_${t.key}`]).length;
-  $('night-count').textContent = `${nightDone}/${nightTasks.length}`;
-
   scheduleNotifySync(); // スケジュール変更を通知用ドキュメントへ反映（デバウンス）
+};
+window.toggleTodayVacation = async function(){
+  const today = getTodayDateString();
+  const isVac = cache.dayModes[today] === 'vacation';
+  await saveDayMode(today, isVac ? null : 'vacation');
+  renderAll();
 };
 
 function renderEndOfYearProgress(){
@@ -659,6 +652,14 @@ window.selectMode = async function(key){
   await saveDayMode(today, key);
   closeModal('ov-mode');
   renderAll();
+};
+// 日別モーダルの休暇トグル
+window.ddToggleVacation = async function(){
+  if(!_ddDate) return;
+  const isVac = cache.dayModes[_ddDate] === 'vacation';
+  await saveDayMode(_ddDate, isVac ? null : 'vacation');
+  renderDayDetailBody();
+  renderCalendar();
 };
 
 // ============= MILESTONE EDIT =============
@@ -1490,16 +1491,12 @@ window.setDayDetailTab = function(t){
 };
 function renderDayDetailBody(){
   if(_ddTab === 'mode'){
-    const current = cache.dayModes[_ddDate];
-    $('dd-body').innerHTML = `<div class="mode-grid">${MODE_KEYS.map(k=>{
-      const m = MODES[k];
-      const on = current===k;
-      return `<button class="mode-btn ${on?'on '+m.cls:''}" onclick="ddSelectMode('${k}')">
-        <div class="mode-btn-icon">${m.icon}</div>
-        <div class="mode-btn-lbl">${m.label}</div>
-      </button>`;
-    }).join('')}</div>
-    ${current ? `<button class="btn-sec" style="margin-top:14px;width:100%;" onclick="ddSelectMode(null)">解除</button>` : ''}`;
+    const isVac = cache.dayModes[_ddDate] === 'vacation';
+    $('dd-body').innerHTML = `
+      <button class="gym-rec-btn ${isVac?'on':''}" onclick="ddToggleVacation()" style="margin-top:4px;">
+        <span class="gym-rec-emoji">🌴</span><span>${isVac?'休暇中（タップで解除）':'この日を休暇にする'}</span>
+      </button>
+      <div style="font-size:10px;color:var(--ink-mute);margin-top:12px;line-height:1.7;">休暇日はスケジュールを表示せず休む日。食事・体重の記録は普段どおりできます。</div>`;
   } else {
     const date = _ddDate;
     // 起床予定の入力(ピッカー)は作り直さない。タスク部分だけ別コンテナ(#dd-sch-tasks)に描画する
@@ -1521,23 +1518,13 @@ function renderDDScheduleTasks(date){
   const el = $('dd-sch-tasks');
   if(!el) return;
   const dayTasks = computeDayTasks(date);
-  const nightTasks = computeNightTasks(date);
   const done = dayTasks.filter(t=>cache.todayChecks[`${date}_${t.key}`]).length;
   el.innerHTML = `
-    <div style="font-size:10px;letter-spacing:.2em;color:var(--ink-mute);margin-bottom:8px;">— 昼のタイムライン — ${done}/${dayTasks.length}</div>
+    <div style="font-size:10px;letter-spacing:.2em;color:var(--ink-mute);margin-bottom:8px;">— タイムライン — ${done}/${dayTasks.length}</div>
     ${dayTasks.length === 0
       ? '<div class="empty-state"><div class="em-ico">○</div><div style="font-size:11px;">タスクなし</div></div>'
       : dayTasks.map(t=>taskRowHtml(date, t, 'day')).join('')}
-    ${customAddFormHtml(date, 'dd-custom-time', 'dd-custom-label')}
-    <div style="font-size:10px;letter-spacing:.2em;color:var(--ink-mute);margin:18px 0 8px;">— 寝る前ルーティン —</div>
-    ${nightTasks.length === 0
-      ? '<div class="empty-state"><div class="em-ico">○</div><div style="font-size:11px;">タスクなし</div></div>'
-      : nightTasks.map(t=>taskRowHtml(date, t, 'night')).join('')}
-    <div style="margin-top:8px;display:flex;gap:6px;">
-      <input type="time" class="fi" id="dd-night-time" style="flex:0 0 100px;">
-      <input type="text" class="fi" id="dd-night-label" placeholder="タスク追加" style="flex:1;">
-      <button class="btn-sec" onclick="addNightCustomTaskInput('${date}','dd-night-time','dd-night-label')">＋</button>
-    </div>`;
+    ${customAddFormHtml(date, 'dd-custom-time', 'dd-custom-label')}`;
 }
 // 日別モーダルの起床予定（変更で全タスクが連動。ピッカーは作り直さずタスクだけ更新）
 window.onDDWakeChange = async function(){
