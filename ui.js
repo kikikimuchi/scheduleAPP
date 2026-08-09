@@ -328,13 +328,8 @@ function renderEndOfYearProgress(){
   const vanSum = cache.savings.reduce((s,e)=>s+(+e.amount||0),0);
   const vanPct = Math.round(vanSum / cache.settings.vanBudget * 100);
   const hairTotal = (cache.hairRemoval.beard||0) + (cache.hairRemoval.fullBody||0);
-  
-  const bars = [
-    { lbl:'自主制作 (12月末必達)', pct:prodPct, ico:'🎬' },
-    { lbl:'YouTube長尺', pct:longPct, ico:'🎥' },
-    { lbl:'YouTubeショート', pct:shortPct, ico:'📱' },
-    { lbl:'軽バン貯金 (9月末)', pct:vanPct, ico:'🚗' },
-  ];
+
+  const bars = [];
   $('end-of-year-progress').innerHTML = bars.map(b=>`
     <div style="margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
