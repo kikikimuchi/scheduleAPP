@@ -1337,8 +1337,8 @@ let _calTab = 'plan';
 window.setCalTab = function(t){
   _calTab = t;
   document.querySelectorAll('[data-ct]').forEach(b=>b.classList.toggle('on', b.dataset.ct===t));
-  $('cal-plan-tab').style.display = t==='plan' ? '' : 'none';
-  $('cal-google-tab').style.display = t==='google' ? '' : 'none';
+  const pt=$('cal-plan-tab'); if(pt) pt.style.display = t==='plan' ? '' : 'none';
+  const gt=$('cal-google-tab'); if(gt) gt.style.display = t==='google' ? '' : 'none';
 };
 window.calMonth = function(delta){
   _calMonth += delta;
@@ -1390,25 +1390,6 @@ window.renderCalendar = function(){
     </div>`;
   }
   $('cal-grid').innerHTML = cells;
-  
-  const ye = new Date(_calYear, 11, 31);
-  const daysLeft = Math.ceil((ye - new Date())/(86400000));
-  $('alloc-days-left').textContent = daysLeft;
-  
-  let work=0, prod=0, rest=0;
-  for(let d=1; d<=daysInMonth; d++){
-    const ds = `${_calYear}-${String(_calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const mk = cache.dayModes[ds];
-    if(!mk) continue;
-    const cat = MODES[mk].category;
-    if(cat==='work') work++;
-    else if(cat==='production') prod++;
-    else if(cat==='rest') rest++;
-  }
-  $('alloc-work').textContent = work;
-  $('alloc-prod').textContent = prod;
-  $('alloc-rest').textContent = rest;
-  $('alloc-unset').textContent = daysInMonth - work - prod - rest;
 };
 window.fillWeekendsRest = async function(){
   const daysInMonth = new Date(_calYear, _calMonth+1, 0).getDate();
@@ -1427,18 +1408,12 @@ let _ddDate = null;
 let _ddTab = 'mode';
 window.openDayDetail = function(date){
   _ddDate = date;
-  _ddTab = 'mode';
+  _ddTab = 'schedule';
   const d = new Date(date+'T00:00');
   const wd = ['日','月','火','水','木','金','土'][d.getDay()];
   $('dd-date').textContent = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
   $('dd-day').textContent = wd;
-  const modeKey = cache.dayModes[date] || 'normal';
-  const m = MODES[modeKey];
-  $('dd-mode-ico').textContent = m.icon;
-  $('dd-mode-name').textContent = m.label;
-  $('dd-mode-desc').textContent = m.desc;
-  $('dd-wake').textContent = cache.wakeTimes[date] || '—';
-  setDayDetailTab('mode');
+  renderDayDetailBody();
   openModal('ov-daydetail');
 };
 // ============= SHOPPING LIST =============
@@ -1496,19 +1471,10 @@ window.deleteShoppingItem = async function(id){
 };
 window.setDayDetailTab = function(t){
   _ddTab = t;
-  $('dd-tab-mode').classList.toggle('on', t==='mode');
-  $('dd-tab-sch').classList.toggle('on', t==='schedule');
   renderDayDetailBody();
 };
 function renderDayDetailBody(){
-  if(_ddTab === 'mode'){
-    const isVac = cache.dayModes[_ddDate] === 'vacation';
-    $('dd-body').innerHTML = `
-      <button class="gym-rec-btn ${isVac?'on':''}" onclick="ddToggleVacation()" style="margin-top:4px;">
-        <span class="gym-rec-emoji">🌴</span><span>${isVac?'休暇中（タップで解除）':'この日を休暇にする'}</span>
-      </button>
-      <div style="font-size:10px;color:var(--ink-mute);margin-top:12px;line-height:1.7;">休暇日はスケジュールを表示せず休む日。食事・体重の記録は普段どおりできます。</div>`;
-  } else {
+  {
     const date = _ddDate;
     // 起床予定の入力(ピッカー)は作り直さない。タスク部分だけ別コンテナ(#dd-sch-tasks)に描画する
     $('dd-body').innerHTML = `
@@ -2326,6 +2292,7 @@ window.viewImg = function(src){
 
 // ============= INSPIRATION =============
 function renderInspiration(){
+  if(!$('inspiration-content')) return; // 画像枠は廃止
   if(cache.motivations.length === 0){
     $('inspiration-content').innerHTML = '<div class="empty-state" style="padding:18px 20px;"><div class="em-ico">📷</div><div style="font-size:11px;">＋から理想の画像を追加</div></div>';
     return;
