@@ -552,6 +552,7 @@ let view = 'tasks';       // projects | tasks（起動時はタスク）
 let filter = 'working';   // working | all | jimu | <stageKey>
 let taskFilter = 'open';  // open | today | priority | done | all | jimu
 let jimuDoneOpen = false;     // 案件：完了した事務の折りたたみ
+let doneClientOpen = new Set();  // 完了案件：開いているクライアント
 let splitOpen = {jimu:false, work:false};  // 完了/すべての事務・仕事プルダウン
 let expandedId = null;
 let editingId = null;
@@ -836,9 +837,25 @@ function renderList(){
     attachDnd();
     return;
   }
+  // 完了ビューでは、クライアントごとのプルダウンにまとめる（デフォルト閉じ）
+  if(filter==='done'){
+    const byClient = {};
+    arr.forEach(p=>{ const c=(p.client||'').trim()||'未設定'; (byClient[c]=byClient[c]||[]).push(p); });
+    const clients = Object.keys(byClient).sort();
+    $('list').innerHTML = clients.map(c=>{
+      const list=byClient[c], open=doneClientOpen.has(c);
+      return `<button class="jimu-done-toggle" data-client="${esc(c)}" onclick="toggleDoneClient(this.dataset.client)">${esc(c)}（${list.length}）${open?'▲':'▼'}</button>${open?list.map(projCard).join(''):''}`;
+    }).join('');
+    attachDnd();
+    return;
+  }
   $('list').innerHTML = arr.map(projCard).join('');
   attachDnd();
 }
+window.toggleDoneClient = (c)=>{
+  if(doneClientOpen.has(c)) doneClientOpen.delete(c); else doneClientOpen.add(c);
+  renderList();
+};
 function projCard(p){
   const st=stageOf(p.stage), pr=progress(p), isDone=p.stage==='done', jimu=isJimu(p);
   const di=dlInfo(p.deadline,isDone);
