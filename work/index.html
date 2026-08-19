@@ -546,7 +546,7 @@ async function apiDelete(id){
 
 /* ==================== 状態 ==================== */
 let projects = [];
-let view = 'projects';    // projects | tasks
+let view = 'tasks';       // projects | tasks（起動時はタスク）
 let filter = 'working';   // working | all | jimu | <stageKey>
 let taskFilter = 'open';  // open | today | priority | done | all | jimu
 let jimuDoneOpen = false;     // 案件：完了した事務の折りたたみ
@@ -600,8 +600,8 @@ function render(){
 }
 function renderTabs(){
   $('tabs').innerHTML = `
-    <button class="tab ${view==='projects'?'on':''}" onclick="setView('projects')">案件</button>
-    <button class="tab ${view==='tasks'?'on':''}" onclick="setView('tasks')">タスク</button>`;
+    <button class="tab ${view==='tasks'?'on':''}" onclick="setView('tasks')">タスク</button>
+    <button class="tab ${view==='projects'?'on':''}" onclick="setView('projects')">案件</button>`;
 }
 window.setView = v => { view=v; expandedId=null; render(); };
 window.setTaskFilter = f => { taskFilter=f; splitOpen={jimu:false,work:false}; renderTasksView(); };
