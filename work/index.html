@@ -192,6 +192,7 @@
   }
   .banner.err{background:rgba(239,68,68,.12); color:var(--danger);}
   .banner.load{background:var(--accent-soft); color:var(--accent);}
+  .banner.ok{background:rgba(84,194,152,.15); color:var(--s-done);}
 
   /* tabs */
   .tabs{
@@ -521,7 +522,8 @@ function normalize(p){
   return p;
 }
 async function apiList(){
-  const r = await fetch(`${BASE}/${COL}?pageSize=300`);
+  // キャッシュ無効化（リロードで最新を確実に取得）
+  const r = await fetch(`${BASE}/${COL}?pageSize=300&_=${Date.now()}`, {cache:'no-store'});
   if(!r.ok) throw new Error('list '+r.status);
   const j = await r.json();
   return (j.documents||[]).map(docToProject);
@@ -1239,8 +1241,8 @@ async function reload(){
   showBanner('読み込み中…','load');
   try{
     projects = await apiList();
-    $('state').innerHTML='';
     render();
+    showBanner('最新に更新しました','ok');
   }catch(e){
     showBanner('データを取得できませんでした。通信環境を確認してください。','err');
     console.error(e);
