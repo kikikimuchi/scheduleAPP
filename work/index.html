@@ -298,9 +298,9 @@
   .field label{display:block; font-size:11px; font-weight:700; color:var(--ink-mute); margin-bottom:2px; letter-spacing:.02em;}
   .grab{width:38px; height:4px; background:var(--line); border-radius:3px; margin:0 auto 8px;}
 
-  /* ===== PC（広い画面）専用レイアウト ===== */
-  @media (min-width:900px){
-    .wrap{max-width:1060px; padding:0 24px;}
+  /* ===== 広い画面（PC / Galaxy Z Fold 開いた状態 など）レイアウト ===== */
+  @media (min-width:600px){
+    .wrap{max-width:1060px; padding:0 20px;}
     /* カード/タスクグループを複数列に */
     .list{display:grid; grid-template-columns:repeat(2,1fr); gap:14px; align-items:start;}
     .proj{margin-bottom:0;}
