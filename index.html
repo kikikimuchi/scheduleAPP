@@ -3,11 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#FAFAFA">
+<!-- PWA（ホーム画面追加でアドレスバー・タブなしの全画面アプリとして起動） -->
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="application-name" content="スケジュール">
+<!-- iOS対応 -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="2026">
-<link rel="apple-touch-icon" href="icon.png">
-<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
 <title>2026 スケジュール</title>
 <!-- テーマ切替（オリジナル ⇄ まんぼーちゅーぶ）。保存値を描画前に適用してチラつき防止 -->
 <script>
@@ -1377,12 +1383,14 @@ init().then(()=>{
   } catch(e){}
 });
 
-// Service Worker は更新不具合の原因だったため廃止。
-// 既存のSW登録とキャッシュを毎回除去する（自己修復：一度開けば古いSWが消える）
+// Service Worker を登録（PWA：ホーム画面から全画面アプリとして起動）。
+// sw.js はアプリ本体(HTML/JS/CSS/アイコン)のみネットワーク優先＋キャッシュフォールバック。
+// Firestore等の外部API・GET以外は素通り（データは常に最新取得）。
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.getRegistrations().then(rs=>{ rs.forEach(r=>r.unregister()); }).catch(()=>{});
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('sw.js').catch(function(e){ console.warn('SW register failed', e); });
+  });
 }
-if(window.caches){ caches.keys().then(ks=>{ ks.forEach(k=>caches.delete(k)); }).catch(()=>{}); }
 </script>
 
 <!-- UI script -->
