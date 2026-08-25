@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#181b21">
 <title>株式会社 狩所 — 案件管理</title>
+<!-- PWA（ホーム画面追加でアプリのように全画面起動） -->
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="application-name" content="狩所">
+<link rel="icon" href="icon-192.png">
+<!-- iOS対応 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="狩所">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
   /* 目に優しいダークテーマ（常時ダーク） */
   :root{
@@ -1265,6 +1275,10 @@ async function reload(){
     console.error(e);
   }
   $('reloadBtn').textContent='↻';
+}
+// PWA: Service Worker 登録（インストール可能化）
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
 }
 reload();
 </script>
