@@ -1784,7 +1784,7 @@ const ACTIVITIES = [
 ];
 function activeActs(date){ return cache.activities[date] || []; }
 function activityBonus(date){ const a=activeActs(date); return ACTIVITIES.reduce((s,x)=>s+(a.includes(x.key)?x.kcal:0),0); }
-let _foodView = 'log';   // 'log'（今日の記録） | 'master'（食材リスト）
+let _foodView = 'log';   // 'log'（今日の記録） | 'routine'（ルーティン）
 let _foodCat = 'main';
 let _foodSearch = '';
 let _pickMeal = 'breakfast';
@@ -1810,12 +1810,13 @@ window.shiftFoodDate = function(n){
 window.goFoodToday = function(){ _foodDate = getTodayDateString(); renderFoodTab(); };
 
 function renderFoodTab(){
+  if(_foodView!=='log') _foodView='routine'; // 旧'master'（食材リスト）は廃止→ルーティンへ
   $('ideal-content').innerHTML = `
     <div class="subtab-wrap" style="grid-template-columns:repeat(2,1fr);">
       <button class="subtab ${_foodView==='log'?'on':''}" onclick="setFoodView('log')">🍽️ 今日の記録</button>
-      <button class="subtab ${_foodView==='master'?'on':''}" onclick="setFoodView('master')">📋 食材リスト</button>
+      <button class="subtab ${_foodView==='routine'?'on':''}" onclick="setFoodView('routine')">📋 ルーティン</button>
     </div>
-    ${_foodView==='log' ? foodLogHTML() : foodMasterHTML()}
+    ${_foodView==='log' ? foodLogHTML() : routineHTML()}
   `;
 }
 window.setFoodView = function(v){ _foodView=v; renderFoodTab(); };
@@ -2131,43 +2132,71 @@ window.toggleExcludeDay = async function(){
   renderFoodTab();
 };
 
-// ---- 食材リスト（マスタ） ----
-function foodMasterListHTML(){
-  const q = (_foodSearch||'').trim();
-  // 検索中は全ジャンル横断、未検索時は選択中ジャンルのみ
-  let items = q ? cache.foodMenus.filter(i=>foodMatch(i,q)) : cache.foodMenus.filter(i=>i.category===_foodCat);
-  if(items.length===0) return `<div class="empty-state"><div class="em-ico">🍽️</div><div>${q?'該当する食材がありません':'まだ登録がありません'}</div></div>`;
-  const catIcon = (k)=> (FOOD_CATS.find(c=>c.key===k)||{}).icon || '';
-  return items.map(it=>`<div class="ptask-row" style="display:flex;align-items:center;gap:8px;">
-    <div style="flex:1;cursor:pointer;" onclick="openFoodEdit('${it.id}')">
-      <div style="font-size:14px;font-weight:600;">${q?`<span style="font-size:12px;">${catIcon(it.category)}</span> `:''}${it.name}</div>
-      <div style="font-size:11px;color:var(--ink-soft);">${Math.round(fnum(it.kcal))}kcal ・ 糖${fnum(it.carbs)}g 脂${fnum(it.fat)}g P${fnum(it.protein)}g</div>
-    </div>
-    <button onclick="deleteFood('${it.id}')" style="width:24px;height:24px;border:none;background:#f3f3f3;border-radius:50%;color:var(--ink-soft);cursor:pointer;">×</button>
-  </div>`).join('');
-}
-function renderFoodMasterList(){ const el=$('food-master-list'); if(el) el.innerHTML = foodMasterListHTML(); }
-window.onFoodSearch = function(v){ _foodSearch=v; renderFoodMasterList(); };
-function foodMasterHTML(){
-  const cat = FOOD_CATS.find(c=>c.key===_foodCat);
-  return `
-    <div class="subtab-wrap" style="grid-template-columns:repeat(3,1fr);">
-      ${FOOD_CATS.map(c=>`<button class="subtab ${_foodCat===c.key?'on':''}" onclick="setFoodCat('${c.key}')">${c.icon} ${c.label}</button>`).join('')}
-    </div>
-    <div class="card">
-      <input class="fi" type="text" id="food-search" placeholder="🔍 名称で検索" value="${(_foodSearch||'').replace(/"/g,'&quot;')}" oninput="onFoodSearch(this.value)">
-      <div class="sec-h" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;">
-        <div><span class="sec-h-icon">${cat.icon}</span>${cat.label}</div>
-        <button class="btn-sec" style="padding:6px 12px;" onclick="openFoodAdd()">＋ 追加</button>
-      </div>
-      <div id="food-master-list">${foodMasterListHTML()}</div>
+// ---- ルーティン（食事・運動・目標の型） ----
+function routineHTML(){
+  const sec = (icon,title,inner)=>`
+    <div class="card" style="margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:800;color:var(--ink);border-left:4px solid var(--pink);padding-left:10px;margin-bottom:12px;">${icon} ${title}</div>
+      ${inner}
     </div>`;
+  const row = (label,val)=>`<div style="display:flex;gap:10px;font-size:13px;line-height:1.6;margin-bottom:7px;"><span style="flex:0 0 auto;font-weight:700;color:var(--pink-dk);min-width:74px;">${label}</span><span style="color:var(--ink-soft);flex:1;">${val}</span></div>`;
+  const li = (t)=>`<div style="font-size:13px;line-height:1.65;color:var(--ink-soft);margin-bottom:6px;padding-left:15px;position:relative;"><span style="position:absolute;left:0;color:var(--pink);">・</span>${t}</div>`;
+  const note = (t)=>`<div style="font-size:11px;color:var(--ink-mute);line-height:1.6;margin-top:6px;">※${t}</div>`;
+  const subhead = (t)=>`<div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin:12px 0 6px;">${t}</div>`;
+  return `
+    ${sec('🎯','目標',
+      row('最終','体脂肪率14%を維持できる体（体重は結果）') +
+      row('12/31','70〜71kg / 体脂肪18〜19% / 骨格筋量32.5kg以上 / 腹囲85cm') +
+      row('その先','70kg前後で体重を止め、筋トレで14〜15%へ（来年夏目安）')
+    )}
+    ${sec('🍚','食事 <span style="font-weight:500;font-size:11px;color:var(--ink-mute);">1日約1,850kcal / タンパク質約140g</span>',
+      row('朝','オイコス＋バナナ＋卵2個（蜂蜜なし） ≒400') +
+      row('昼','ご飯150g＋肉or魚150g＋サラダ＋味噌汁 ≒600') +
+      row('夜','ご飯150g＋肉or魚150g＋サラダ＋味噌汁 ≒600') +
+      row('間食','プロテイン1回（ジム後） ≒120') +
+      row('肉魚ローテ','鶏むね皮なし / 豚ヒレ / 牛もも / 鮭 / サバ') +
+      row('撮影日','サラダチキン＋おにぎり1個＋ゆで卵＋プロテインバー（1食≒550・P50g）') +
+      note('これが下限。食事は削らない。調整は有酸素側で')
+    )}
+    ${sec('🏋️','運動（夜ジム）',
+      row('月水金','筋トレ30分 → 傾斜ウォーク45分 or ラン40分') +
+      row('火木土','傾斜ウォーク70分 or ラン60分') +
+      row('日','休養') +
+      note('傾斜ウォーク=5%・5.5km/h（最後10分8%でも可）、ラン=7.5km/h') +
+      note('筋トレ→有酸素の順は固定') +
+      note('手すりは持たない') +
+      note('翌週は上半身/下半身を入れ替え') +
+      subhead('上半身') +
+      li('チェストプレス / ラットプル / ショルダープレス / シーテッドロー / プランク30秒×3') +
+      subhead('下半身') +
+      li('レッグプレス / レッグカール / レッグエクステンション / ヒップアブダクション / 腹筋') +
+      note('各3セット×10〜12回。12回楽になったら重さ1段階UP')
+    )}
+    ${sec('📏','ルール',
+      li('撮影日はジム休み。翌日は有酸素のみ、筋トレは翌々日から') +
+      li('ジムが億劫な日は筋トレ30分だけで帰ってOK') +
+      li('足が痛い日は傾斜0〜3%のウォークに') +
+      li('体重は毎朝測って週平均だけ見る') +
+      li('月末InBody（同条件）で骨格筋量32.5kg以上を確認')
+    )}
+    ${sec('✅','答え合わせ 9/14',
+      row('79.5前後','続行') +
+      row('79.9〜80.2','火木土を10分延長') +
+      row('80.3以上','火木土の傾斜を8%に（ランなら65分）')
+    )}
+    ${sec('📆','月末目安',
+      row('9/30','78kg') +
+      row('10/31','75kg') +
+      row('11/30','72〜73kg') +
+      row('12/31','70〜71kg')
+    )}
+  `;
 }
 
 window.openFoodAdd = function(){
   _editFoodId = null;
   $('food-modal-title').textContent = '食材を追加';
-  $('food-cat').value = (_foodView==='master') ? _foodCat : 'main';
+  $('food-cat').value = 'main';
   $('food-name').value=''; $('food-yomi').value=''; $('food-kcal').value=''; $('food-carbs').value=''; $('food-fat').value=''; $('food-protein').value='';
   openModal('ov-food-add');
 };
