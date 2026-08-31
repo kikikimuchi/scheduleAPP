@@ -1864,8 +1864,6 @@ function foodLogHTML(){
   const wpct = wMax>0 ? Math.min(ml/wMax*100, 100) : 0;
   const wMet = ml>=wMin;
   const ws = weekStats(date);
-  const wkd = weekDeficitStats(date);
-  const wkdPct = wkd.target>0 ? Math.max(0, Math.min(wkd.achieved/wkd.target*100, 100)) : 0;
   // 筋トレ目標: 1日おき運用のため 3⇄4 を自己修正で交互にする。
   // 先週の実績が4回以上 → 今週は3回、3回以下 → 今週は4回（基準は4）。
   // これで「週4のはずが3で終わった」場合も、翌週は自動で4のまま＝手動調整不要。
@@ -1919,18 +1917,39 @@ function foodLogHTML(){
     </div>
   </div>
   <div class="card">
-    <div class="sec-h" style="display:flex;justify-content:space-between;align-items:baseline;">
-      <div style="font-size:13px;">📅 今週の赤字<span style="font-size:10px;color:var(--ink-soft);font-weight:600;">（前日まで）</span></div>
-      <div style="font-size:11px;color:var(--ink-soft);">目標 ${wkd.target.toLocaleString()} kcal（${wkd.effDays}日分）</div>
-    </div>
-    <div style="display:flex;align-items:baseline;gap:6px;margin:2px 0 8px;">
-      <div style="font-size:26px;font-weight:800;color:#D67E8E;line-height:1;">${wkd.achieved.toLocaleString()}</div>
-      <div style="font-size:12px;color:var(--ink-soft);">kcal ・ 脂肪 約${(wkd.achieved/7700).toFixed(2)}kg相当</div>
-    </div>
-    <div style="height:11px;background:#F3E6EA;border-radius:6px;overflow:hidden;margin-bottom:6px;">
-      <div style="height:100%;width:${wkdPct.toFixed(0)}%;background:${wkd.achieved>=wkd.target?'#D98A9A':'#E9B8C2'};border-radius:6px;transition:width .2s;"></div>
-    </div>
-    <div style="font-size:11px;color:var(--ink-soft);text-align:center;">${wkd.achieved>=wkd.target ? `今週の目標 ${wkd.target.toLocaleString()}kcal 達成 🎉 美味しいもの食べてOK` : `あと <b style="color:#D67E8E;">${(wkd.target-wkd.achieved).toLocaleString()}</b> kcal で今週の目標`}</div>
+    ${(()=>{
+      const td = totalDeficitStats();
+      const av = deficitAvgThroughYesterday();
+      const startW = fnum(cache.settings.startWeight)||83;
+      const targetW = fnum(cache.settings.targetWeight)||68;
+      const kcalKg = 7700;                                  // 脂肪1kg換算（アプリ共通）
+      const goalTotal = Math.max(1,(startW-targetW))*kcalKg; // 開始→目標に必要な総赤字
+      const pct = Math.max(0, Math.min(td.total/goalTotal*100, 100));
+      const remain = Math.max(0, goalTotal - td.total);
+      const doneKg = td.total/kcalKg;
+      const remainKg = remain/kcalKg;
+      const paceDays = av.avg>0 ? Math.ceil(remain/av.avg) : null; // 今のペースであと何日
+      const numColor = td.total>=0 ? '#D67E8E' : '#7FA8D0';
+      return `
+        <div class="sec-h" style="display:flex;justify-content:space-between;align-items:baseline;">
+          <div style="font-size:13px;">🔥 累計赤字<span style="font-size:10px;color:var(--ink-soft);font-weight:600;">（開始〜前日）</span></div>
+          <div style="font-size:11px;color:var(--ink-soft);">目標 ${goalTotal.toLocaleString()} kcal</div>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:6px;margin:2px 0 8px;">
+          <div style="font-size:28px;font-weight:800;color:${numColor};line-height:1;">${td.total.toLocaleString()}</div>
+          <div style="font-size:12px;color:var(--ink-soft);">kcal ・ 脂肪 約${doneKg.toFixed(2)}kg分</div>
+        </div>
+        <div style="height:12px;background:#F3E6EA;border-radius:6px;overflow:hidden;margin-bottom:5px;">
+          <div style="height:100%;width:${pct.toFixed(1)}%;background:linear-gradient(90deg,#E9B8C2,#D67E8E);border-radius:6px;transition:width .3s;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--ink-mute);margin-bottom:7px;">
+          <span>開始 ${startW}kg</span><span style="font-weight:700;color:var(--pink-dk);">${pct.toFixed(1)}%</span><span>目標 ${targetW}kg</span>
+        </div>
+        <div style="font-size:11px;color:var(--ink-soft);text-align:center;line-height:1.7;">
+          目標まで あと <b style="color:#D67E8E;">${remain.toLocaleString()}</b> kcal（脂肪 約${remainKg.toFixed(1)}kg）${paceDays ? `<br>今のペース（前日まで平均 ${Math.round(av.avg).toLocaleString()} kcal/日）なら あと約 <b>${paceDays.toLocaleString()}</b>日` : `<br><span style="color:var(--ink-mute);">記録を貯めるとペース予測が出ます</span>`}
+        </div>
+      `;
+    })()}
   </div>
   <div class="card" data-html2canvas-ignore="true">
     <div class="sec-h" style="display:flex;justify-content:space-between;align-items:center;">
