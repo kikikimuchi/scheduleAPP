@@ -1920,7 +1920,10 @@ function foodLogHTML(){
     ${(()=>{
       const td = totalDeficitStats();
       const av = deficitAvgThroughYesterday();
-      const startW = fnum(cache.settings.startWeight)||83;
+      // 起点体重：累積開始日(以前)で最新の実測体重。無ければ設定のスタート体重
+      const tStart = cache.settings.trackStartDate || '2026-06-25';
+      const wAtStart = (cache.weights||[]).filter(w=>w.date<=tStart).slice(-1)[0];
+      const startW = wAtStart ? fnum(wAtStart.weight) : (fnum(cache.settings.startWeight)||83);
       const targetW = fnum(cache.settings.targetWeight)||68;
       const kcalKg = 7700;                                  // 脂肪1kg換算（アプリ共通）
       const goalTotal = Math.max(1,(startW-targetW))*kcalKg; // 開始→目標に必要な総赤字
