@@ -1778,8 +1778,10 @@ const MEALS = [
 ];
 // 運動による消費カロリー＋（タップで加算）
 const ACTIVITIES = [
-  { key:'run30', label:'30分ラン', kcal:250, icon:'🏃' },
-  { key:'run60', label:'40分ラン', kcal:350, icon:'🏃‍♂️' },
+  // key は過去データ互換のため変更しない（run60=350 は実測の傾斜ウォーク45分と一致）
+  { key:'run60', label:'傾斜ウォーク45分', kcal:350, icon:'🚶' },
+  { key:'walk70', label:'傾斜ウォーク70分', kcal:525, icon:'🚶‍♂️' },
+  { key:'run30', label:'軽め有酸素30分', kcal:250, icon:'🏃' },
   { key:'shoot', label:'撮影日', kcal:300, icon:'🎬' },
 ];
 function activeActs(date){ return cache.activities[date] || []; }
