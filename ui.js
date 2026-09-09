@@ -1860,6 +1860,9 @@ function foodLogHTML(){
   const defPct = targetDeficit>0 ? Math.max(0, Math.min(deficit/targetDeficit*100, 100)) : 0;
   const pct = target>0 ? Math.min(kcal/target*100, 100) : 0;
   const over = target>0 && kcal>target;
+  // メイン表示は「その日の消費(基礎+運動)」を分母に：バー100%未満=赤字、超え=黒字
+  const burnPct = burn>0 ? Math.min(kcal/burn*100, 100) : 0;
+  const overBurn = burn>0 && kcal>burn;
   const acts = activeActs(date);
   const ml = fnum(cache.water[date]);
   const wMin = fnum(cache.settings.waterMinMl)||2500, wMax = fnum(cache.settings.waterMaxMl)||3000;
@@ -1893,13 +1896,13 @@ function foodLogHTML(){
     <div style="font-size:16px;font-weight:700;margin-bottom:12px;">${isToday?'今日':dateLabelJP(date)}の摂取カロリー</div>
     <div style="display:flex;align-items:baseline;gap:6px;">
       <div style="font-size:34px;font-weight:700;line-height:1;">${kcal}</div>
-      <div style="font-size:13px;opacity:.9;">/ ${target||'—'} kcal</div>
+      <div style="font-size:13px;opacity:.9;">/ ${basal>0 ? `${burn} kcal <span style="font-size:10px;">（消費：基礎${actBonus?'+運動':''}）</span>` : `${target||'—'} kcal`}</div>
     </div>
     <div style="height:10px;background:rgba(255,255,255,.25);border-radius:6px;overflow:hidden;margin:10px 0 8px;">
-      <div style="height:100%;width:${pct.toFixed(0)}%;background:${over?'#FFB4B4':'#fff'};border-radius:6px;"></div>
+      <div style="height:100%;width:${(basal>0?burnPct:pct).toFixed(0)}%;background:${(basal>0?overBurn:over)?'#FFB4B4':'#fff'};border-radius:6px;"></div>
     </div>
-    <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;">
-      <span>${remaining>=0 ? `あと ${Math.round(remaining)} kcal` : `${Math.round(-remaining)} kcal オーバー`}</span>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:13px;font-weight:700;">
+      <span style="font-size:11px;font-weight:600;opacity:.9;">目標摂取 ${target||'—'}（${remaining>=0 ? `あと ${Math.round(remaining)}` : `${Math.round(-remaining)} オーバー`}）</span>
       ${basal>0 ? `<span>🔻 赤字 ${deficit>=0?'−':'+'}${Math.abs(Math.round(deficit))} kcal</span>` : `<span style="opacity:.9;">目標 ${target||'—'}</span>`}
     </div>
     ${basal>0 ? `<div style="font-size:10.5px;opacity:.85;margin-top:4px;">消費 ${burn}（基礎${basal}${actBonus?`+運動${actBonus}`:''}）− 摂取 ${kcal}${burn<targetBurn?` ／ 目標消費まで運動であと ${targetBurn-burn}`:` ／ 目標消費 ${targetBurn} 達成🎉`}</div>` : ''}
