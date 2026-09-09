@@ -1785,7 +1785,13 @@ const ACTIVITIES = [
   { key:'shoot', label:'撮影日', kcal:300, icon:'🎬' },
 ];
 function activeActs(date){ return cache.activities[date] || []; }
-function activityBonus(date){ const a=activeActs(date); return ACTIVITIES.reduce((s,x)=>s+(a.includes(x.key)?x.kcal:0),0); }
+const WORKOUT_BONUS_KCAL = 150; // 筋トレ実施日の保守的な消費加算（実際は30〜60分で150〜300程度）
+function activityBonus(date){
+  const a=activeActs(date);
+  let s = ACTIVITIES.reduce((sum,x)=>sum+(a.includes(x.key)?x.kcal:0),0);
+  if(cache.workouts && cache.workouts[date]) s += WORKOUT_BONUS_KCAL; // 「今日やった✓」で自動加算
+  return s;
+}
 let _foodView = 'log';   // 'log'（今日の記録） | 'routine'（ルーティン）
 let _foodCat = 'main';
 let _foodSearch = '';
