@@ -2178,9 +2178,9 @@ function routineHTML(){
   const subhead = (t)=>`<div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin:12px 0 6px;">${t}</div>`;
   return `
     ${sec('🎯','目標',
-      row('最終','体脂肪率14%を維持できる体（体重は結果）') +
+      row('最終','<b>64〜66kg / 体脂肪12%</b>を人生維持（綺麗に割れた腹筋）') +
       row('12/31','70〜71kg / 体脂肪18〜19% / 骨格筋量32.5kg以上 / 腹囲85cm') +
-      row('その先','70kg前後で体重を止め、筋トレで14〜15%へ（来年夏目安）')
+      row('その先','70kg/19%で韓国 → 筋トレ継続で12%・64〜66kgへ → 以降は維持フェーズ')
     )}
     ${sec('🍚','食事 <span style="font-weight:500;font-size:11px;color:var(--ink-mute);">1日約1,850kcal / タンパク質約140g</span>',
       row('朝','オイコス＋バナナ＋卵2個（蜂蜜なし） ≒400') +
