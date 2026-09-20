@@ -1792,6 +1792,13 @@ function activityBonus(date){
   if(cache.workouts && cache.workouts[date]) s += WORKOUT_BONUS_KCAL; // 「今日やった✓」で自動加算
   return s;
 }
+// 生活活動（歩く・立つ・消化など）ぶんの消費。基礎代謝×係数で控えめに見積もる
+const NEAT_DEFAULT_FACTOR = 1.3;
+function neatBonus(){
+  const basal = fnum(cache.settings.basalMetabolism)||0;
+  const f = fnum(cache.settings.activityFactor) || NEAT_DEFAULT_FACTOR;
+  return Math.round(basal * (f - 1));
+}
 let _foodView = 'log';   // 'log'（今日の記録） | 'routine'（ルーティン）
 let _foodCat = 'main';
 let _foodSearch = '';
@@ -1859,7 +1866,8 @@ function foodLogHTML(){
   const date = foodDate();
   const isToday = date === getTodayDateString();
   const actBonus = activityBonus(date);    // 運動による消費＋
-  const burn = basal + actBonus;            // その日の総消費
+  const neat = basal>0 ? neatBonus() : 0;   // 生活活動ぶん
+  const burn = basal + neat + actBonus;     // その日の総消費
   const deficit = burn - kcal;              // 赤字 = 総消費 − 摂取
   const targetBurn = fnum(cache.settings.targetBurn) || 2700;   // 目標消費
   const targetDeficit = Math.max(targetBurn - target, 0);       // 理想の赤字(=2700-1700=1000)
@@ -1902,7 +1910,7 @@ function foodLogHTML(){
     <div style="font-size:16px;font-weight:700;margin-bottom:12px;">${isToday?'今日':dateLabelJP(date)}の摂取カロリー</div>
     <div style="display:flex;align-items:baseline;gap:6px;">
       <div style="font-size:34px;font-weight:700;line-height:1;">${kcal}</div>
-      <div style="font-size:13px;opacity:.9;">/ ${basal>0 ? `${burn} kcal <span style="font-size:10px;">（消費：基礎${actBonus?'+運動':''}）</span>` : `${target||'—'} kcal`}</div>
+      <div style="font-size:13px;opacity:.9;">/ ${basal>0 ? `${burn} kcal <span style="font-size:10px;">（消費：基礎+生活${actBonus?'+運動':''}）</span>` : `${target||'—'} kcal`}</div>
     </div>
     <div style="height:10px;background:rgba(255,255,255,.25);border-radius:6px;overflow:hidden;margin:10px 0 8px;">
       <div style="height:100%;width:${(basal>0?burnPct:pct).toFixed(0)}%;background:${(basal>0?overBurn:over)?'#FFB4B4':'#fff'};border-radius:6px;"></div>
@@ -1911,7 +1919,7 @@ function foodLogHTML(){
       <span style="font-size:11px;font-weight:600;opacity:.9;">目標摂取 ${target||'—'}（${remaining>=0 ? `あと ${Math.round(remaining)}` : `${Math.round(-remaining)} オーバー`}）</span>
       ${basal>0 ? `<span>🔻 赤字 ${deficit>=0?'−':'+'}${Math.abs(Math.round(deficit))} kcal</span>` : `<span style="opacity:.9;">目標 ${target||'—'}</span>`}
     </div>
-    ${basal>0 ? `<div style="font-size:10.5px;opacity:.85;margin-top:4px;">消費 ${burn}（基礎${basal}${actBonus?`+運動${actBonus}`:''}）− 摂取 ${kcal}${burn<targetBurn?` ／ 目標消費まで運動であと ${targetBurn-burn}`:` ／ 目標消費 ${targetBurn} 達成🎉`}</div>` : ''}
+    ${basal>0 ? `<div style="font-size:10.5px;opacity:.85;margin-top:4px;">消費 ${burn}（基礎${basal}＋生活${neat}${actBonus?`＋運動${actBonus}`:''}）− 摂取 ${kcal}${burn<targetBurn?` ／ 目標消費まで運動であと ${targetBurn-burn}`:` ／ 目標消費 ${targetBurn} 達成🎉`}</div>` : ''}
     <div style="display:flex;gap:6px;margin-top:10px;">
       <div style="flex:1;background:${carbsOver?'rgba(255,150,150,.35)':'rgba(255,255,255,.18)'};border-radius:8px;padding:6px;text-align:center;">
         <div style="font-size:10px;opacity:.85;">糖質${carbsOver?' ⚠️':''}</div>
@@ -2098,7 +2106,7 @@ function weekDeficitStats(refDate){
     const meals = cache.meals[k];
     if(meals && meals.length && k>=trackStart && k < today){ // 開始日以降かつ前日までの記録のみ加算（今日は途中なので除外）
       const consumed = meals.reduce((a,e)=>a+fnum(e.kcal),0);
-      achieved += (basal + activityBonus(k)) - consumed;
+      achieved += (basal + neatBonus() + activityBonus(k)) - consumed;
     }
   }
   return { achieved: Math.round(achieved), target: Math.round(effDays*dailyTarget), effDays };
@@ -2116,7 +2124,7 @@ function totalDeficitStats(){
   Object.keys(cache.meals||{}).forEach(d=>{
     if(d>=start && d<today && !isExcludedDay(d) && cache.meals[d] && cache.meals[d].length){ // 今日は途中なので除外（前日まで）。自主制作期間も除外
       const consumed = cache.meals[d].reduce((a,e)=>a+fnum(e.kcal),0);
-      total += (basal + activityBonus(d)) - consumed;
+      total += (basal + neatBonus() + activityBonus(d)) - consumed;
       loggedDays++;
     }
   });
@@ -2131,7 +2139,7 @@ function deficitAvgThroughYesterday(){
   Object.keys(cache.meals||{}).forEach(d=>{
     if(d>=start && d<=yest && !isExcludedDay(d) && cache.meals[d] && cache.meals[d].length){
       const consumed = cache.meals[d].reduce((a,e)=>a+fnum(e.kcal),0);
-      total += (basal + activityBonus(d)) - consumed; days++;
+      total += (basal + neatBonus() + activityBonus(d)) - consumed; days++;
     }
   });
   return { avg: days>0 ? total/days : 0, days };
